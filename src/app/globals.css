@@ -1,26 +1,76 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #faf8f5;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --muted: #f2ede5;
+  --muted-foreground: #78716c;
+  --border: #e7e0d4;
+  --accent: #b5651d;
+  --accent-foreground: #fffaf3;
+  --accent-soft: #f6e7d8;
+
+  --urgent: #c2483c;
+  --urgent-soft: #fbe9e7;
+  --important: #c8811f;
+  --important-soft: #faf0dc;
+  --watch: #a68b1f;
+  --watch-soft: #f8f3dc;
+  --good: #3f7a53;
+  --good-soft: #e7f2ea;
+
+  --radius: 0.75rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-urgent: var(--urgent);
+  --color-urgent-soft: var(--urgent-soft);
+  --color-important: var(--important);
+  --color-important-soft: var(--important-soft);
+  --color-watch: var(--watch);
+  --color-watch-soft: var(--watch-soft);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --font-sans: var(--font-inter);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #161310;
+    --foreground: #f3ede3;
+    --card: #201c17;
+    --card-foreground: #f3ede3;
+    --muted: #241f19;
+    --muted-foreground: #a89f92;
+    --border: #332c23;
+    --accent: #d68a3f;
+    --accent-foreground: #1c1410;
+    --accent-soft: #3a2a19;
+
+    --urgent-soft: #3a201d;
+    --important-soft: #3a2d16;
+    --watch-soft: #35301a;
+    --good-soft: #1f2f24;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  border-color: var(--border);
 }

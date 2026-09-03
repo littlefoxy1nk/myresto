@@ -1,0 +1,38 @@
+-- RedefineTables
+PRAGMA defer_foreign_keys=ON;
+PRAGMA foreign_keys=OFF;
+CREATE TABLE "new_Membership" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "establishmentId" TEXT NOT NULL,
+    "roleId" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "jobTitle" TEXT,
+    "hiredAt" DATETIME,
+    "weeklyHoursTarget" REAL,
+    "maxShiftsPerWeek" INTEGER,
+    "skills" TEXT,
+    "notes" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "Membership_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "Membership_establishmentId_fkey" FOREIGN KEY ("establishmentId") REFERENCES "Establishment" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "Membership_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+INSERT INTO "new_Membership" ("createdAt", "establishmentId", "hiredAt", "id", "jobTitle", "maxShiftsPerWeek", "notes", "roleId", "skills", "status", "updatedAt", "userId", "weeklyHoursTarget") SELECT "createdAt", "establishmentId", "hiredAt", "id", "jobTitle", "maxShiftsPerWeek", "notes", "roleId", "skills", "status", "updatedAt", "userId", "weeklyHoursTarget" FROM "Membership";
+DROP TABLE "Membership";
+ALTER TABLE "new_Membership" RENAME TO "Membership";
+CREATE UNIQUE INDEX "Membership_userId_establishmentId_key" ON "Membership"("userId", "establishmentId");
+CREATE TABLE "new_ReservationTable" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "reservationId" TEXT NOT NULL,
+    "tableId" TEXT NOT NULL,
+    CONSTRAINT "ReservationTable_reservationId_fkey" FOREIGN KEY ("reservationId") REFERENCES "Reservation" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "ReservationTable_tableId_fkey" FOREIGN KEY ("tableId") REFERENCES "RestaurantTable" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+INSERT INTO "new_ReservationTable" ("id", "reservationId", "tableId") SELECT "id", "reservationId", "tableId" FROM "ReservationTable";
+DROP TABLE "ReservationTable";
+ALTER TABLE "new_ReservationTable" RENAME TO "ReservationTable";
+CREATE UNIQUE INDEX "ReservationTable_reservationId_tableId_key" ON "ReservationTable"("reservationId", "tableId");
+PRAGMA foreign_keys=ON;
+PRAGMA defer_foreign_keys=OFF;

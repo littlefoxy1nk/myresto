@@ -1,0 +1,550 @@
+// MYRESTO — modèle de données
+// SQLite en développement (pas d'enums natifs -> valeurs en String documentées ci-dessous,
+// validées côté application avec Zod). Passage en PostgreSQL en prod : changer le provider
+// et promouvoir les champs "enum-like" en vrais enums Prisma.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// =========================================================================
+// IDENTITÉ / MULTI-TENANT
+// =========================================================================
+
+/// Le "tenant" facturable. Peut posséder plusieurs établissements (v2 : multi-site).
+model Company {
+  id            String         @id @default(cuid())
+  name          String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  establishments Establishment[]
+  users         User[]
+}
+
+/// Un restaurant / bar physique. Toute donnée métier est rattachée à un establishmentId.
+model Establishment {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name          String
+  type          String   // restaurant | bar | brasserie | cafe
+  /// Établissement de démonstration (seed) : jamais un vrai client. Affiché explicitement
+  /// dans l'UI partout où des données pourraient sembler réelles — jamais mêlé au nom.
+  isDemo        Boolean  @default(false)
+  address       String?
+  city          String?
+  postalCode    String?
+  country       String   @default("BE")
+  timezone      String   @default("Europe/Brussels")
+  currency      String   @default("EUR")
+  onboardedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  memberships     Membership[]
+  roles           Role[]
+  services        ServiceDefinition[]
+  zones           Zone[]
+  tables          RestaurantTable[]
+  reservations    Reservation[]
+  customers       Customer[]
+  shifts          Shift[]
+  availabilities  Availability[]
+  timeOffRequests TimeOffRequest[]
+  schedulingRules SchedulingRule[]
+  products        Product[]
+  suppliers       Supplier[]
+  stockMovements  StockMovement[]
+  revenueEntries  RevenueEntry[]
+  costEntries     CostEntry[]
+  serviceReports  ServiceReport[]
+  alerts          Alert[]
+  insights        Insight[]
+  marketingPosts  MarketingPost[]
+  campaigns       Campaign[]
+  auditLogs       AuditLog[]
+  agendaEvents    AgendaEvent[]
+}
+
+model User {
+  id            String       @id @default(cuid())
+  companyId     String
+  company       Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  email         String       @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
+  avatarUrl     String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  memberships   Membership[]
+}
+
+/// Rattache un utilisateur à un établissement avec un rôle donné.
+/// C'est cette table qui porte le contexte "employé" (RH) au sein de l'établissement.
+model Membership {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  roleId          String
+  role            Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  status          String        @default("active") // active | inactive
+  jobTitle        String?       // ex: "Chef de rang", "Second de cuisine"
+  hiredAt         DateTime?
+  weeklyHoursTarget Float?      // heures contractuelles / semaine
+  maxShiftsPerWeek  Int?
+  skills          String?       // CSV simple, ex: "bar,salle,cuisine"
+  notes           String?       // notes internes RH
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  shifts          Shift[]
+  availabilities  Availability[]
+  timeOffRequests TimeOffRequest[]
+  documents       EmployeeDocument[]
+
+  @@unique([userId, establishmentId])
+}
+
+model EmployeeDocument {
+  id           String     @id @default(cuid())
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  label        String
+  url          String
+  createdAt    DateTime   @default(now())
+}
+
+/// Rôle système ou personnalisé, propre à un établissement (sauf rôles "template" globaux).
+model Role {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  key             String        // OWNER | DIRECTOR | MANAGER | FLOOR_MANAGER | CHEF | BAR_MANAGER | FLOOR_STAFF | KITCHEN_STAFF | BAR_STAFF | CUSTOM_*
+  label           String
+  isSystem        Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+
+  permissions     RolePermission[]
+  memberships     Membership[]
+
+  @@unique([establishmentId, key])
+}
+
+/// Catalogue global des permissions possibles (fixe, défini par le code).
+model Permission {
+  id          String  @id @default(cuid())
+  key         String  @unique // ex: "reservations.view", "payroll.view", "settings.manage"
+  label       String
+  category    String  // reservations | schedule | staff | finance | inventory | marketing | settings | crm
+
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+// =========================================================================
+// SERVICES / PLANNING / RH
+// =========================================================================
+
+/// Définition d'un service récurrent (ex: "Déjeuner", "Dîner") utilisé pour le planning
+/// et pour rattacher les réservations à un créneau logique.
+model ServiceDefinition {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  name            String        // "Déjeuner", "Dîner", "Brunch"
+  startTime       String        // "12:00"
+  endTime         String        // "14:30"
+  daysOfWeek      String        // CSV "1,2,3,4,5" (1=lundi..7=dimanche)
+  createdAt       DateTime      @default(now())
+
+  shifts          Shift[]
+  reservations    Reservation[]
+}
+
+model Shift {
+  id              String            @id @default(cuid())
+  establishmentId String
+  establishment   Establishment     @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  membershipId    String
+  membership      Membership        @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  serviceId       String?
+  service         ServiceDefinition? @relation(fields: [serviceId], references: [id])
+  date            DateTime          // jour du shift (00:00)
+  startTime       String            // "18:00"
+  endTime         String            // "23:00"
+  position        String            // "salle" | "cuisine" | "bar" | "direction"
+  status          String            @default("planned") // planned | published | confirmed | completed | cancelled
+  source          String            @default("manual")  // manual | auto_generated
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model Availability {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  membershipId    String
+  membership      Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  dayOfWeek       Int           // 1..7
+  startTime       String?       // null = indisponible toute la journée
+  endTime         String?
+  kind            String        @default("preferred") // preferred | unavailable
+  createdAt       DateTime      @default(now())
+}
+
+model TimeOffRequest {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  membershipId    String
+  membership      Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  startDate       DateTime
+  endDate         DateTime
+  reason          String?
+  status          String        @default("pending") // pending | approved | rejected
+  reviewedById    String?
+  reviewNote      String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+/// Règle métier utilisée par le moteur de planning (contraintes dures/souples).
+model SchedulingRule {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  membershipId    String?       // null = règle globale à l'établissement
+  type            String        // max_shifts_per_week | min_rest_days | no_more_than_n_consecutive_days | required_role_per_service | preferred_shift_time
+  params          String        // JSON stringifié des paramètres de la règle
+  isHard          Boolean       @default(true) // contrainte dure (bloquante) vs souple (préférence)
+  createdAt       DateTime      @default(now())
+}
+
+// =========================================================================
+// PLAN DE SALLE
+// =========================================================================
+
+model Zone {
+  id              String            @id @default(cuid())
+  establishmentId String
+  establishment   Establishment     @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  name            String            // "Salle", "Terrasse", "Bar", "Salon privé"
+  sortOrder       Int               @default(0)
+  tables          RestaurantTable[]
+}
+
+model RestaurantTable {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  zoneId          String
+  zone            Zone          @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  label           String        // "T12"
+  capacity        Int
+  shape           String        @default("square") // square | round | rect
+  posX            Float         @default(0)
+  posY            Float         @default(0)
+  width           Float         @default(80)
+  height          Float         @default(80)
+  status          String        @default("available") // available | seated | reserved | cleaning
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  reservationTables ReservationTable[]
+  mergesAsPrimary   TableMerge[]       @relation("PrimaryTable")
+}
+
+/// Fusion temporaire (le temps d'un service) ou permanente de plusieurs tables.
+model TableMerge {
+  id              String   @id @default(cuid())
+  primaryTableId  String
+  primaryTable    RestaurantTable @relation("PrimaryTable", fields: [primaryTableId], references: [id], onDelete: Cascade)
+  mergedTableIds  String   // CSV des ids de RestaurantTable fusionnées avec la primaire
+  combinedCapacity Int
+  isPermanent     Boolean  @default(false)
+  activeFrom      DateTime @default(now())
+  activeUntil     DateTime?
+}
+
+// =========================================================================
+// RÉSERVATIONS
+// =========================================================================
+
+model Reservation {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  serviceId       String?
+  service         ServiceDefinition? @relation(fields: [serviceId], references: [id])
+  customerId      String?
+  customer        Customer?     @relation(fields: [customerId], references: [id])
+  customerName    String        // dénormalisé pour réservations sans fiche CRM
+  customerPhone   String?
+  customerEmail   String?
+  partySize       Int
+  date            DateTime      // jour
+  time            String        // "20:00"
+  durationMinutes Int           @default(90)
+  status          String        @default("new") // new | confirmed | arrived | seated | completed | cancelled | no_show
+  notes           String?       // notes internes
+  specialRequests String?       // allergies, anniversaire, événement...
+  source          String        @default("manual") // manual | phone | online | walk_in
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  tables          ReservationTable[]
+  statusHistory   ReservationStatusEvent[]
+}
+
+model ReservationTable {
+  id            String          @id @default(cuid())
+  reservationId String
+  reservation   Reservation     @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  tableId       String
+  table         RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([reservationId, tableId])
+}
+
+model ReservationStatusEvent {
+  id            String      @id @default(cuid())
+  reservationId String
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  status        String
+  at            DateTime    @default(now())
+}
+
+// =========================================================================
+// CRM CLIENT
+// =========================================================================
+
+model Customer {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  firstName       String
+  lastName        String
+  phone           String?
+  email           String?
+  birthday        DateTime?
+  preferences     String?       // texte libre
+  allergies       String?
+  notes           String?
+  favoriteTableId String?
+  visitCount      Int           @default(0)
+  totalSpentCents Int           @default(0)
+  lastVisitAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  reservations    Reservation[]
+}
+
+// =========================================================================
+// MARKETING
+// =========================================================================
+
+model MarketingPost {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  campaignId      String?
+  campaign        Campaign?     @relation(fields: [campaignId], references: [id])
+  title           String
+  content         String
+  channel         String        // instagram | facebook | email | sms
+  scheduledFor    DateTime
+  status          String        @default("draft") // draft | scheduled | published
+  aiGenerated     Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Campaign {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  name            String
+  goal            String?       // ex: "remplir le mardi"
+  startDate       DateTime
+  endDate         DateTime
+  status          String        @default("draft")
+  createdAt       DateTime      @default(now())
+
+  posts           MarketingPost[]
+}
+
+// =========================================================================
+// STOCK
+// =========================================================================
+
+model Supplier {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  name            String
+  contactEmail    String?
+  contactPhone    String?
+
+  products        Product[]
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  supplierId      String?
+  supplier        Supplier?     @relation(fields: [supplierId], references: [id])
+  name            String
+  category        String
+  unit            String        // "kg", "L", "pièce"
+  currentStock    Float         @default(0)
+  reorderThreshold Float        @default(0)
+  avgDailyUsage   Float         @default(0)
+  unitCostCents   Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  movements       StockMovement[]
+}
+
+model StockMovement {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type            String        // in | out | inventory_adjustment
+  quantity        Float
+  note            String?
+  createdAt       DateTime      @default(now())
+}
+
+// =========================================================================
+// FINANCES
+// =========================================================================
+
+model RevenueEntry {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  date            DateTime
+  amountCents     Int
+  covers          Int           @default(0)
+  source          String        @default("service") // service | event | other
+  createdAt       DateTime      @default(now())
+}
+
+model CostEntry {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  date            DateTime
+  category        String        // labor | goods | rent | utilities | other
+  amountCents     Int
+  note            String?
+  createdAt       DateTime      @default(now())
+}
+
+// =========================================================================
+// MÉMOIRE OPÉRATIONNELLE / INSIGHTS / ALERTES
+// =========================================================================
+
+/// "Fin de service" — capture rapide de comment s'est passé un service.
+model ServiceReport {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  date            DateTime
+  serviceLabel    String        // "Dîner"
+  rating          String        // good | normal | bad
+  issues          String?       // CSV: kitchen | floor | understaffed | wait | difficult_customer | stock | other
+  covers          Int?
+  note            String?
+  createdById     String?
+  createdAt       DateTime      @default(now())
+}
+
+/// Alerte priorisée affichée dans le centre d'alertes et sur "Aujourd'hui".
+model Alert {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  severity        String        // urgent | important | watch
+  category        String        // staffing | reservations | stock | schedule | finance
+  title           String
+  description     String?
+  entityType      String?       // "shift" | "reservation" | "product" ...
+  entityId        String?
+  status          String        @default("open") // open | dismissed | resolved
+  createdAt       DateTime      @default(now())
+  resolvedAt      DateTime?
+}
+
+/// Recommandation ou observation générée par la couche d'intelligence (règles ou IA).
+model Insight {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  type            String        // recommendation | observation
+  title           String
+  description     String
+  actionLabel     String?       // "Ajouter Julie de 19h à 22h"
+  actionPayload   String?       // JSON stringifié décrivant l'action exécutable
+  status          String        @default("pending") // pending | accepted | dismissed
+  createdAt       DateTime      @default(now())
+}
+
+// =========================================================================
+// AGENDA DIRECTION
+// =========================================================================
+
+model AgendaEvent {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  startAt         DateTime
+  endAt           DateTime
+  visibility      String        @default("management") // management | shared_all
+  createdById     String?
+  createdAt       DateTime      @default(now())
+}
+
+// =========================================================================
+// AUDIT
+// =========================================================================
+
+model AuditLog {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  userId          String?
+  action          String        // ex: "reservation.status_changed"
+  entityType      String
+  entityId        String
+  metadata        String?       // JSON stringifié
+  createdAt       DateTime      @default(now())
+}
