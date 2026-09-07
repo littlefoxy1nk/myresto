@@ -2,11 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
 import { prisma } from "@/lib/prisma";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { startOfWeek, endOfWeek } from "date-fns";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Users2 } from "lucide-react";
+import { getZoneAssignments } from "@/modules/staff/server/assignments";
+import { ZoneAssignmentsSummary } from "@/modules/staff/components/zone-assignments-summary";
+import { AssignmentManagerDialog } from "@/modules/staff/components/assignment-manager-dialog";
 
 export default async function EquipePage() {
   const ctx = await getCurrentContext();
@@ -15,15 +18,27 @@ export default async function EquipePage() {
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
 
-  const memberships = await prisma.membership.findMany({
-    where: { establishmentId: ctx.establishment.id, status: "active" },
-    include: {
-      user: true,
-      role: true,
-      shifts: { where: { date: { gte: weekStart, lte: weekEnd } } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  const [memberships, assignments] = await Promise.all([
+    prisma.membership.findMany({
+      where: { establishmentId: ctx.establishment.id, status: "active" },
+      include: {
+        user: true,
+        role: true,
+        shifts: { where: { date: { gte: weekStart, lte: weekEnd } } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    getZoneAssignments(),
+  ]);
+
+  const zoneByMembership = new Map<string, string[]>();
+  for (const zone of assignments.zones) {
+    for (const member of zone.members) {
+      const list = zoneByMembership.get(member.membershipId) ?? [];
+      list.push(zone.zoneName);
+      zoneByMembership.set(member.membershipId, list);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -43,6 +58,29 @@ export default async function EquipePage() {
           </Button>
         )}
       </div>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+            <Users2 size={15} aria-hidden="true" />
+            Équipe du service
+          </CardTitle>
+          {assignments.canEdit && (
+            <AssignmentManagerDialog
+              zones={assignments.zones}
+              assignableMembers={assignments.assignableMembers}
+              trigger={
+                <Button size="sm" variant="secondary">
+                  Modifier les affectations
+                </Button>
+              }
+            />
+          )}
+        </CardHeader>
+        <CardContent className="pt-0">
+          <ZoneAssignmentsSummary zones={assignments.zones} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 sm:grid-cols-2">
         {memberships.map((m) => {
@@ -80,6 +118,9 @@ export default async function EquipePage() {
                   </span>
                 )}
               </div>
+              {zoneByMembership.has(m.id) && (
+                <p className="mt-2 text-xs text-accent">→ {zoneByMembership.get(m.id)!.join(", ")}</p>
+              )}
             </Card>
           );
         })}

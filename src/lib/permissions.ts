@@ -6,12 +6,14 @@ export const PERMISSIONS = [
   // Réservations & salle
   { key: "reservations.view", label: "Voir les réservations", category: "reservations" },
   { key: "reservations.edit", label: "Créer / modifier les réservations", category: "reservations" },
+  { key: "floorplan.view", label: "Voir le plan de salle", category: "reservations" },
   { key: "floorplan.edit", label: "Modifier le plan de salle", category: "reservations" },
   { key: "service.run", label: "Piloter le mode service", category: "reservations" },
 
   // Équipe / planning
   { key: "staff.view", label: "Voir l'équipe", category: "staff" },
   { key: "staff.manage", label: "Gérer l'équipe (fiches, rôles)", category: "staff" },
+  { key: "staff.assign", label: "Affecter l'équipe aux zones/tables", category: "staff" },
   { key: "schedule.view", label: "Voir le planning", category: "staff" },
   { key: "schedule.edit", label: "Modifier le planning", category: "staff" },
   { key: "timeoff.manage", label: "Valider les congés / absences", category: "staff" },
@@ -61,32 +63,32 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRoleKey, PermissionKey[]> = 
   OWNER: ALL,
   DIRECTOR: ALL,
   MANAGER: [
-    "reservations.view", "reservations.edit", "floorplan.edit", "service.run",
-    "staff.view", "staff.manage", "schedule.view", "schedule.edit", "timeoff.manage",
+    "reservations.view", "reservations.edit", "floorplan.view", "floorplan.edit", "service.run",
+    "staff.view", "staff.manage", "staff.assign", "schedule.view", "schedule.edit", "timeoff.manage",
     "inventory.view", "inventory.manage",
     "crm.view", "crm.manage",
     "marketing.view", "marketing.publish",
     "insights.view", "finance.view",
   ],
   FLOOR_MANAGER: [
-    "reservations.view", "reservations.edit", "floorplan.edit", "service.run",
-    "staff.view", "schedule.view",
+    "reservations.view", "reservations.edit", "floorplan.view", "floorplan.edit", "service.run",
+    "staff.view", "staff.assign", "schedule.view",
     "crm.view", "crm.manage",
     "insights.view",
   ],
   CHEF: [
-    "reservations.view", "service.run",
+    "reservations.view", "floorplan.view", "service.run",
     "staff.view", "schedule.view",
     "inventory.view", "inventory.manage",
   ],
   BAR_MANAGER: [
-    "reservations.view", "service.run",
+    "reservations.view", "floorplan.view", "service.run",
     "staff.view", "schedule.view",
     "inventory.view", "inventory.manage",
   ],
-  FLOOR_STAFF: ["reservations.view", "service.run", "schedule.view"],
-  KITCHEN_STAFF: ["service.run", "schedule.view", "inventory.view"],
-  BAR_STAFF: ["service.run", "schedule.view", "inventory.view"],
+  FLOOR_STAFF: ["reservations.view", "floorplan.view", "service.run", "schedule.view"],
+  KITCHEN_STAFF: ["floorplan.view", "service.run", "schedule.view", "inventory.view"],
+  BAR_STAFF: ["floorplan.view", "service.run", "schedule.view", "inventory.view"],
 };
 
 export const ROLE_LABELS: Record<SystemRoleKey, string> = {

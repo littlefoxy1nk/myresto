@@ -1,12 +1,26 @@
-import { ComingSoon } from "@/components/coming-soon";
+import { redirect } from "next/navigation";
+import { getCurrentContext } from "@/lib/current-context";
+import { getFloorPlan } from "@/modules/floorplan/server/queries";
+import { FloorPlanApp } from "@/modules/floorplan/components/floor-plan-app";
 
-export default function Page() {
+export default async function PlanDeSallePage() {
+  const ctx = await getCurrentContext();
+  if (!ctx.can("floorplan.view")) redirect("/aujourdhui");
+
+  const zones = await getFloorPlan(ctx.establishment.id);
+
   return (
-    <ComingSoon
-      icon="LayoutGrid"
-      title="Plan de salle interactif"
-      description="Déplacez vos tables, fusionnez-les pour les grandes tablées et assignez vos serveurs directement depuis le plan."
-      phase="Phase 3 — Réservations, plan de salle, fusion de tables, service."
-    />
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Plan de salle</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{ctx.establishment.name}</p>
+      </div>
+
+      <FloorPlanApp
+        zones={zones}
+        canEdit={ctx.can("floorplan.edit")}
+        canCreateReservation={ctx.can("reservations.edit")}
+      />
+    </div>
   );
 }

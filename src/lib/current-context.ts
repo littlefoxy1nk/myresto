@@ -50,3 +50,14 @@ export async function requirePermission(permission: PermissionKey) {
   }
   return ctx;
 }
+
+/// Variante "au moins une de ces permissions" — utile quand une action opérationnelle
+/// (ex: marquer un client arrivé) doit rester accessible au personnel de salle
+/// (service.run) sans exiger les droits de configuration complets (reservations.edit).
+export async function requireAnyPermission(...permissions: PermissionKey[]) {
+  const ctx = await getCurrentContext();
+  if (!permissions.some((p) => ctx.can(p))) {
+    throw new ForbiddenError(permissions.join(" ou "));
+  }
+  return ctx;
+}

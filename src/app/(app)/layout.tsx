@@ -15,8 +15,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         userName={`${ctx.user.firstName} ${ctx.user.lastName}`}
         isDemo={ctx.establishment.isDemo}
       />
-      <div className="flex min-h-screen flex-1 flex-col pb-16 md:pb-0">
-        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-16 md:pb-0">
+        <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
       </div>
       <BottomNav items={visibleItems} />
     </div>

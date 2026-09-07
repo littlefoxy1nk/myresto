@@ -21,13 +21,13 @@ export function BottomNav({ items }: { items: NavItem[] }) {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium outline-none",
+              "flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium outline-none",
               "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
               active ? "text-accent" : "text-muted-foreground"
             )}
           >
             {Icon && <Icon size={20} strokeWidth={2} aria-hidden="true" />}
-            {item.label}
+            <span className="whitespace-nowrap">{item.mobileLabel ?? item.label}</span>
           </Link>
         );
       })}

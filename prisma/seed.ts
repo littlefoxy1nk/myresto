@@ -57,22 +57,22 @@ async function main() {
   });
 
   // 4. Plan de salle
-  const salle = await prisma.zone.create({ data: { establishmentId: establishment.id, name: "Salle", sortOrder: 0 } });
-  const terrasse = await prisma.zone.create({ data: { establishmentId: establishment.id, name: "Terrasse", sortOrder: 1 } });
-  const bar = await prisma.zone.create({ data: { establishmentId: establishment.id, name: "Bar", sortOrder: 2 } });
+  const salle = await prisma.zone.create({ data: { establishmentId: establishment.id, name: "Salle", type: "salle", sortOrder: 0 } });
+  const terrasse = await prisma.zone.create({ data: { establishmentId: establishment.id, name: "Terrasse", type: "terrasse", sortOrder: 1 } });
+  const bar = await prisma.zone.create({ data: { establishmentId: establishment.id, name: "Bar", type: "bar", sortOrder: 2 } });
 
   const tableDefs = [
-    { zone: salle, label: "T1", capacity: 2, x: 40, y: 40 },
-    { zone: salle, label: "T2", capacity: 2, x: 140, y: 40 },
-    { zone: salle, label: "T3", capacity: 4, x: 40, y: 140 },
-    { zone: salle, label: "T4", capacity: 4, x: 140, y: 140 },
-    { zone: salle, label: "T5", capacity: 4, x: 240, y: 140 },
-    { zone: salle, label: "T12", capacity: 4, x: 40, y: 240 },
-    { zone: salle, label: "T13", capacity: 4, x: 140, y: 240 },
-    { zone: terrasse, label: "TR1", capacity: 4, x: 40, y: 40 },
-    { zone: terrasse, label: "TR2", capacity: 6, x: 160, y: 40 },
-    { zone: bar, label: "B1", capacity: 2, x: 40, y: 40 },
-  ];
+    { zone: salle, label: "T1", capacity: 2, shape: "round", x: 40, y: 40 },
+    { zone: salle, label: "T2", capacity: 2, shape: "round", x: 140, y: 40 },
+    { zone: salle, label: "T3", capacity: 4, shape: "square", x: 40, y: 140 },
+    { zone: salle, label: "T4", capacity: 4, shape: "square", x: 140, y: 140 },
+    { zone: salle, label: "T5", capacity: 4, shape: "square", x: 240, y: 140 },
+    { zone: salle, label: "T12", capacity: 4, shape: "rect", x: 40, y: 240 },
+    { zone: salle, label: "T13", capacity: 4, shape: "rect", x: 140, y: 240 },
+    { zone: terrasse, label: "TR1", capacity: 4, shape: "square", x: 40, y: 40 },
+    { zone: terrasse, label: "TR2", capacity: 6, shape: "rect", x: 160, y: 40 },
+    { zone: bar, label: "B1", capacity: 2, shape: "round", x: 40, y: 40 },
+  ] as const;
   const tables = [];
   for (const t of tableDefs) {
     const table = await prisma.restaurantTable.create({
@@ -81,12 +81,22 @@ async function main() {
         zoneId: t.zone.id,
         label: t.label,
         capacity: t.capacity,
+        shape: t.shape,
         posX: t.x,
         posY: t.y,
       },
     });
     tables.push(table);
   }
+
+  // T12 + T13 sont physiquement poussées ensemble pour les grandes tablées — c'est
+  // cette unité que "Groupe Dupuis" (8 pers.) occupe plus bas.
+  const t12t13Group = await prisma.tableGroup.create({
+    data: { establishmentId: establishment.id, combinedCapacity: 8, isPermanent: true },
+  });
+  await prisma.tableGroupMember.createMany({
+    data: [tables[5], tables[6]].map((t) => ({ groupId: t12t13Group.id, tableId: t.id })),
+  });
 
   // 5. Utilisateurs / équipe
   const passwordHash = await bcrypt.hash("demo1234", 10);

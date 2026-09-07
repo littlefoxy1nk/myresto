@@ -52,6 +52,8 @@ model Establishment {
   services        ServiceDefinition[]
   zones           Zone[]
   tables          RestaurantTable[]
+  tableGroups     TableGroup[]
+  staffAssignments StaffAssignment[]
   reservations    Reservation[]
   customers       Customer[]
   shifts          Shift[]
@@ -112,6 +114,7 @@ model Membership {
   availabilities  Availability[]
   timeOffRequests TimeOffRequest[]
   documents       EmployeeDocument[]
+  staffAssignments StaffAssignment[]
 
   @@unique([userId, establishmentId])
 }
@@ -250,8 +253,10 @@ model Zone {
   establishmentId String
   establishment   Establishment     @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
   name            String            // "Salle", "Terrasse", "Bar", "Salon privé"
+  type            String            @default("salle") // salle | terrasse | bar | prive | autre
   sortOrder       Int               @default(0)
   tables          RestaurantTable[]
+  staffAssignments StaffAssignment[]
 }
 
 model RestaurantTable {
@@ -267,24 +272,66 @@ model RestaurantTable {
   posY            Float         @default(0)
   width           Float         @default(80)
   height          Float         @default(80)
-  status          String        @default("available") // available | seated | reserved | cleaning
+  /// État MANUEL uniquement (bascule opérationnelle posée par le staff). Les états
+  /// temporaires liés au service (réservée / bientôt / occupée) ne sont jamais stockés
+  /// ici : ils sont recalculés à la volée à partir des réservations du jour
+  /// (voir modules/floorplan/server/table-state.ts), sans quoi une table resterait
+  /// "réservée" pour toujours après le départ des clients.
+  status          String        @default("available") // available | unavailable | cleaning
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   reservationTables ReservationTable[]
-  mergesAsPrimary   TableMerge[]       @relation("PrimaryTable")
+  groupMemberships  TableGroupMember[]
+  staffAssignments  StaffAssignment[]
 }
 
-/// Fusion temporaire (le temps d'un service) ou permanente de plusieurs tables.
-model TableMerge {
-  id              String   @id @default(cuid())
-  primaryTableId  String
-  primaryTable    RestaurantTable @relation("PrimaryTable", fields: [primaryTableId], references: [id], onDelete: Cascade)
-  mergedTableIds  String   // CSV des ids de RestaurantTable fusionnées avec la primaire
+/// Affectation opérationnelle "en ce moment" — qui couvre quelle zone (et éventuellement
+/// une table précise) pendant le service en cours. Volontairement sans date/heure : ce
+/// n'est pas un événement planifié (voir Shift, qui reste le concept du futur Planning RH),
+/// c'est un état qu'on pose et qu'on retire, au même titre que RestaurantTable.status.
+/// Le futur Planning pourra un jour générer ces lignes automatiquement à partir des Shifts
+/// du jour ; pour l'instant elles sont posées à la main, avant ou pendant le service.
+model StaffAssignment {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  membershipId    String
+  membership      Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  zoneId          String
+  zone            Zone          @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  /// null = toute la zone ; sinon une table précise à l'intérieur de cette zone (non
+  /// exposé dans l'UI V1, mais déjà modélisé pour ne pas devoir migrer plus tard).
+  tableId         String?
+  table           RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+}
+
+/// Regroupement physique de tables (ex: T4+T5 poussées ensemble), indépendant d'une
+/// réservation précise. C'est la brique que les réservations et les suggestions futures
+/// exploitent pour savoir qu'une unité combinée existe — pas juste un bouton "fusionner".
+model TableGroup {
+  id               String    @id @default(cuid())
+  establishmentId  String
+  establishment    Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  label            String?       // ex: "Table VIP" — sinon affiché comme "T4 + T5"
   combinedCapacity Int
-  isPermanent     Boolean  @default(false)
-  activeFrom      DateTime @default(now())
-  activeUntil     DateTime?
+  isPermanent      Boolean   @default(false)
+  activeFrom       DateTime  @default(now())
+  activeUntil      DateTime?
+  createdAt        DateTime  @default(now())
+
+  members          TableGroupMember[]
+}
+
+model TableGroupMember {
+  id      String     @id @default(cuid())
+  groupId String
+  group   TableGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  tableId String
+  table   RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, tableId])
 }
 
 // =========================================================================

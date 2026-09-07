@@ -1,10 +1,13 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
 import { prisma } from "@/lib/prisma";
 import { ReservationActionButton } from "@/modules/reservations/components/reservation-action-button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { startOfDay, endOfDay } from "date-fns";
+import { Plus } from "lucide-react";
 
 const STATUS_LABEL: Record<string, string> = {
   new: "Nouvelle",
@@ -44,12 +47,22 @@ export default async function ReservationsPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Réservations</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {reservations.length} réservation{reservations.length > 1 ? "s" : ""} aujourd&apos;hui ·{" "}
-          {reservations.reduce((s, r) => s + r.partySize, 0)} couverts
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Réservations</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {reservations.length} réservation{reservations.length > 1 ? "s" : ""} aujourd&apos;hui ·{" "}
+            {reservations.reduce((s, r) => s + r.partySize, 0)} couverts
+          </p>
+        </div>
+        {canEdit && (
+          <Button asChild size="sm">
+            <Link href="/reservations/nouvelle">
+              <Plus size={15} aria-hidden="true" />
+              Nouvelle
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div className="space-y-2">
