@@ -6,10 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { startOfWeek, endOfWeek } from "date-fns";
-import { UserPlus, Users2 } from "lucide-react";
+import { CalendarDays, UserPlus, Users2 } from "lucide-react";
 import { getZoneAssignments } from "@/modules/staff/server/assignments";
 import { ZoneAssignmentsSummary } from "@/modules/staff/components/zone-assignments-summary";
 import { AssignmentManagerDialog } from "@/modules/staff/components/assignment-manager-dialog";
+import { computeShiftDurationHours } from "@/modules/planning/compute";
 
 export default async function EquipePage() {
   const ctx = await getCurrentContext();
@@ -49,14 +50,24 @@ export default async function EquipePage() {
             {memberships.length} membre{memberships.length > 1 ? "s" : ""}
           </p>
         </div>
-        {ctx.can("staff.manage") && (
-          <Button asChild size="sm">
-            <Link href="/equipe/nouveau">
-              <UserPlus size={15} aria-hidden="true" />
-              Ajouter
-            </Link>
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {ctx.can("schedule.view") && (
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/planning">
+                <CalendarDays size={15} aria-hidden="true" />
+                Planning
+              </Link>
+            </Button>
+          )}
+          {ctx.can("staff.manage") && (
+            <Button asChild size="sm">
+              <Link href="/equipe/nouveau">
+                <UserPlus size={15} aria-hidden="true" />
+                Ajouter
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -84,11 +95,7 @@ export default async function EquipePage() {
 
       <div className="grid gap-3 sm:grid-cols-2">
         {memberships.map((m) => {
-          const hoursThisWeek = m.shifts.reduce((sum, s) => {
-            const [sh, sm] = s.startTime.split(":").map(Number);
-            const [eh, em] = s.endTime.split(":").map(Number);
-            return sum + (eh * 60 + em - (sh * 60 + sm)) / 60;
-          }, 0);
+          const hoursThisWeek = m.shifts.reduce((sum, s) => sum + computeShiftDurationHours(s.startTime, s.endTime), 0);
           const target = m.weeklyHoursTarget ?? 0;
 
           return (

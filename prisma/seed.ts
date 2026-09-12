@@ -202,11 +202,19 @@ async function main() {
     return setMinutes(setHours(day, h), m);
   }
 
-  // Ce soir : équipe normale, mais Paul est absent (congé approuvé) -> déclenchera une alerte
+  // Ce soir : équipe normale, mais Paul est planifié alors qu'il a un congé approuvé le
+  // même jour -> déclenche à la fois l'alerte d'absence d'Aujourd'hui et le conflit
+  // "planifié mais absent" du Planning (Mission 5).
   await prisma.shift.create({
     data: {
       establishmentId: establishment.id, membershipId: marc.membership.id, serviceId: dinner.id,
       date: today, startTime: "18:30", endTime: "23:00", position: "direction", status: "published",
+    },
+  });
+  await prisma.shift.create({
+    data: {
+      establishmentId: establishment.id, membershipId: paul.membership.id, serviceId: dinner.id,
+      date: today, startTime: "19:00", endTime: "22:00", position: "salle", status: "published",
     },
   });
   await prisma.shift.create({
