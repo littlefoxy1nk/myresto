@@ -12,11 +12,37 @@ import { ServiceDemandSummary } from "@/modules/planning/components/service-dema
 import { ShiftFormDialog, type ShiftFormValues } from "@/modules/planning/components/shift-form-dialog";
 import { createShift, updateShift, deleteShift } from "@/modules/planning/server/actions";
 import { SHIFT_POSITION_LABELS } from "@/modules/planning/types";
-import type { PlanningShift, ShiftPosition, WeekPlanningResult } from "@/modules/planning/types";
+import type { PlanningShift, ShiftConflictLevel, ShiftPosition, WeekPlanningResult } from "@/modules/planning/types";
 
 function formatHours(h: number) {
   const rounded = Math.round(h * 10) / 10;
   return `${rounded}h`;
+}
+
+const CONFLICT_DOT_CLASS: Record<ShiftConflictLevel, string> = {
+  ok: "bg-good",
+  warning: "bg-watch",
+  conflict: "bg-urgent",
+};
+
+function ConflictDot({ level }: { level: ShiftConflictLevel }) {
+  return <span className={cn("inline-block h-2 w-2 shrink-0 rounded-full", CONFLICT_DOT_CLASS[level])} aria-hidden="true" />;
+}
+
+function ConflictLegend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1.5">
+        <ConflictDot level="ok" /> OK
+      </span>
+      <span className="flex items-center gap-1.5">
+        <ConflictDot level="warning" /> À vérifier
+      </span>
+      <span className="flex items-center gap-1.5">
+        <ConflictDot level="conflict" /> Conflit réel
+      </span>
+    </div>
+  );
 }
 
 type DialogState =
@@ -91,10 +117,10 @@ export function PlanningApp({
         {shifts.map((s) => {
           const chipClass = cn(
             "rounded-lg border px-2 py-1 text-left text-[11px] leading-tight",
-            s.isAbsentConflict
+            s.conflictLevel === "conflict"
               ? "border-urgent bg-urgent-soft text-urgent"
-              : s.hasOverlap
-                ? "border-important bg-important-soft text-important"
+              : s.conflictLevel === "warning"
+                ? "border-watch bg-watch-soft text-watch"
                 : "border-border bg-muted"
           );
           const content = (
@@ -102,11 +128,14 @@ export function PlanningApp({
               <div className="font-medium">
                 {s.startTime}–{s.endTime}
               </div>
-              <div className="truncate text-muted-foreground">
+              <div className={s.conflictLevel === "ok" ? "truncate text-muted-foreground" : "truncate"}>
                 {SHIFT_POSITION_LABELS[s.position as keyof typeof SHIFT_POSITION_LABELS] ?? s.position}
               </div>
-              {s.isAbsentConflict && <div className="mt-0.5 font-medium">Absent(e)</div>}
-              {!s.isAbsentConflict && s.hasOverlap && <div className="mt-0.5 font-medium">Chevauchement</div>}
+              {s.warnings.map((w) => (
+                <div key={w.message} className="mt-0.5 font-medium">
+                  {w.message}
+                </div>
+              ))}
             </>
           );
           return data.canEdit ? (
@@ -182,6 +211,7 @@ export function PlanningApp({
 
       <PlanningAlerts alerts={data.alerts} />
       <ServiceDemandSummary dayServices={data.dayServices} />
+      {data.members.length > 0 && <ConflictLegend />}
 
       {data.members.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
@@ -206,12 +236,14 @@ export function PlanningApp({
                 {data.members.map((m) => (
                   <tr key={m.membershipId} className="border-b border-border last:border-0">
                     <td className="p-3 align-top">
-                      <p className="text-sm font-medium">
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
+                        <ConflictDot level={data.memberWeekStatus[m.membershipId] ?? "ok"} />
                         {m.firstName} {m.lastName}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {formatHours(data.totalHoursByMember[m.membershipId] ?? 0)}
                         {m.weeklyHoursTarget ? ` / ${m.weeklyHoursTarget}h` : ""}
+                        {m.maxShiftsPerWeek != null && ` · ${data.shiftsCountByMember[m.membershipId] ?? 0}/${m.maxShiftsPerWeek} shifts`}
                       </p>
                     </td>
                     {data.weekDays.map((date) => (
@@ -246,12 +278,14 @@ export function PlanningApp({
               {data.members.map((m) => (
                 <div key={m.membershipId} className="rounded-2xl border border-border bg-card p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">
+                    <p className="flex items-center gap-1.5 text-sm font-medium">
+                      <ConflictDot level={data.memberWeekStatus[m.membershipId] ?? "ok"} />
                       {m.firstName} {m.lastName}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {formatHours(data.totalHoursByMember[m.membershipId] ?? 0)}
                       {m.weeklyHoursTarget ? ` / ${m.weeklyHoursTarget}h` : ""}
+                      {m.maxShiftsPerWeek != null && ` · ${data.shiftsCountByMember[m.membershipId] ?? 0}/${m.maxShiftsPerWeek} shifts`}
                     </p>
                   </div>
                   <div className="mt-2">{renderShifts(m.membershipId, selectedDay)}</div>
@@ -269,6 +303,11 @@ export function PlanningApp({
           members={data.members}
           services={data.services}
           initial={dialogInitial}
+          editingShiftId={dialog.mode === "edit" ? dialog.shift.id : null}
+          allShifts={data.shifts}
+          availabilitiesByMember={data.availabilitiesByMember}
+          absentMembershipIdsByDate={data.absentMembershipIdsByDate}
+          shiftsCountByMember={data.shiftsCountByMember}
           onSave={handleSave}
           onDelete={dialog.mode === "edit" ? () => { setDeleteId(dialog.shift.id); setDialog(null); } : undefined}
         />

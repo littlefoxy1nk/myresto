@@ -1,4 +1,4 @@
-// Types du Planning RH V1. Volontairement indépendants de Prisma pour que compute.ts
+// Types du Planning RH. Volontairement indépendants de Prisma pour que compute.ts
 // reste une fonction pure, testable sans base de données (même convention que le
 // module workload).
 
@@ -12,13 +12,30 @@ export const SHIFT_POSITION_LABELS: Record<ShiftPosition, string> = {
   direction: "Direction",
 };
 
+/// Niveau de lecture "un coup d'œil" demandé en Mission 6 : ok (🟢), warning (🟡, à
+/// vérifier — jamais bloquant), conflict (🔴, contradiction réelle dans les données :
+/// chevauchement ou personne planifiée pendant une absence approuvée).
+export type ShiftConflictLevel = "ok" | "warning" | "conflict";
+
+export type AvailabilityKind = "preferred" | "unavailable";
+
+export type AvailabilityRow = {
+  dayOfWeek: number; // 1..7, 1=lundi
+  kind: AvailabilityKind;
+  startTime: string | null; // null + kind=unavailable = indisponible toute la journée
+  endTime: string | null;
+};
+
 export type PlanningMember = {
   membershipId: string;
   firstName: string;
   lastName: string;
   jobTitle: string | null;
   weeklyHoursTarget: number | null;
+  maxShiftsPerWeek: number | null;
 };
+
+export type ShiftWarning = { level: "warning" | "conflict"; message: string };
 
 export type PlanningShift = {
   id: string;
@@ -30,11 +47,13 @@ export type PlanningShift = {
   serviceId: string | null;
   serviceName: string | null;
   status: string;
-  /// Calculé côté serveur une fois pour toutes via detectOverlappingShiftIds — évite
-  /// de refaire la détection à chaque rendu client.
-  hasOverlap: boolean;
-  /// La personne a un congé approuvé qui couvre ce jour alors qu'elle est planifiée.
-  isAbsentConflict: boolean;
+  /// Niveau agrégé (le pire des signaux ci-dessous) — c'est lui qui pilote la couleur
+  /// du badge sur le shift. Calculé une seule fois côté serveur par evaluateShift.
+  conflictLevel: ShiftConflictLevel;
+  /// Un par signal détecté (absence, chevauchement, disponibilité) — plusieurs peuvent
+  /// coexister sur un même shift, chacun avec son propre niveau. La limite hebdomadaire
+  /// n'y figure jamais : c'est un fait par personne-semaine, pas par shift.
+  warnings: ShiftWarning[];
 };
 
 export type PlanningServiceDefinition = {
@@ -61,7 +80,6 @@ export type PlanningDayService = {
   /// brut de "personnel planifié" qui reste l'équipe complète.
   floorStaffCount: number;
   demandLevel: DemandLevel;
-  absentScheduled: { membershipId: string; name: string }[];
 };
 
 export type PlanningAlertSeverity = "urgent" | "important" | "watch";
@@ -83,6 +101,14 @@ export type WeekPlanningResult = {
   dayServices: PlanningDayService[];
   alerts: PlanningAlert[];
   totalHoursByMember: Record<string, number>;
+  shiftsCountByMember: Record<string, number>;
   totalTeamHours: number;
+  /// Le pire ShiftConflictLevel de la semaine pour chaque membre (shifts + limite
+  /// hebdomadaire confondus) — pour le petit indicateur "un coup d'œil" à côté du nom.
+  memberWeekStatus: Record<string, ShiftConflictLevel>;
+  /// Nécessaire pour l'avertissement en temps réel dans la modale de création/édition
+  /// (avant tout aller-retour serveur) — voir evaluateShift.
+  availabilitiesByMember: Record<string, AvailabilityRow[]>;
+  absentMembershipIdsByDate: Record<string, string[]>;
   canEdit: boolean;
 };

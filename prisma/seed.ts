@@ -1,6 +1,6 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { addDays, nextSaturday, setHours, setMinutes, startOfDay } from "date-fns";
+import { addDays, nextSaturday, setHours, setMinutes, startOfDay, startOfWeek } from "date-fns";
 import { prisma } from "../src/lib/prisma";
 import { provisionSystemRoles } from "../src/lib/provision-establishment";
 
@@ -250,6 +250,65 @@ async function main() {
       endDate: today,
       reason: "Empêchement personnel",
       status: "approved",
+    },
+  });
+
+  // Julie n'est déclarée disponible qu'à partir de 19h ce jour-là, mais son shift
+  // commence à 18h30 -> déclenche l'avertissement "hors disponibilité déclarée"
+  // (Mission 6) sans qu'aucune donnée supplémentaire ne soit nécessaire.
+  const todayIsoDay = today.getDay() === 0 ? 7 : today.getDay();
+  await prisma.availability.create({
+    data: {
+      establishmentId: establishment.id,
+      membershipId: julie.membership.id,
+      dayOfWeek: todayIsoDay,
+      kind: "preferred",
+      startTime: "19:00",
+      endTime: "23:30",
+    },
+  });
+
+  // Paul a déjà son shift de ce soir ; on lui en ajoute 3 autres cette semaine pour
+  // atteindre exactement sa limite hebdomadaire (4) -> déclenche l'avertissement
+  // "limite hebdomadaire atteinte" (Mission 6).
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const paulExtraDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+    .filter((d) => d.getTime() !== today.getTime())
+    .slice(0, 3);
+  for (const day of paulExtraDays) {
+    await prisma.shift.create({
+      data: {
+        establishmentId: establishment.id, membershipId: paul.membership.id,
+        date: day, startTime: "11:30", endTime: "15:00", position: "salle", status: "published",
+      },
+    });
+  }
+
+  // Une demande en attente sur un jour où Sarah travaille déjà -> l'accepter pendant
+  // les tests doit faire apparaître immédiatement le conflit "planifié mais absent"
+  // dans le Planning, sans quoi la V1 des congés serait invisible tant que rien n'a
+  // encore été traité par un manager.
+  await prisma.timeOffRequest.create({
+    data: {
+      establishmentId: establishment.id,
+      membershipId: sarah.membership.id,
+      startDate: today,
+      endDate: today,
+      reason: "Rendez-vous médical",
+      status: "pending",
+    },
+  });
+
+  // Une seconde demande en attente, sur une autre personne et une autre période, pour
+  // tester le refus sans toucher au planning de cette semaine.
+  await prisma.timeOffRequest.create({
+    data: {
+      establishmentId: establishment.id,
+      membershipId: thomas.membership.id,
+      startDate: addDays(weekStart, 14),
+      endDate: addDays(weekStart, 16),
+      reason: "Congés payés",
+      status: "pending",
     },
   });
 

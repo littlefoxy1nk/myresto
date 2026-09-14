@@ -27,7 +27,7 @@ export const NAV_ITEMS: NavItem[] = [
 
   // Phase 2
   { href: "/planning", label: "Planning", icon: "CalendarDays", permission: "schedule.view", available: true },
-  { href: "/conges", label: "Congés", icon: "Palmtree", permission: "timeoff.manage", available: false },
+  { href: "/conges", label: "Congés", icon: "Palmtree", permission: "timeoff.manage", available: true },
   // Phase 4
   { href: "/clients", label: "Clients", icon: "Heart", permission: "crm.view", available: false },
   // Phase 5
