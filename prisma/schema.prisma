@@ -284,6 +284,7 @@ model RestaurantTable {
   reservationTables ReservationTable[]
   groupMemberships  TableGroupMember[]
   staffAssignments  StaffAssignment[]
+  favoritedBy       Customer[]
 }
 
 /// Affectation opérationnelle "en ce moment" — qui couvre quelle zone (et éventuellement
@@ -399,6 +400,7 @@ model Customer {
   allergies       String?
   notes           String?
   favoriteTableId String?
+  favoriteTable   RestaurantTable? @relation(fields: [favoriteTableId], references: [id], onDelete: SetNull)
   visitCount      Int           @default(0)
   totalSpentCents Int           @default(0)
   lastVisitAt     DateTime?

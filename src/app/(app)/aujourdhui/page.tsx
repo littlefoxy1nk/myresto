@@ -8,18 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/utils";
 import { AlertTriangle, AlertCircle, Eye, Sparkles, Clock } from "lucide-react";
+import { RESERVATION_STATUS_LABEL } from "@/modules/reservations/status";
 
 const SEVERITY_CONFIG = {
   urgent: { icon: AlertTriangle, bg: "bg-urgent-soft", text: "text-urgent", variant: "urgent" as const, label: "Urgent" },
   important: { icon: AlertCircle, bg: "bg-important-soft", text: "text-important", variant: "important" as const, label: "Important" },
   watch: { icon: Eye, bg: "bg-watch-soft", text: "text-watch", variant: "watch" as const, label: "À surveiller" },
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  new: "Nouvelle",
-  confirmed: "Confirmée",
-  arrived: "Arrivée",
-  seated: "Installée",
 };
 
 function formatTimeFromNow(minutes: number) {
@@ -74,7 +68,7 @@ export default async function AujourdhuiPage() {
                 {formatTimeFromNow(summary.nextUp.minutesFromNow)}
                 {" · "}
                 <Badge variant={summary.nextUp.status === "new" ? "important" : "accent"}>
-                  {STATUS_LABEL[summary.nextUp.status]}
+                  {RESERVATION_STATUS_LABEL[summary.nextUp.status]}
                 </Badge>
               </p>
             </div>

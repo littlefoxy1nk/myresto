@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { addDays, differenceInCalendarDays, endOfDay, startOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
 import { SHIFT_POSITIONS } from "@/modules/planning/types";
@@ -92,4 +93,41 @@ export async function deleteShift(id: string) {
 
   await prisma.shift.delete({ where: { id } });
   revalidatePlanningPaths();
+}
+
+/// Copie tous les shifts d'une semaine vers une autre, jour de semaine par jour de
+/// semaine (lundi de la source -> lundi de la cible, etc.). N'écrase jamais les shifts
+/// déjà présents sur la semaine cible — s'ils se chevauchent avec la copie, le badge de
+/// conflit existant (evaluateShift) le signalera normalement, sans bloquer la copie.
+export async function duplicateWeek(sourceWeekStart: string, targetWeekStart: string) {
+  const ctx = await requirePermission("schedule.edit");
+
+  const source = new Date(`${sourceWeekStart}T00:00:00`);
+  const target = new Date(`${targetWeekStart}T00:00:00`);
+  const sourceEnd = addDays(source, 6);
+
+  const shifts = await prisma.shift.findMany({
+    where: {
+      establishmentId: ctx.establishment.id,
+      date: { gte: startOfDay(source), lte: endOfDay(sourceEnd) },
+      status: { not: "cancelled" },
+    },
+  });
+  if (shifts.length === 0) throw new Error("Aucun shift à dupliquer sur cette semaine.");
+
+  await prisma.shift.createMany({
+    data: shifts.map((s) => ({
+      establishmentId: ctx.establishment.id,
+      membershipId: s.membershipId,
+      serviceId: s.serviceId,
+      date: addDays(target, differenceInCalendarDays(startOfDay(s.date), source)),
+      startTime: s.startTime,
+      endTime: s.endTime,
+      position: s.position,
+      status: "published",
+    })),
+  });
+
+  revalidatePlanningPaths();
+  return shifts.length;
 }

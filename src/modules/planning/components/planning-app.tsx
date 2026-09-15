@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { addDays, format } from "date-fns";
+import { ChevronLeft, ChevronRight, Copy, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast-bus";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PlanningAlerts } from "@/modules/planning/components/planning-alerts";
 import { ServiceDemandSummary } from "@/modules/planning/components/service-demand-summary";
 import { ShiftFormDialog, type ShiftFormValues } from "@/modules/planning/components/shift-form-dialog";
-import { createShift, updateShift, deleteShift } from "@/modules/planning/server/actions";
+import { createShift, updateShift, deleteShift, duplicateWeek } from "@/modules/planning/server/actions";
 import { SHIFT_POSITION_LABELS } from "@/modules/planning/types";
 import type { PlanningShift, ShiftConflictLevel, ShiftPosition, WeekPlanningResult } from "@/modules/planning/types";
 
@@ -63,12 +64,14 @@ export function PlanningApp({
   currentWeekHref: string;
   isCurrentWeek: boolean;
 }) {
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = format(new Date(), "yyyy-MM-dd");
   const [selectedDay, setSelectedDay] = useState(
     data.weekDays.includes(todayKey) ? todayKey : data.weekDays[0]
   );
   const [dialog, setDialog] = useState<DialogState>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const activeDayTabRef = useRef<HTMLButtonElement>(null);
 
   // Le jour sélectionné (aujourd'hui par défaut) doit être visible sans que la
@@ -102,6 +105,20 @@ export function PlanningApp({
       await guarded(() => createShift(values), "Shift ajouté");
     }
     setDialog(null);
+  }
+
+  const nextWeekStartKey = format(addDays(new Date(`${data.weekStart}T00:00:00`), 7), "yyyy-MM-dd");
+
+  async function handleDuplicate() {
+    setDuplicating(true);
+    try {
+      const count = await duplicateWeek(data.weekStart, nextWeekStartKey);
+      toast(`${count} shift${count > 1 ? "s" : ""} dupliqué${count > 1 ? "s" : ""} vers la semaine suivante`);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Une erreur est survenue.", "error");
+    } finally {
+      setDuplicating(false);
+    }
   }
 
   function handleDeleteConfirm() {
@@ -206,6 +223,12 @@ export function PlanningApp({
               <ChevronRight size={16} aria-hidden="true" />
             </Link>
           </Button>
+          {data.canEdit && data.shifts.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setConfirmDuplicate(true)} disabled={duplicating}>
+              <Copy size={14} aria-hidden="true" />
+              Dupliquer
+            </Button>
+          )}
         </div>
       </div>
 
@@ -320,6 +343,15 @@ export function PlanningApp({
         description="Cette action est définitive."
         confirmLabel="Supprimer"
         onConfirm={handleDeleteConfirm}
+      />
+      <ConfirmDialog
+        open={confirmDuplicate}
+        onOpenChange={setConfirmDuplicate}
+        title="Dupliquer cette semaine ?"
+        description="Tous les shifts de cette semaine seront copiés vers la semaine suivante, jour pour jour. Les shifts déjà présents sur la semaine suivante ne sont pas remplacés."
+        confirmLabel="Dupliquer"
+        destructive={false}
+        onConfirm={handleDuplicate}
       />
     </div>
   );

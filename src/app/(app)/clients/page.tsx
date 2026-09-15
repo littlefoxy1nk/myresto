@@ -1,12 +1,74 @@
-import { ComingSoon } from "@/components/coming-soon";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentContext } from "@/lib/current-context";
+import { getCustomersList } from "@/modules/customers/server/queries";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
-export default function Page() {
+function formatDate(d: string) {
+  return new Intl.DateTimeFormat("fr-BE", { day: "numeric", month: "short", year: "numeric" }).format(
+    new Date(`${d}T00:00:00`)
+  );
+}
+
+export default async function ClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const ctx = await getCurrentContext();
+  if (!ctx.can("crm.view")) redirect("/aujourdhui");
+
+  const { q } = await searchParams;
+  const customers = await getCustomersList(ctx.establishment.id, q);
+
   return (
-    <ComingSoon
-      icon="Heart"
-      title="Clients"
-      description="Historique de visites, préférences, allergies et segments automatiques — pour reconnaître vos habitués avant qu'ils ne le rappellent."
-      phase="Phase 4 — CRM client, statistiques, alertes."
-    />
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {customers.length} client{customers.length > 1 ? "s" : ""}
+        </p>
+      </div>
+
+      <form className="flex gap-2">
+        <input
+          type="search"
+          name="q"
+          defaultValue={q ?? ""}
+          placeholder="Chercher par nom, téléphone, email…"
+          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        />
+      </form>
+
+      <div className="space-y-2">
+        {customers.map((c) => (
+          <Link key={c.id} href={`/clients/${c.id}`}>
+            <Card className="flex flex-col gap-2 p-4 transition-colors hover:bg-muted sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  {c.firstName} {c.lastName}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {[c.phone, c.email].filter(Boolean).join(" · ") || "Pas de coordonnées"}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {c.visitCount} visite{c.visitCount > 1 ? "s" : ""}
+                  {c.lastVisitAt ? ` · dernière le ${formatDate(c.lastVisitAt)}` : ""}
+                </span>
+                {c.noShowCount > 0 && <Badge variant="urgent">{c.noShowCount} no-show{c.noShowCount > 1 ? "s" : ""}</Badge>}
+              </div>
+            </Card>
+          </Link>
+        ))}
+        {customers.length === 0 && (
+          <Card className="p-6 text-center text-sm text-muted-foreground">
+            {q ? "Aucun client ne correspond à cette recherche." : "Aucun client pour le moment — ils apparaissent automatiquement dès qu'une réservation renseigne un téléphone ou un email."}
+          </Card>
+        )}
+      </div>
+    </div>
   );
 }

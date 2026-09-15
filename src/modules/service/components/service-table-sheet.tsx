@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { X, ExternalLink } from "lucide-react";
+import { X, ExternalLink, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LIVE_STATE_STYLE } from "@/modules/floorplan/live-state-style";
 import type { TableWithLiveState } from "@/modules/floorplan/types";
 import { formatMinutes } from "@/modules/service/format";
+import { WalkInDialog } from "@/modules/service/components/walk-in-dialog";
 
 export function ServiceTableSheet({
   table,
@@ -27,6 +29,7 @@ export function ServiceTableSheet({
 }) {
   const style = LIVE_STATE_STYLE[table.liveState];
   const reservation = table.activeReservation;
+  const [walkInOpen, setWalkInOpen] = useState(false);
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 max-h-[75vh] overflow-y-auto rounded-t-2xl border-t border-border bg-card p-5 shadow-xl md:static md:z-auto md:max-h-none md:w-80 md:shrink-0 md:overflow-visible md:rounded-2xl md:border md:shadow-sm">
@@ -84,6 +87,12 @@ export function ServiceTableSheet({
         {table.manualStatus === "unavailable" && (
           <Button onClick={() => onMarkReady(table.id)}>Rendre disponible</Button>
         )}
+        {!reservation && table.liveState === "available" && (
+          <Button variant="secondary" onClick={() => setWalkInOpen(true)}>
+            <UserPlus size={14} aria-hidden="true" />
+            Client sans réservation
+          </Button>
+        )}
         {reservation && (
           <Button variant="ghost" asChild>
             <Link href="/reservations">
@@ -93,6 +102,8 @@ export function ServiceTableSheet({
           </Button>
         )}
       </div>
+
+      <WalkInDialog open={walkInOpen} onOpenChange={setWalkInOpen} tableId={table.id} tableCapacity={table.capacity} />
     </div>
   );
 }

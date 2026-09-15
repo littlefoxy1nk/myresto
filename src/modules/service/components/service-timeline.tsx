@@ -3,24 +3,7 @@
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import type { TimelineEntry } from "@/modules/service/types";
-
-const STATUS_LABEL: Record<string, string> = {
-  new: "Nouvelle",
-  confirmed: "Confirmée",
-  arrived: "Arrivée",
-  seated: "Installée",
-  completed: "Terminée",
-  no_show: "No-show",
-};
-
-const STATUS_VARIANT: Record<string, "neutral" | "good" | "important" | "urgent" | "accent"> = {
-  new: "important",
-  confirmed: "accent",
-  arrived: "good",
-  seated: "good",
-  completed: "neutral",
-  no_show: "urgent",
-};
+import { RESERVATION_STATUS_LABEL, RESERVATION_STATUS_VARIANT } from "@/modules/reservations/status";
 
 export function ServiceTimeline({ entries }: { entries: TimelineEntry[] }) {
   if (entries.length === 0) {
@@ -42,8 +25,8 @@ export function ServiceTimeline({ entries }: { entries: TimelineEntry[] }) {
             {entry.customerName} · {entry.partySize} pers.
             {entry.tableLabels.length > 0 && ` · ${entry.tableLabels.join(" + ")}`}
           </span>
-          <Badge variant={STATUS_VARIANT[entry.status] ?? "neutral"} className="shrink-0">
-            {STATUS_LABEL[entry.status] ?? entry.status}
+          <Badge variant={RESERVATION_STATUS_VARIANT[entry.status] ?? "neutral"} className="shrink-0">
+            {RESERVATION_STATUS_LABEL[entry.status] ?? entry.status}
           </Badge>
         </div>
       ))}

@@ -3,37 +3,25 @@ import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
 import { prisma } from "@/lib/prisma";
 import { ReservationActionButton } from "@/modules/reservations/components/reservation-action-button";
+import { ReservationRowActions } from "@/modules/reservations/components/reservation-row-actions";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { startOfDay, endOfDay } from "date-fns";
+import { startOfDay, endOfDay, format } from "date-fns";
 import { Plus } from "lucide-react";
+import { RESERVATION_STATUS_LABEL, RESERVATION_STATUS_VARIANT } from "@/modules/reservations/status";
 
-const STATUS_LABEL: Record<string, string> = {
-  new: "Nouvelle",
-  confirmed: "Confirmée",
-  arrived: "Arrivée",
-  seated: "Installée",
-  completed: "Terminée",
-  cancelled: "Annulée",
-  no_show: "No-show",
-};
-
-const STATUS_VARIANT: Record<string, "neutral" | "good" | "important" | "urgent" | "accent"> = {
-  new: "important",
-  confirmed: "accent",
-  arrived: "good",
-  seated: "good",
-  completed: "neutral",
-  cancelled: "neutral",
-  no_show: "urgent",
-};
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
 
 export default async function ReservationsPage() {
   const ctx = await getCurrentContext();
   if (!ctx.can("reservations.view")) redirect("/aujourdhui");
 
   const today = new Date();
+  const nowMinutes = today.getHours() * 60 + today.getMinutes();
   const reservations = await prisma.reservation.findMany({
     where: {
       establishmentId: ctx.establishment.id,
@@ -73,40 +61,56 @@ export default async function ReservationsPage() {
           ]
             .filter(Boolean)
             .join(" · ");
+          const isPastTime = timeToMinutes(r.time) < nowMinutes;
+          const isOpen = r.status === "new" || r.status === "confirmed";
 
           return (
             <Card key={r.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
               {/* Ligne 1 : heure + nom */}
               <div className="flex items-baseline gap-2 sm:w-48 sm:shrink-0">
                 <span className="shrink-0 text-sm font-semibold tabular-nums">{r.time}</span>
-                <span className="truncate text-sm font-medium">{r.customerName}</span>
+                {r.customerId ? (
+                  <Link href={`/clients/${r.customerId}`} className="truncate text-sm font-medium text-accent hover:underline">
+                    {r.customerName}
+                  </Link>
+                ) : (
+                  <span className="truncate text-sm font-medium">{r.customerName}</span>
+                )}
               </div>
 
               {/* Ligne 2 : personnes + table + statut */}
               <div className="flex flex-wrap items-center gap-2 sm:flex-1">
                 <span className="text-xs text-muted-foreground">{meta}</span>
-                <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                <Badge variant={RESERVATION_STATUS_VARIANT[r.status]}>{RESERVATION_STATUS_LABEL[r.status]}</Badge>
                 {r.specialRequests && (
                   <span className="text-xs text-muted-foreground">· {r.specialRequests}</span>
                 )}
               </div>
 
-              {/* Ligne 3 : action principale */}
-              {canEdit && r.status === "new" && (
-                <ReservationActionButton
-                  reservationId={r.id}
-                  targetStatus="confirmed"
-                  label="Confirmer"
-                  className="w-full sm:w-auto"
-                />
-              )}
-              {canEdit && (r.status === "confirmed" || r.status === "arrived") && (
-                <ReservationActionButton
-                  reservationId={r.id}
-                  targetStatus="seated"
-                  label="Installer"
-                  className="w-full sm:w-auto"
-                />
+              {/* Ligne 3 : actions */}
+              {canEdit && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {r.status === "new" && (
+                    <ReservationActionButton reservationId={r.id} targetStatus="confirmed" label="Confirmer" />
+                  )}
+                  {(r.status === "confirmed" || r.status === "arrived") && (
+                    <ReservationActionButton reservationId={r.id} targetStatus="seated" label="Installer" />
+                  )}
+                  {isOpen && (
+                    <ReservationRowActions
+                      reservationId={r.id}
+                      showNoShow={isPastTime}
+                      editInitial={{
+                        partySize: r.partySize,
+                        date: format(r.date, "yyyy-MM-dd"),
+                        time: r.time,
+                        durationMinutes: r.durationMinutes,
+                        notes: r.notes ?? "",
+                        specialRequests: r.specialRequests ?? "",
+                      }}
+                    />
+                  )}
+                </div>
               )}
             </Card>
           );
