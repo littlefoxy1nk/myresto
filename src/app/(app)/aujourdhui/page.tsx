@@ -1,13 +1,16 @@
 import Link from "next/link";
+import { format } from "date-fns";
 import { getCurrentContext } from "@/lib/current-context";
 import { computeTodaySummary } from "@/modules/insights/server/today-intelligence";
 import { estimateTodayRevenue } from "@/modules/finance/server/forecast";
+import { getTodayClosing } from "@/modules/finance/server/queries";
+import { ClosingButton } from "@/modules/finance/components/closing-button";
 import { ReservationActionButton } from "@/modules/reservations/components/reservation-action-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/utils";
-import { AlertTriangle, AlertCircle, Eye, Sparkles, Clock } from "lucide-react";
+import { AlertTriangle, AlertCircle, Eye, Clock, LineChart, Boxes } from "lucide-react";
 import { RESERVATION_STATUS_LABEL } from "@/modules/reservations/status";
 
 const SEVERITY_CONFIG = {
@@ -29,6 +32,9 @@ export default async function AujourdhuiPage() {
   const summary = await computeTodaySummary(ctx.establishment.id);
   const revenue = await estimateTodayRevenue(ctx.establishment.id, summary.covers);
   const canEditReservations = ctx.can("reservations.edit");
+  const canManageFinance = ctx.can("finance.manage");
+  const todayClosing = canManageFinance ? await getTodayClosing(ctx.establishment.id) : null;
+  const todayDateKey = format(summary.date, "yyyy-MM-dd");
 
   const dateLabel = new Intl.DateTimeFormat("fr-BE", {
     weekday: "long",
@@ -38,15 +44,50 @@ export default async function AujourdhuiPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <div>
-        <p className="text-sm capitalize text-muted-foreground">{dateLabel}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Aujourd&apos;hui</h1>
-        <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-          {ctx.establishment.name}
-          {summary.serviceLabel ? ` · ${summary.serviceLabel}` : ""}
-          {ctx.establishment.isDemo && <Badge variant="accent">Données de démonstration</Badge>}
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm capitalize text-muted-foreground">{dateLabel}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Aujourd&apos;hui</h1>
+          <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+            {ctx.establishment.name}
+            {summary.serviceLabel ? ` · ${summary.serviceLabel}` : ""}
+            {ctx.establishment.isDemo && <Badge variant="accent">Données de démonstration</Badge>}
+          </p>
+        </div>
+        {canManageFinance && (
+          <ClosingButton
+            date={todayDateKey}
+            dateLabel="aujourd'hui"
+            initialRevenueCents={todayClosing?.revenueCents ?? null}
+            initialCovers={todayClosing?.covers ?? null}
+            alreadyClosed={todayClosing != null}
+          />
+        )}
       </div>
+
+      {/* Finances et Stock vivent dans la barre latérale desktop mais n'ont pas d'onglet
+          dans la barre de navigation mobile (6 places déjà prises) — ce raccourci est
+          leur seul point d'entrée sur mobile pour les rôles qui y ont accès. */}
+      {(ctx.can("finance.view") || ctx.can("inventory.view")) && (
+        <div className="flex gap-2 md:hidden">
+          {ctx.can("finance.view") && (
+            <Button asChild size="sm" variant="secondary" className="flex-1">
+              <Link href="/finances">
+                <LineChart size={15} aria-hidden="true" />
+                Finances
+              </Link>
+            </Button>
+          )}
+          {ctx.can("inventory.view") && (
+            <Button asChild size="sm" variant="secondary" className="flex-1">
+              <Link href="/stock">
+                <Boxes size={15} aria-hidden="true" />
+                Stock
+              </Link>
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Prochaine échéance — la première chose que raconte le dashboard, avant les
           chiffres agrégés : ce qui va concrètement se passer ensuite dans la salle. */}
@@ -144,29 +185,6 @@ export default async function AujourdhuiPage() {
           </div>
         )}
       </section>
-
-      {/* Recommandations */}
-      {summary.recommendations.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="flex items-center gap-2 text-base font-semibold">
-            <Sparkles size={16} aria-hidden="true" className="text-accent" />
-            Ce que je recommande
-          </h2>
-          <div className="space-y-2">
-            {summary.recommendations.map((rec) => (
-              <Card key={rec.id} className="p-4">
-                <p className="text-sm font-medium">{rec.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{rec.description}</p>
-                <div className="mt-3">
-                  <Button size="sm" asChild>
-                    <Link href={rec.actionHref}>{rec.actionLabel}</Link>
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

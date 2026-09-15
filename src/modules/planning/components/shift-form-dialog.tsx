@@ -230,7 +230,7 @@ export function ShiftFormDialog({
                 <div
                   key={w.message}
                   className={`flex items-start gap-2 rounded-xl p-3 text-sm ${
-                    w.level === "conflict" ? "bg-urgent-soft text-urgent" : "bg-watch-soft text-watch"
+                    w.level === "conflict" ? "bg-urgent-soft text-urgent" : "bg-important-soft text-important"
                   }`}
                 >
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />

@@ -1,19 +1,26 @@
 import type {
   AvailabilityRow,
-  DemandLevel,
   PlanningAlert,
   PlanningDayService,
   PlanningMember,
   PlanningShift,
+  ServiceObjective,
+  ServiceObjectiveStatus,
   ShiftConflictLevel,
   ShiftWarning,
 } from "./types";
 
 /// Fonctions métier pures du Planning — aucun accès base de données. C'est le même
 /// principe que src/modules/workload/compute.ts : un seul endroit qui sait calculer
-/// des heures, des chevauchements, des disponibilités et un niveau de charge, jamais
-/// réécrit ailleurs (côté serveur pour l'état persisté, côté client pour l'aperçu en
-/// temps réel dans la modale — voir evaluateShift).
+/// des heures, des chevauchements, des disponibilités et des objectifs de services,
+/// jamais réécrit ailleurs (côté serveur pour l'état persisté, côté client pour
+/// l'aperçu en temps réel dans la modale — voir evaluateShift).
+///
+/// Principe absolu de ce fichier : aucune fonction ici ne doit jamais déduire un
+/// nombre de personnes nécessaires à partir d'un nombre de couverts. Le moteur ne
+/// connaît que les contraintes réelles des travailleurs (disponibilités, congés,
+/// limites, objectifs de services) — la fréquentation est un module séparé
+/// (frequentation), volontairement découplé de tout calcul de personnel.
 
 export function computeShiftDurationHours(startTime: string, endTime: string): number {
   const [sh, sm] = startTime.split(":").map(Number);
@@ -73,6 +80,14 @@ export function checkAvailability(shift: { startTime: string; endTime: string },
   return { status: "ok" };
 }
 
+/// Un jour de semaine est "indisponible en général" quand une indisponibilité
+/// déclarée couvre la journée entière (pas seulement une plage horaire) — c'est cette
+/// notion, pas une plage précise, qui détermine si un créneau reste compatible pour
+/// atteindre un objectif de services (voir computeServiceObjective).
+export function isDayGenerallyUnavailable(availabilities: AvailabilityRow[], dayOfWeek: number): boolean {
+  return availabilities.some((a) => a.dayOfWeek === dayOfWeek && a.kind === "unavailable" && a.startTime == null);
+}
+
 export type ShiftEvaluation = { level: ShiftConflictLevel; warnings: ShiftWarning[] };
 
 /// Le point d'entrée unique qui décide si UN shift pose problème — utilisé côté
@@ -80,10 +95,12 @@ export type ShiftEvaluation = { level: ShiftConflictLevel; warnings: ShiftWarnin
 /// l'aperçu en temps réel dans la modale de création/édition, avant tout enregistrement.
 /// Jamais bloquant : le rôle de cette fonction est d'informer, pas d'empêcher. Chaque
 /// avertissement porte son propre niveau — un shift avec à la fois une absence (🔴) et
-/// un souci de disponibilité (🟡) garde les deux, sans que le second n'hérite du premier.
-/// La limite hebdomadaire de shifts n'est volontairement PAS ici : c'est un fait par
-/// personne-semaine, pas par shift — elle serait sinon répétée sur chaque shift de la
-/// semaine une fois le seuil atteint. Voir checkWeeklyLimit.
+/// un souci de disponibilité (🟠) garde les deux, sans que le second n'hérite du premier.
+/// Une indisponibilité explicitement déclarée et violée (🔴) est un fait vérifié, au même
+/// titre qu'un chevauchement — une simple préférence non respectée (🟠) reste un signal
+/// plus doux. La limite hebdomadaire de shifts n'est volontairement PAS ici : c'est un
+/// fait par personne-semaine, pas par shift — elle serait sinon répétée sur chaque shift
+/// de la semaine une fois le seuil atteint. Voir checkWeeklyLimit.
 export function evaluateShift(
   shift: { startTime: string; endTime: string },
   context: {
@@ -104,7 +121,9 @@ export function evaluateShift(
   }
 
   const availability = checkAvailability(shift, context.availabilities);
-  if (availability.status !== "ok") {
+  if (availability.status === "unavailable") {
+    warnings.push({ level: "conflict", message: availability.reason });
+  } else if (availability.status === "outside_preferred") {
     warnings.push({ level: "warning", message: availability.reason });
   }
 
@@ -127,34 +146,41 @@ export function checkWeeklyLimit(otherShiftsThisWeekCount: number, maxShiftsPerW
   return `Limite hebdomadaire atteinte (${total}/${maxShiftsPerWeek} shifts)`;
 }
 
-// Le ratio couverts / capacité totale de la salle objective la densité de la demande
-// sur l'espace physique pour un service complet (qui peut compter plusieurs tournées).
-// Ce n'est PAS un calcul de personnel : aucune règle du type "1 serveur pour X couverts"
-// n'intervient ici, volontairement — voir Mission 5 (Planning RH V1). Le jugement sur
-// l'effectif nécessaire reste humain ; ceci ne fait qu'objectiver un des deux côtés
-// de la comparaison que le manager doit faire lui-même.
-const DEMAND_RATIO_MODERATE = 1;
-const DEMAND_RATIO_HIGH = 2;
+/// Objectif de services d'une personne pour la semaine (SchedulingRule,
+/// type "target_shifts_per_week") confronté aux créneaux réellement compatibles avec
+/// ses contraintes connues. "impossible" est un fait mathématique (pas assez de
+/// créneaux compatibles pour atteindre la cible), jamais un jugement sur la personne.
+export function computeServiceObjective(
+  target: number,
+  planned: number,
+  compatibleSlots: { dateLabel: string }[]
+): ServiceObjective {
+  const remaining = Math.max(target - planned, 0);
+  const compatibleSlotsRemaining = compatibleSlots.length;
 
-export function computeDemandLevel(covers: number, totalCapacity: number): DemandLevel {
-  if (totalCapacity <= 0) return "indeterminee";
-  const ratio = covers / totalCapacity;
-  if (ratio <= DEMAND_RATIO_MODERATE) return "faible";
-  if (ratio <= DEMAND_RATIO_HIGH) return "moderee";
-  return "elevee";
+  let status: ServiceObjectiveStatus;
+  if (planned >= target) status = "atteint";
+  else if (compatibleSlotsRemaining >= remaining) status = "incomplet";
+  else status = "impossible";
+
+  return {
+    target,
+    planned,
+    remaining,
+    compatibleSlotsRemaining,
+    compatibleDayLabels: [...new Set(compatibleSlots.map((s) => s.dateLabel))],
+    status,
+  };
 }
 
-// Seuils simples et transparents pour les alertes de cohérence — pas une prescription
-// d'effectif "idéal", juste des situations qui méritent un regard humain. Appliqués au
-// personnel de salle uniquement (floorStaffCount) : la cuisine, le bar et la direction
-// ne varient pas avec le nombre de couverts de la même façon, les mélanger fausserait
-// la comparaison.
-const UNDERSTAFFED_MAX_FLOOR_STAFF = 1;
-const OVERSTAFFED_MIN_FLOOR_STAFF = 4;
+function sortAlerts(alerts: PlanningAlert[]): PlanningAlert[] {
+  const severityRank: Record<PlanningAlert["severity"], number> = { urgent: 0, important: 1, watch: 2 };
+  return [...alerts].sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
+}
 
-/// Alertes de cohérence "demande attendue ↔ personnel planifié", par service — jamais
-/// de personnel individuel ici (voir computeRhAlerts pour les alertes centrées sur une
-/// personne : absence, chevauchement, disponibilité, limite hebdomadaire).
+/// Un seul fait factuel par service : aucun personnel planifié alors qu'il y a de la
+/// demande. Jamais de comparaison "assez/pas assez" de personnel vis-à-vis des
+/// couverts — voir le principe absolu en tête de fichier.
 export function computePlanningAlerts(dayServices: PlanningDayService[]): PlanningAlert[] {
   const alerts: PlanningAlert[] = [];
 
@@ -167,34 +193,10 @@ export function computePlanningAlerts(dayServices: PlanningDayService[]): Planni
         title: "Aucun personnel planifié",
         description: `${ds.serviceName} · ${ds.dateLabel} — ${ds.covers} couvert${ds.covers > 1 ? "s" : ""} prévu${ds.covers > 1 ? "s" : ""}.`,
       });
-      continue; // à 0 personne, l'alerte "peu de personnel" ci-dessous ferait doublon
-    }
-
-    if (ds.demandLevel === "elevee" && ds.floorStaffCount <= UNDERSTAFFED_MAX_FLOOR_STAFF) {
-      alerts.push({
-        id: `understaffed-${ds.date}-${ds.serviceId}`,
-        severity: "important",
-        title: "Forte demande, personnel de salle réduit",
-        description: `${ds.serviceName} · ${ds.dateLabel} — ${ds.covers} couverts prévus pour ${ds.floorStaffCount} personne${ds.floorStaffCount > 1 ? "s" : ""} en salle.`,
-      });
-    }
-
-    if (ds.demandLevel === "faible" && ds.floorStaffCount >= OVERSTAFFED_MIN_FLOOR_STAFF) {
-      alerts.push({
-        id: `overstaffed-${ds.date}-${ds.serviceId}`,
-        severity: "watch",
-        title: "Personnel de salle important, faible demande",
-        description: `${ds.serviceName} · ${ds.dateLabel} — ${ds.floorStaffCount} personnes en salle pour ${ds.covers} couvert${ds.covers > 1 ? "s" : ""} prévu${ds.covers > 1 ? "s" : ""}.`,
-      });
     }
   }
 
   return sortAlerts(alerts);
-}
-
-function sortAlerts(alerts: PlanningAlert[]): PlanningAlert[] {
-  const severityRank: Record<PlanningAlert["severity"], number> = { urgent: 0, important: 1, watch: 2 };
-  return [...alerts].sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
 }
 
 /// Alertes centrées sur une personne — dérivées du même conflictLevel/warnings que les
@@ -211,7 +213,7 @@ export function computeRhAlerts(shifts: PlanningShift[], members: PlanningMember
     for (const warning of s.warnings) {
       alerts.push({
         id: `shift-${s.id}-${warning.message}`,
-        severity: warning.level === "conflict" ? "urgent" : "watch",
+        severity: warning.level === "conflict" ? "urgent" : "important",
         title: `${name} — ${warning.message}`,
         description: `${label} · ${s.startTime}–${s.endTime}`,
       });
@@ -231,8 +233,39 @@ export function computeWeeklyLimitAlerts(members: PlanningMember[], shiftsCountB
     if (message && count > 0) {
       alerts.push({
         id: `weekly-limit-${m.membershipId}`,
-        severity: "watch",
+        severity: "important",
         title: `${m.firstName} ${m.lastName} — ${message}`,
+      });
+    }
+  }
+  return sortAlerts(alerts);
+}
+
+/// Une entrée par personne dont l'objectif est "incomplet" ou "impossible" —
+/// "atteint" est un état calme, il n'a pas besoin de remonter dans la liste
+/// d'alertes (il reste visible en 🟢 directement sur la grille).
+export function computeServiceObjectiveAlerts(
+  members: PlanningMember[],
+  objectivesByMember: Record<string, ServiceObjective>
+): PlanningAlert[] {
+  const alerts: PlanningAlert[] = [];
+  for (const m of members) {
+    const objective = objectivesByMember[m.membershipId];
+    if (!objective || objective.status === "atteint") continue;
+
+    if (objective.status === "impossible") {
+      alerts.push({
+        id: `objective-impossible-${m.membershipId}`,
+        severity: "urgent",
+        title: `${m.firstName} ${m.lastName} ne peut pas atteindre son objectif de services`,
+        description: `${objective.compatibleSlotsRemaining} créneau${objective.compatibleSlotsRemaining > 1 ? "x" : ""} compatible${objective.compatibleSlotsRemaining > 1 ? "s" : ""} pour ${objective.remaining} restant${objective.remaining > 1 ? "s" : ""} sur un objectif de ${objective.target}.`,
+      });
+    } else {
+      alerts.push({
+        id: `objective-incomplete-${m.membershipId}`,
+        severity: "important",
+        title: `${m.firstName} ${m.lastName} — ${objective.planned}/${objective.target} services planifiés`,
+        description: `${objective.remaining} service${objective.remaining > 1 ? "s" : ""} restent à planifier.`,
       });
     }
   }

@@ -19,8 +19,8 @@ export const PERMISSIONS = [
   { key: "timeoff.manage", label: "Valider les congés / absences", category: "staff" },
 
   // Finances
-  { key: "payroll.view", label: "Voir les salaires", category: "finance" },
   { key: "finance.view", label: "Voir les finances de l'établissement", category: "finance" },
+  { key: "finance.manage", label: "Saisir la clôture de service (CA du jour)", category: "finance" },
 
   // Stock
   { key: "inventory.view", label: "Voir le stock", category: "inventory" },
@@ -36,7 +36,6 @@ export const PERMISSIONS = [
 
   // Paramètres
   { key: "settings.manage", label: "Gérer les paramètres de l'établissement", category: "settings" },
-  { key: "insights.view", label: "Voir les statistiques et insights", category: "settings" },
 ] as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[number]["key"];
@@ -68,13 +67,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRoleKey, PermissionKey[]> = 
     "inventory.view", "inventory.manage",
     "crm.view", "crm.manage",
     "marketing.view", "marketing.publish",
-    "insights.view", "finance.view",
+    "finance.view", "finance.manage",
   ],
   FLOOR_MANAGER: [
     "reservations.view", "reservations.edit", "floorplan.view", "floorplan.edit", "service.run",
     "staff.view", "staff.assign", "schedule.view",
     "crm.view", "crm.manage",
-    "insights.view",
+    "finance.manage",
   ],
   CHEF: [
     "reservations.view", "floorplan.view", "service.run",

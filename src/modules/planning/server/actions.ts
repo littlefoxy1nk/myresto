@@ -131,3 +131,39 @@ export async function duplicateWeek(sourceWeekStart: string, targetWeekStart: st
   revalidatePlanningPaths();
   return shifts.length;
 }
+
+const TARGET_SHIFTS_RULE_TYPE = "target_shifts_per_week";
+
+/// Objectif de services hebdomadaire d'une personne, stocké dans SchedulingRule
+/// (réutilisation du modèle existant plutôt qu'un nouveau champ — voir le rapport de
+/// mission). `count: null` supprime l'objectif plutôt que de le mettre à zéro : une
+/// personne sans objectif défini n'a rien à atteindre, ce n'est pas la même chose
+/// qu'un objectif de 0 service.
+export async function setServiceObjective(membershipId: string, count: number | null) {
+  const ctx = await requirePermission("schedule.edit");
+
+  const membership = await prisma.membership.findFirst({ where: { id: membershipId, establishmentId: ctx.establishment.id } });
+  if (!membership) throw new Error("Membre introuvable.");
+
+  const existing = await prisma.schedulingRule.findFirst({
+    where: { establishmentId: ctx.establishment.id, membershipId, type: TARGET_SHIFTS_RULE_TYPE },
+  });
+
+  if (count == null) {
+    if (existing) await prisma.schedulingRule.delete({ where: { id: existing.id } });
+  } else if (existing) {
+    await prisma.schedulingRule.update({ where: { id: existing.id }, data: { params: JSON.stringify({ count }) } });
+  } else {
+    await prisma.schedulingRule.create({
+      data: {
+        establishmentId: ctx.establishment.id,
+        membershipId,
+        type: TARGET_SHIFTS_RULE_TYPE,
+        params: JSON.stringify({ count }),
+        isHard: false,
+      },
+    });
+  }
+
+  revalidatePlanningPaths();
+}

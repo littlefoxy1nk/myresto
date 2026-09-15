@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay } from "date-fns";
 import { computeDaysLeft } from "@/modules/stock/compute";
+import { computeWorkloadSummary } from "@/modules/workload/compute";
+import { computeFrequentationSignal, detectLargeGroups, detectNotableConcentration } from "@/modules/frequentation/compute";
+import { getHistoricalCoversByWeekday } from "@/modules/frequentation/server/queries";
 
 export type AlertSeverity = "urgent" | "important" | "watch";
 
@@ -12,14 +15,6 @@ export type TodayAlert = {
   /// Quand une action existe réellement pour résoudre l'alerte, elle est portée ici —
   /// jamais vers un module qui n'est pas encore construit (voir NAV_ITEMS.available).
   action?: { label: string; href: string };
-};
-
-export type Recommendation = {
-  id: string;
-  title: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
 };
 
 export type UpcomingReservation = {
@@ -42,23 +37,23 @@ export type TodaySummary = {
   serviceLabel: string | null;
   occupancyRate: number; // couverts prévus / capacité totale de la salle
   alerts: TodayAlert[];
-  recommendations: Recommendation[];
   /// La prochaine chose qui va se passer dans l'établissement — ce qui doit occuper le
   /// haut du regard du patron avant les KPI agrégés. null s'il n'y a plus rien à venir.
   nextUp: UpcomingReservation | null;
 };
 
 /// Calcule, à partir des données réelles de l'établissement (réservations, planning,
-/// congés, stock), ce qu'un patron doit savoir et faire aujourd'hui. C'est le cœur de
-/// l'intelligence contextuelle décrite dans la vision produit : pas de LLM ici, des règles
-/// explicites et vérifiables — la V2 pourra les enrichir ou les reformuler via l'assistant IA,
-/// mais le calcul de vérité reste toujours ancré dans les données réelles.
+/// congés, stock, historique de fréquentation), ce qu'un patron doit savoir aujourd'hui.
+/// Pas de LLM ici, des règles explicites et vérifiables. Important : ce module ne
+/// contient et ne doit jamais contenir de déduction du type "couverts / ratio = nombre
+/// de serveurs nécessaires" — voir la Fréquentation (module frequentation), qui donne un
+/// signal, jamais une décision de personnel.
 export async function computeTodaySummary(establishmentId: string): Promise<TodaySummary> {
   const today = startOfDay(new Date());
   const dayStart = today;
   const dayEnd = endOfDay(today);
 
-  const [reservations, shifts, timeOffToday, tables, products] = await Promise.all([
+  const [reservations, shifts, timeOffToday, tables, products, historicalCoversByWeekday] = await Promise.all([
     prisma.reservation.findMany({
       where: {
         establishmentId,
@@ -81,6 +76,7 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
     }),
     prisma.restaurantTable.findMany({ where: { establishmentId } }),
     prisma.product.findMany({ where: { establishmentId } }),
+    getHistoricalCoversByWeekday(establishmentId, today),
   ]);
 
   const covers = reservations.reduce((sum, r) => sum + r.partySize, 0);
@@ -92,9 +88,7 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
 
   const alerts: TodayAlert[] = [];
 
-  // Absence du jour — le fait est toujours urgent à connaître ; c'est l'alerte de
-  // staffing plus bas (comparaison couverts / serveurs planifiés) qui dit si ça pose
-  // réellement un problème de couverture, pas une heuristique déconnectée ici.
+  // Absence du jour — un fait, indépendant de toute notion de couverture suffisante ou non.
   for (const t of timeOffToday) {
     alerts.push({
       id: `absence-${t.id}`,
@@ -128,26 +122,46 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
     }
   }
 
-  // Staffing en salle vs couverts prévus (règle simple : ~1 serveur pour 20 couverts)
-  const floorStaffCount = shifts.filter((s) => s.position === "salle").length;
-  const recommendedFloorStaff = Math.ceil(covers / 20);
-  const recommendations: Recommendation[] = [];
-  if (covers > 0 && recommendedFloorStaff > floorStaffCount) {
-    const missing = recommendedFloorStaff - floorStaffCount;
+  // Fréquentation : un signal sur la demande, jamais une déduction de personnel. On ne
+  // signale que les jours réellement inhabituels (faible/élevée) — une journée "normale"
+  // ou sans historique suffisant ne mérite pas une ligne dans "à faire".
+  const frequentation = computeFrequentationSignal(covers, historicalCoversByWeekday[today.getDay()]);
+  if (frequentation.level === "elevee" || frequentation.level === "faible") {
+    const dayName = new Intl.DateTimeFormat("fr-BE", { weekday: "long" }).format(today);
     alerts.push({
-      id: "understaffed-floor",
-      severity: "important",
-      title: `Salle potentiellement sous-staffée`,
-      description: `${covers} couverts prévus pour ${floorStaffCount} serveur${floorStaffCount > 1 ? "s" : ""} en salle.`,
+      id: "frequentation-signal",
+      severity: frequentation.level === "elevee" ? "important" : "watch",
+      title: frequentation.level === "elevee" ? "Fréquentation inhabituelle" : "Journée calme",
+      description: `${covers} couvert${covers > 1 ? "s" : ""} attendu${covers > 1 ? "s" : ""} contre ${frequentation.historicalAverageCovers} habituellement le ${dayName}.`,
     });
-    recommendations.push({
-      id: "add-floor-staff",
-      title: `Ajouter ${missing} serveur${missing > 1 ? "s" : ""} pour ce service`,
-      description: `Avec ${covers} couverts prévus, la couverture recommandée est d'environ ${recommendedFloorStaff} serveurs en salle. Le planning actuel en compte ${floorStaffCount}.`,
-      // Le planning n'a pas encore d'interface (Phase 2) : on renvoie vers l'équipe,
-      // seul écran réel qui permet aujourd'hui de voir qui est disponible.
-      actionLabel: "Voir l'équipe",
-      actionHref: "/equipe",
+  }
+
+  // Concentration d'arrivées notable — un fait sur la répartition dans le temps, pas
+  // sur le personnel nécessaire pour l'absorber.
+  const workloadSummary = computeWorkloadSummary(
+    reservations.map((r) => ({ time: r.time, partySize: r.partySize, zoneId: null })),
+    []
+  );
+  const concentration = detectNotableConcentration(workloadSummary.arrivalConcentration, covers);
+  if (concentration) {
+    alerts.push({
+      id: "arrival-concentration",
+      severity: "watch",
+      title: "Concentration d'arrivées",
+      description: `${concentration.reservationsCount} réservations (${concentration.covers} couverts) concentrées autour de ${concentration.startTime}.`,
+    });
+  }
+
+  // Gros groupes — un fait physique (la réservation dépasse la plus grande table
+  // disponible), jamais un seuil de personnel.
+  const maxSingleTableCapacity = tables.reduce((max, t) => Math.max(max, t.capacity), 0);
+  const largeGroups = detectLargeGroups(reservations, maxSingleTableCapacity);
+  for (const g of largeGroups) {
+    alerts.push({
+      id: `large-group-${g.reservationId}`,
+      severity: "watch",
+      title: "Groupe important",
+      description: `${g.customerName} · ${g.partySize} personnes à ${g.time} — dépasse la plus grande table disponible (${maxSingleTableCapacity} places).`,
     });
   }
 
@@ -190,7 +204,6 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
     serviceLabel,
     occupancyRate,
     alerts,
-    recommendations,
     nextUp,
   };
 }

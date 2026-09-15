@@ -25,7 +25,6 @@ export function computeWorkloadSummary(
       reservationsCount: zoneReservations.length,
       tablesCount: zone.tablesCount,
       assignedStaffCount: zone.assignedStaffCount,
-      coversPerStaff: zone.assignedStaffCount > 0 ? Math.round((covers / zone.assignedStaffCount) * 10) / 10 : null,
     };
   });
 
@@ -38,7 +37,6 @@ export function computeWorkloadSummary(
       reservationsCount: unassigned.length,
       tablesCount: 0,
       assignedStaffCount: 0,
-      coversPerStaff: null,
     });
   }
 

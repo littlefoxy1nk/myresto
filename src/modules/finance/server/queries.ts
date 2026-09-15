@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek } from "date-fns";
 import { getCurrentContext, ForbiddenError } from "@/lib/current-context";
+import { CLOSING_SOURCE } from "@/modules/finance/server/shared";
 import { computeAverageTicket, computeLaborCostRatio, computeMarginAfterLabor } from "@/modules/finance/compute";
 import { computeShiftDurationHours } from "@/modules/planning/compute";
 import type { FinanceDailyEntry, FinanceSummary, ServiceReportItem } from "@/modules/finance/types";
@@ -90,4 +91,35 @@ export async function getFinanceSummary(establishmentId: string, rangeDays = 14)
     daily,
     recentReports,
   };
+}
+
+/// Jours des `lookbackDays` derniers jours (hors aujourd'hui, dont le service n'est pas
+/// forcément terminé) sans clôture enregistrée — sert à relancer le manager sans deviner
+/// un CA à sa place.
+export async function getMissingClosingDates(establishmentId: string, lookbackDays = 14): Promise<string[]> {
+  const rangeStart = startOfDay(subDays(new Date(), lookbackDays));
+  const rangeEnd = startOfDay(new Date());
+
+  const entries = await prisma.revenueEntry.findMany({
+    where: { establishmentId, source: CLOSING_SOURCE, date: { gte: rangeStart, lt: rangeEnd } },
+    select: { date: true },
+  });
+  const closedDates = new Set(entries.map((e) => toDateKey(e.date)));
+
+  const missing: string[] = [];
+  for (let i = 1; i <= lookbackDays; i++) {
+    const key = toDateKey(subDays(rangeEnd, i));
+    if (!closedDates.has(key)) missing.push(key);
+  }
+  return missing.sort();
+}
+
+/// Le CA du jour déjà saisi (le cas échéant), pour pré-remplir le formulaire de clôture
+/// plutôt que de laisser le manager repartir de zéro ou créer un doublon.
+export async function getTodayClosing(establishmentId: string): Promise<{ revenueCents: number; covers: number } | null> {
+  const today = startOfDay(new Date());
+  const entry = await prisma.revenueEntry.findFirst({
+    where: { establishmentId, source: CLOSING_SOURCE, date: today },
+  });
+  return entry ? { revenueCents: entry.amountCents, covers: entry.covers } : null;
 }

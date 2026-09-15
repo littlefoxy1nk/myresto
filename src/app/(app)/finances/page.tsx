@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
-import { getFinanceSummary } from "@/modules/finance/server/queries";
+import { getFinanceSummary, getMissingClosingDates } from "@/modules/finance/server/queries";
+import { MissingClosings } from "@/modules/finance/components/missing-closings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/utils";
@@ -26,7 +27,9 @@ export default async function FinancesPage() {
   const ctx = await getCurrentContext();
   if (!ctx.can("finance.view")) redirect("/aujourdhui");
 
+  const canManageFinance = ctx.can("finance.manage");
   const summary = await getFinanceSummary(ctx.establishment.id, 14);
+  const missingDates = canManageFinance ? await getMissingClosingDates(ctx.establishment.id, 14) : [];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -78,6 +81,20 @@ export default async function FinancesPage() {
           </p>
         </CardContent>
       </Card>
+
+      {canManageFinance && missingDates.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Jours non clôturés</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="mb-2 text-xs text-muted-foreground">
+              Le CA de ces jours n&apos;a pas été renseigné — les totaux ci-dessus ne les incluent pas.
+            </p>
+            <MissingClosings dates={missingDates} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

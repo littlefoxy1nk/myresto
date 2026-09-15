@@ -74,6 +74,9 @@ export default async function ParametresPage() {
       <Card>
         <CardHeader>
           <CardTitle>Rôles & permissions</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Vue d&apos;ensemble des droits par rôle, à titre informatif — la matrice n&apos;est pas modifiable ici.
+          </p>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-sm">

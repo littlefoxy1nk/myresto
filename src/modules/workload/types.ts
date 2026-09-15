@@ -23,10 +23,8 @@ export type ZoneWorkload = {
   covers: number;
   reservationsCount: number;
   tablesCount: number;
+  /// Un fait (qui est affecté à cette zone), jamais transformé en ratio couverts/personnel.
   assignedStaffCount: number;
-  /// null si personne n'est affecté — pas de division par zéro, pas de "0 par serveur"
-  /// trompeur qui laisserait croire que la zone n'a besoin de personne.
-  coversPerStaff: number | null;
 };
 
 export type ArrivalWindow = {

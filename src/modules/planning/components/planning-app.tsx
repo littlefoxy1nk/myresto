@@ -3,17 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { addDays, format } from "date-fns";
-import { ChevronLeft, ChevronRight, Copy, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Plus, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast-bus";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PlanningAlerts } from "@/modules/planning/components/planning-alerts";
-import { ServiceDemandSummary } from "@/modules/planning/components/service-demand-summary";
+import { FrequentationSummary } from "@/modules/planning/components/frequentation-summary";
 import { ShiftFormDialog, type ShiftFormValues } from "@/modules/planning/components/shift-form-dialog";
+import { ObjectiveDialog } from "@/modules/planning/components/objective-dialog";
 import { createShift, updateShift, deleteShift, duplicateWeek } from "@/modules/planning/server/actions";
 import { SHIFT_POSITION_LABELS } from "@/modules/planning/types";
-import type { PlanningShift, ShiftConflictLevel, ShiftPosition, WeekPlanningResult } from "@/modules/planning/types";
+import type { PlanningMember, PlanningShift, ShiftConflictLevel, ShiftPosition, WeekPlanningResult } from "@/modules/planning/types";
 
 function formatHours(h: number) {
   const rounded = Math.round(h * 10) / 10;
@@ -22,7 +23,7 @@ function formatHours(h: number) {
 
 const CONFLICT_DOT_CLASS: Record<ShiftConflictLevel, string> = {
   ok: "bg-good",
-  warning: "bg-watch",
+  warning: "bg-important",
   conflict: "bg-urgent",
 };
 
@@ -72,6 +73,7 @@ export function PlanningApp({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [objectiveFor, setObjectiveFor] = useState<PlanningMember | null>(null);
   const activeDayTabRef = useRef<HTMLButtonElement>(null);
 
   // Le jour sélectionné (aujourd'hui par défaut) doit être visible sans que la
@@ -127,6 +129,49 @@ export function PlanningApp({
     setDeleteId(null);
   }
 
+  /// Objectif de services d'une personne : un fait ("5/8"), et si non atteint, une
+  /// explication concrète (jours encore compatibles, ou pourquoi c'est impossible) —
+  /// jamais juste un chiffre sans contexte.
+  function renderObjective(m: PlanningMember) {
+    const objective = data.objectivesByMember[m.membershipId];
+    return (
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {objective && (
+          <span
+            className={cn(
+              "text-xs font-medium",
+              objective.status === "impossible" ? "text-urgent" : objective.status === "incomplet" ? "text-important" : "text-good"
+            )}
+          >
+            🎯 {objective.planned}/{objective.target} services
+          </span>
+        )}
+        {data.canEdit && (
+          <button
+            onClick={() => setObjectiveFor(m)}
+            aria-label={`Définir l'objectif de services de ${m.firstName}`}
+            className="rounded-md p-0.5 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Target size={12} aria-hidden="true" />
+          </button>
+        )}
+        {objective && objective.status === "incomplet" && (
+          <p className="w-full text-xs text-muted-foreground">
+            {objective.remaining} service{objective.remaining > 1 ? "s" : ""} restant{objective.remaining > 1 ? "s" : ""} —
+            compatible {objective.compatibleDayLabels.join(", ")}
+          </p>
+        )}
+        {objective && objective.status === "impossible" && (
+          <p className="w-full text-xs text-urgent">
+            Objectif impossible avec les contraintes actuelles ({objective.compatibleSlotsRemaining} créneau
+            {objective.compatibleSlotsRemaining > 1 ? "x" : ""} compatible{objective.compatibleSlotsRemaining > 1 ? "s" : ""} pour{" "}
+            {objective.remaining} restant{objective.remaining > 1 ? "s" : ""}).
+          </p>
+        )}
+      </div>
+    );
+  }
+
   function renderShifts(membershipId: string, date: string) {
     const shifts = shiftsByMemberDay.get(`${membershipId}|${date}`) ?? [];
     return (
@@ -137,7 +182,7 @@ export function PlanningApp({
             s.conflictLevel === "conflict"
               ? "border-urgent bg-urgent-soft text-urgent"
               : s.conflictLevel === "warning"
-                ? "border-watch bg-watch-soft text-watch"
+                ? "border-important bg-important-soft text-important"
                 : "border-border bg-muted"
           );
           const content = (
@@ -233,7 +278,7 @@ export function PlanningApp({
       </div>
 
       <PlanningAlerts alerts={data.alerts} />
-      <ServiceDemandSummary dayServices={data.dayServices} />
+      <FrequentationSummary days={data.dayFrequentation} />
       {data.members.length > 0 && <ConflictLegend />}
 
       {data.members.length === 0 ? (
@@ -268,6 +313,7 @@ export function PlanningApp({
                         {m.weeklyHoursTarget ? ` / ${m.weeklyHoursTarget}h` : ""}
                         {m.maxShiftsPerWeek != null && ` · ${data.shiftsCountByMember[m.membershipId] ?? 0}/${m.maxShiftsPerWeek} shifts`}
                       </p>
+                      {renderObjective(m)}
                     </td>
                     {data.weekDays.map((date) => (
                       <td key={date} className="p-1.5 align-top">
@@ -311,6 +357,7 @@ export function PlanningApp({
                       {m.maxShiftsPerWeek != null && ` · ${data.shiftsCountByMember[m.membershipId] ?? 0}/${m.maxShiftsPerWeek} shifts`}
                     </p>
                   </div>
+                  {renderObjective(m)}
                   <div className="mt-2">{renderShifts(m.membershipId, selectedDay)}</div>
                 </div>
               ))}
@@ -353,6 +400,15 @@ export function PlanningApp({
         destructive={false}
         onConfirm={handleDuplicate}
       />
+      {objectiveFor && (
+        <ObjectiveDialog
+          open
+          onOpenChange={(o) => !o && setObjectiveFor(null)}
+          membershipId={objectiveFor.membershipId}
+          memberName={`${objectiveFor.firstName} ${objectiveFor.lastName}`}
+          currentTarget={data.objectivesByMember[objectiveFor.membershipId]?.target ?? null}
+        />
+      )}
     </div>
   );
 }
