@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay } from "date-fns";
+import { computeDaysLeft } from "@/modules/stock/compute";
 
 export type AlertSeverity = "urgent" | "important" | "watch";
 
@@ -116,8 +117,8 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
 
   // Stock critique : rupture avant le prochain réassort estimé
   for (const p of products) {
-    if (p.avgDailyUsage > 0 && p.currentStock <= p.reorderThreshold) {
-      const daysLeft = Math.floor(p.currentStock / p.avgDailyUsage);
+    const daysLeft = computeDaysLeft(p.currentStock, p.avgDailyUsage);
+    if (daysLeft != null && p.currentStock <= p.reorderThreshold) {
       alerts.push({
         id: `stock-${p.id}`,
         severity: daysLeft <= 1 ? "urgent" : "watch",

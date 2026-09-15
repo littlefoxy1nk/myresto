@@ -1,12 +1,17 @@
-import { ComingSoon } from "@/components/coming-soon";
+import { redirect } from "next/navigation";
+import { getCurrentContext } from "@/lib/current-context";
+import { getStockOverview } from "@/modules/stock/server/queries";
+import { StockApp } from "@/modules/stock/components/stock-app";
 
-export default function Page() {
+export default async function StockPage() {
+  const ctx = await getCurrentContext();
+  if (!ctx.can("inventory.view")) redirect("/aujourdhui");
+
+  const overview = await getStockOverview(ctx.establishment.id);
+
   return (
-    <ComingSoon
-      icon="Boxes"
-      title="Stock"
-      description="Suivi des seuils, alertes de rupture croisées avec vos réservations à venir, et suggestions de commande."
-      phase="Phase 6 — Stock, performance financière."
-    />
+    <div className="mx-auto max-w-3xl">
+      <StockApp overview={overview} />
+    </div>
   );
 }

@@ -30,10 +30,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/conges", label: "Congés", icon: "Palmtree", permission: "timeoff.manage", available: true },
   { href: "/clients", label: "Clients", icon: "Heart", permission: "crm.view", available: true },
   { href: "/finances", label: "Finances", icon: "LineChart", permission: "finance.view", available: true },
+  { href: "/stock", label: "Stock", icon: "Boxes", permission: "inventory.view", available: true },
   // Phase 5
   { href: "/marketing", label: "Marketing", icon: "Megaphone", permission: "marketing.view", available: false },
-  // Phase 6
-  { href: "/stock", label: "Stock", icon: "Boxes", permission: "inventory.view", available: false },
 ];
 
 export function visibleNavItems(can: (permission: PermissionKey) => boolean): NavItem[] {
