@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { subDays } from "date-fns";
+import { computeAverageTicket } from "@/modules/finance/compute";
 
 /// Estimation simple du CA prévu du jour, basée sur le panier moyen observé sur les 30
 /// derniers jours multiplié par les couverts déjà réservés. Volontairement transparent
@@ -10,9 +11,7 @@ export async function estimateTodayRevenue(establishmentId: string, coversToday:
     where: { establishmentId, date: { gte: since } },
   });
 
-  const totalCovers = recent.reduce((s, r) => s + r.covers, 0);
-  const totalRevenue = recent.reduce((s, r) => s + r.amountCents, 0);
-  const avgTicketCents = totalCovers > 0 ? Math.round(totalRevenue / totalCovers) : 0;
+  const avgTicketCents = computeAverageTicket(recent) ?? 0;
 
   return {
     avgTicketCents,
