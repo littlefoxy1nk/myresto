@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import type { ZoneWithTables } from "@/modules/floorplan/types";
+import type { ZonePressureLevel } from "@/modules/workload/types";
 import { Plus, X } from "lucide-react";
 
 const ZONE_ICON: Record<string, string> = {
@@ -12,6 +13,18 @@ const ZONE_ICON: Record<string, string> = {
   autre: "📍",
 };
 
+const PRESSURE_DOT_CLASS: Record<ZonePressureLevel, string> = {
+  calme: "bg-good",
+  chargee: "bg-watch",
+  pleine: "bg-urgent",
+};
+
+const PRESSURE_LABEL: Record<ZonePressureLevel, string> = {
+  calme: "Calme",
+  chargee: "Chargée",
+  pleine: "Pleine",
+};
+
 export function ZoneTabs({
   zones,
   activeZoneId,
@@ -19,6 +32,7 @@ export function ZoneTabs({
   onSelect,
   onCreateZone,
   onDeleteZone,
+  pressureByZoneId,
 }: {
   zones: ZoneWithTables[];
   activeZoneId: string | null;
@@ -26,6 +40,9 @@ export function ZoneTabs({
   onSelect: (id: string) => void;
   onCreateZone: () => void;
   onDeleteZone: (id: string) => void;
+  /// Fourni uniquement par le Mode Service — une tension "en ce moment" n'a pas de sens
+  /// sur l'écran de configuration du Plan de salle.
+  pressureByZoneId?: Record<string, ZonePressureLevel>;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -33,6 +50,7 @@ export function ZoneTabs({
         const active = zone.id === activeZoneId;
         const capacity = zone.tables.reduce((s, t) => s + t.capacity, 0);
         const free = zone.tables.filter((t) => t.liveState === "available").length;
+        const pressure = pressureByZoneId?.[zone.id];
         return (
           <div
             key={zone.id}
@@ -45,6 +63,13 @@ export function ZoneTabs({
               onClick={() => onSelect(zone.id)}
               className="flex items-center gap-2 outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
+              {pressure && (
+                <span
+                  className={cn("inline-block h-2 w-2 shrink-0 rounded-full", PRESSURE_DOT_CLASS[pressure])}
+                  aria-label={PRESSURE_LABEL[pressure]}
+                  title={PRESSURE_LABEL[pressure]}
+                />
+              )}
               <span aria-hidden="true">{ZONE_ICON[zone.type] ?? "📍"}</span>
               {zone.name}
               <span className="text-xs text-muted-foreground">

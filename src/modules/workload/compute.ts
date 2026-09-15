@@ -1,4 +1,4 @@
-import type { ArrivalWindow, WorkloadReservation, WorkloadSummary, WorkloadZoneInput, ZoneWorkload } from "./types";
+import type { ArrivalWindow, WorkloadReservation, WorkloadSummary, WorkloadZoneInput, ZonePressureLevel, ZoneWorkload } from "./types";
 
 const UNASSIGNED_ZONE_ID = "__unassigned__";
 
@@ -68,4 +68,16 @@ export function computeWorkloadSummary(
     byZone,
     arrivalConcentration,
   };
+}
+
+// Occupation physique réelle de la zone (tables occupées / tables totales) croisée avec
+// les arrivées imminentes déjà connues — jamais une notion de personnel. "Pleine" est un
+// fait (plus une seule table libre) ; "chargée" reste un signal simple, pas une alerte.
+const CHARGEE_OCCUPANCY_RATIO = 0.5;
+
+export function computeZonePressureLevel(tablesOccupied: number, tablesTotal: number, arrivingSoon: number): ZonePressureLevel {
+  if (tablesTotal === 0) return "calme";
+  if (tablesOccupied >= tablesTotal) return "pleine";
+  if (arrivingSoon > 0 && tablesOccupied / tablesTotal >= CHARGEE_OCCUPANCY_RATIO) return "chargee";
+  return "calme";
 }

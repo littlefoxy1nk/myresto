@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay } from "date-fns";
 import { getFloorPlan } from "@/modules/floorplan/server/queries";
+import { computeZonePressureLevel } from "@/modules/workload/compute";
+import type { ZonePressureLevel } from "@/modules/workload/types";
 import type { ServiceAlert, ServiceSnapshot, ServiceWindow, TimelineEntry } from "@/modules/service/types";
 
 const SOON_THRESHOLD_MINUTES = 45;
@@ -128,6 +130,24 @@ export async function getServiceSnapshot(establishmentId: string): Promise<Servi
     }
   }
 
+  // --- Tension par zone : occupation réelle + arrivées imminentes déjà calculées
+  // ci-dessus pour les alertes, jamais un calcul de personnel (voir computeZonePressureLevel).
+  const arrivingSoonByZone = new Map<string, number>();
+  for (const r of reservations) {
+    if (r.status !== "new" && r.status !== "confirmed") continue;
+    const minutesFromNow = timeToMinutes(r.time) - nowMinutes;
+    if (minutesFromNow < 0 || minutesFromNow > SOON_THRESHOLD_MINUTES) continue;
+    const zoneId = r.tables[0]?.table.zoneId;
+    if (!zoneId) continue;
+    arrivingSoonByZone.set(zoneId, (arrivingSoonByZone.get(zoneId) ?? 0) + 1);
+  }
+
+  const zonePressure: Record<string, ZonePressureLevel> = {};
+  for (const zone of zones) {
+    const occupied = zone.tables.filter((t) => t.liveState === "occupied").length;
+    zonePressure[zone.id] = computeZonePressureLevel(occupied, zone.tables.length, arrivingSoonByZone.get(zone.id) ?? 0);
+  }
+
   return {
     now: now.toISOString(),
     hasStarted: !!currentService,
@@ -143,5 +163,6 @@ export async function getServiceSnapshot(establishmentId: string): Promise<Servi
     nextUp,
     timeline,
     zones,
+    zonePressure,
   };
 }

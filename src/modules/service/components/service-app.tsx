@@ -40,6 +40,9 @@ export function ServiceApp({
   const responsibleForSelectedTable = selectedTable
     ? assignments.zones.find((z) => z.zoneId === selectedTable.zoneId)?.members.map((m) => `${m.firstName} ${m.lastName}`) ?? []
     : [];
+  // Arrivé mais pas encore installé : sans cette liste, la personne "disparaît" du
+  // cockpit dès qu'elle quitte "Prochaines arrivées", jusqu'à cliquer sa table une à une.
+  const arrivedWaiting = snapshot.timeline.filter((t) => t.status === "arrived");
 
   async function guarded(action: () => Promise<unknown>, successMessage?: string) {
     try {
@@ -108,6 +111,17 @@ export function ServiceApp({
         />
       </section>
 
+      {arrivedWaiting.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">En attente d&apos;installation</h2>
+          <ServiceNextUp
+            entries={arrivedWaiting}
+            actionLabel="Installer"
+            onMarkArrived={(id) => guarded(() => updateReservationStatus(id, "seated"), "Table installée")}
+          />
+        </section>
+      )}
+
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold">
@@ -139,6 +153,7 @@ export function ServiceApp({
             onSelect={setActiveZoneId}
             onCreateZone={() => {}}
             onDeleteZone={() => {}}
+            pressureByZoneId={snapshot.zonePressure}
           />
           <div className="flex flex-col gap-4 md:flex-row md:items-start">
             <div className="w-full min-w-0 flex-1">

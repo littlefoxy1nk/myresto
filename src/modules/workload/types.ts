@@ -43,3 +43,7 @@ export type WorkloadSummary = {
   /// Uniquement les créneaux qui ont au moins une arrivée — pas 48 lignes à 0 pour une soirée.
   arrivalConcentration: ArrivalWindow[];
 };
+
+/// Tension d'une zone EN CE MOMENT (Mode Service) — jamais un calcul de personnel :
+/// uniquement occupation physique réelle + arrivées imminentes déjà connues.
+export type ZonePressureLevel = "calme" | "chargee" | "pleine";

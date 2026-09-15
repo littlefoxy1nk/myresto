@@ -8,14 +8,16 @@ import type { TimelineEntry } from "@/modules/service/types";
 export function ServiceNextUp({
   entries,
   onMarkArrived,
+  actionLabel = "Arrivé",
+  emptyMessage = "Aucune arrivée prévue pour le moment.",
 }: {
   entries: TimelineEntry[];
   onMarkArrived: (reservationId: string) => void;
+  actionLabel?: string;
+  emptyMessage?: string;
 }) {
   if (entries.length === 0) {
-    return (
-      <Card className="p-4 text-sm text-muted-foreground">Aucune arrivée prévue pour le moment.</Card>
-    );
+    return <Card className="p-4 text-sm text-muted-foreground">{emptyMessage}</Card>;
   }
 
   return (
@@ -41,7 +43,7 @@ export function ServiceNextUp({
             className="w-full shrink-0 sm:w-auto"
             onClick={() => onMarkArrived(entry.reservationId)}
           >
-            Arrivé
+            {actionLabel}
           </Button>
         </Card>
       ))}

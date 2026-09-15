@@ -1,4 +1,5 @@
 import type { ZoneWithTables } from "@/modules/floorplan/types";
+import type { ZonePressureLevel } from "@/modules/workload/types";
 
 export type TimelineEntry = {
   reservationId: string;
@@ -38,4 +39,7 @@ export type ServiceSnapshot = {
   nextUp: TimelineEntry[];
   timeline: TimelineEntry[];
   zones: ZoneWithTables[];
+  /// Par id de zone — la tension de chaque zone en ce moment, pour repérer d'un coup
+  /// d'œil laquelle absorbe le plus de pression pendant le service.
+  zonePressure: Record<string, ZonePressureLevel>;
 };
