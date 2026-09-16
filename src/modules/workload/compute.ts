@@ -1,3 +1,4 @@
+import { timeToMinutes } from "@/lib/time";
 import type { ArrivalWindow, WorkloadReservation, WorkloadSummary, WorkloadZoneInput, ZonePressureLevel, ZoneWorkload } from "./types";
 
 const UNASSIGNED_ZONE_ID = "__unassigned__";
@@ -42,8 +43,7 @@ export function computeWorkloadSummary(
 
   const windowMap = new Map<number, { covers: number; count: number }>();
   for (const r of reservations) {
-    const [h, m] = r.time.split(":").map(Number);
-    const totalMinutes = h * 60 + m;
+    const totalMinutes = timeToMinutes(r.time);
     const bucketStart = Math.floor(totalMinutes / intervalMinutes) * intervalMinutes;
     const entry = windowMap.get(bucketStart) ?? { covers: 0, count: 0 };
     entry.covers += r.partySize;

@@ -12,6 +12,11 @@ export function FrequentationSummary({
   days: { date: string; dateLabel: string; signal: FrequentationSignal }[];
 }) {
   const notable = days.filter((d) => d.signal.level === "elevee" || d.signal.level === "faible");
+  // Distinct de "rien d'inhabituel" : ici, on ne sait tout simplement pas encore — pas
+  // assez de semaines comparables pour affirmer quoi que ce soit honnêtement. Ne pas
+  // les confondre évite de faire croire à un établissement neuf que sa semaine est
+  // "normale" alors qu'aucune normale n'a encore pu être établie.
+  const noHistoryYet = days.length > 0 && days.every((d) => d.signal.level === "indeterminee");
 
   return (
     <Card>
@@ -19,7 +24,13 @@ export function FrequentationSummary({
         <CardTitle>Fréquentation</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 pt-0">
-        {notable.length === 0 && (
+        {notable.length === 0 && days.length === 0 && (
+          <p className="text-sm text-muted-foreground">Aucune donnée de fréquentation pour cette semaine pour le moment.</p>
+        )}
+        {notable.length === 0 && days.length > 0 && noHistoryYet && (
+          <p className="text-sm text-muted-foreground">Pas assez d&apos;historique pour établir une tendance fiable.</p>
+        )}
+        {notable.length === 0 && days.length > 0 && !noHistoryYet && (
           <p className="text-sm text-muted-foreground">Aucune fréquentation inhabituelle cette semaine.</p>
         )}
         {notable.map((d) => {

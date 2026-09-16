@@ -8,20 +8,26 @@ test("computeFrequentationSignal refuses to fabricate a baseline from too little
   assert.equal(signal.historicalAverageCovers, null);
 });
 
-test("computeFrequentationSignal flags a notably busier day than the historical same-weekday average", () => {
-  // 86 vs. 52 habituellement un vendredi — l'exemple donné dans la spec, +65%.
+test("computeFrequentationSignal still refuses a baseline at 3 samples — durci depuis l'audit (2 était trop peu fiable)", () => {
   const signal = computeFrequentationSignal(86, [52, 48, 56]);
+  assert.equal(signal.level, "indeterminee");
+  assert.equal(signal.historicalAverageCovers, null);
+});
+
+test("computeFrequentationSignal flags a notably busier day than the historical same-weekday average", () => {
+  // 86 vs. ~52 habituellement un vendredi — l'exemple donné dans la spec, largement au-dessus du seuil.
+  const signal = computeFrequentationSignal(86, [52, 48, 56, 50]);
   assert.equal(signal.level, "elevee");
   assert.equal(signal.historicalAverageCovers, 52);
 });
 
 test("computeFrequentationSignal flags a notably quieter day", () => {
-  const signal = computeFrequentationSignal(20, [50, 52, 48]);
+  const signal = computeFrequentationSignal(20, [50, 52, 48, 50]);
   assert.equal(signal.level, "faible");
 });
 
 test("computeFrequentationSignal treats a small deviation as normal, not notable", () => {
-  const signal = computeFrequentationSignal(55, [50, 52, 48]);
+  const signal = computeFrequentationSignal(55, [50, 52, 48, 50]);
   assert.equal(signal.level, "normale");
 });
 
@@ -33,8 +39,8 @@ test("detectNotableConcentration ignores a busy window with too few reservations
 test("detectNotableConcentration ignores a window that isn't a large share of the day's covers", () => {
   const result = detectNotableConcentration(
     [
-      { startTime: "19:00", covers: 10, reservationsCount: 4 },
-      { startTime: "20:00", covers: 12, reservationsCount: 4 },
+      { startTime: "19:00", covers: 10, reservationsCount: 5 },
+      { startTime: "20:00", covers: 12, reservationsCount: 5 },
     ],
     40
   );

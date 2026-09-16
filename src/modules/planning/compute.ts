@@ -1,5 +1,7 @@
+import { timeToMinutes } from "@/lib/time";
 import type {
   AvailabilityRow,
+  ObjectiveExclusion,
   PlanningAlert,
   PlanningDayService,
   PlanningMember,
@@ -23,21 +25,14 @@ import type {
 /// (frequentation), volontairement découplé de tout calcul de personnel.
 
 export function computeShiftDurationHours(startTime: string, endTime: string): number {
-  const [sh, sm] = startTime.split(":").map(Number);
-  const [eh, em] = endTime.split(":").map(Number);
-  return (eh * 60 + em - (sh * 60 + sm)) / 60;
-}
-
-function toMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
+  return (timeToMinutes(endTime) - timeToMinutes(startTime)) / 60;
 }
 
 export function shiftsOverlap(
   a: { startTime: string; endTime: string },
   b: { startTime: string; endTime: string }
 ): boolean {
-  return toMinutes(a.startTime) < toMinutes(b.endTime) && toMinutes(b.startTime) < toMinutes(a.endTime);
+  return timeToMinutes(a.startTime) < timeToMinutes(b.endTime) && timeToMinutes(b.startTime) < timeToMinutes(a.endTime);
 }
 
 export type AvailabilityCheck =
@@ -51,12 +46,12 @@ export type AvailabilityCheck =
 /// pour ce jour, on ne peut rien affirmer honnêtement : "ok" par défaut, jamais un
 /// avertissement fondé sur une absence de donnée.
 export function checkAvailability(shift: { startTime: string; endTime: string }, availabilities: AvailabilityRow[]): AvailabilityCheck {
-  const shiftStart = toMinutes(shift.startTime);
-  const shiftEnd = toMinutes(shift.endTime);
+  const shiftStart = timeToMinutes(shift.startTime);
+  const shiftEnd = timeToMinutes(shift.endTime);
 
   for (const a of availabilities.filter((a) => a.kind === "unavailable")) {
-    const uStart = a.startTime ? toMinutes(a.startTime) : 0;
-    const uEnd = a.endTime ? toMinutes(a.endTime) : 24 * 60;
+    const uStart = a.startTime ? timeToMinutes(a.startTime) : 0;
+    const uEnd = a.endTime ? timeToMinutes(a.endTime) : 24 * 60;
     if (shiftStart < uEnd && uStart < shiftEnd) {
       return {
         status: "unavailable",
@@ -67,7 +62,7 @@ export function checkAvailability(shift: { startTime: string; endTime: string },
 
   const preferred = availabilities.filter((a) => a.kind === "preferred" && a.startTime && a.endTime);
   if (preferred.length > 0) {
-    const withinAny = preferred.some((p) => shiftStart >= toMinutes(p.startTime!) && shiftEnd <= toMinutes(p.endTime!));
+    const withinAny = preferred.some((p) => shiftStart >= timeToMinutes(p.startTime!) && shiftEnd <= timeToMinutes(p.endTime!));
     if (!withinAny) {
       const closest = preferred[0];
       return {
@@ -153,7 +148,8 @@ export function checkWeeklyLimit(otherShiftsThisWeekCount: number, maxShiftsPerW
 export function computeServiceObjective(
   target: number,
   planned: number,
-  compatibleSlots: { dateLabel: string }[]
+  compatibleSlots: { dateLabel: string }[],
+  excludedDays: ObjectiveExclusion[] = []
 ): ServiceObjective {
   const remaining = Math.max(target - planned, 0);
   const compatibleSlotsRemaining = compatibleSlots.length;
@@ -169,6 +165,7 @@ export function computeServiceObjective(
     remaining,
     compatibleSlotsRemaining,
     compatibleDayLabels: [...new Set(compatibleSlots.map((s) => s.dateLabel))],
+    excludedDays,
     status,
   };
 }
@@ -270,4 +267,56 @@ export function computeServiceObjectiveAlerts(
     }
   }
   return sortAlerts(alerts);
+}
+
+/// Résumé factuel affiché en haut du Planning — un compte de ce que le bandeau
+/// d'alertes détaille déjà plus bas, jamais une recommandation ("il faut X serveurs")
+/// ni un jugement ("planning optimal"). Repose sur les préfixes d'id posés par
+/// computeRhAlerts/computeWeeklyLimitAlerts/computePlanningAlerts ci-dessus — les
+/// objectifs sont lus directement dans objectivesByMember plutôt que reparsés depuis
+/// les alertes, pour rester exacts si leur libellé change un jour.
+const MAX_NAMED_OBJECTIVES_IN_SUMMARY = 2;
+
+export function computeWeekSummaryParts(
+  alerts: PlanningAlert[],
+  members: PlanningMember[],
+  objectivesByMember: Record<string, ServiceObjective>
+): string[] {
+  const parts: string[] = [];
+
+  const conflictCount = alerts.filter((a) => a.id.startsWith("shift-") && a.severity === "urgent").length;
+  if (conflictCount > 0) parts.push(`${conflictCount} conflit${conflictCount > 1 ? "s" : ""} à vérifier`);
+
+  const availabilityWarnings = alerts.filter((a) => a.id.startsWith("shift-") && a.severity === "important").length;
+  if (availabilityWarnings > 0) {
+    parts.push(
+      `${availabilityWarnings} disponibilité${availabilityWarnings > 1 ? "s" : ""} non respectée${availabilityWarnings > 1 ? "s" : ""}`
+    );
+  }
+
+  const weeklyLimitCount = alerts.filter((a) => a.id.startsWith("weekly-limit-")).length;
+  if (weeklyLimitCount > 0) {
+    parts.push(
+      `${weeklyLimitCount} limite${weeklyLimitCount > 1 ? "s" : ""} hebdomadaire${weeklyLimitCount > 1 ? "s" : ""} atteinte${weeklyLimitCount > 1 ? "s" : ""}`
+    );
+  }
+
+  const noStaffCount = alerts.filter((a) => a.id.startsWith("no-staff-")).length;
+  if (noStaffCount > 0) {
+    parts.push(`${noStaffCount} service${noStaffCount > 1 ? "s" : ""} sans personnel planifié`);
+  }
+
+  const incompleteObjectives = members
+    .map((m) => ({ member: m, objective: objectivesByMember[m.membershipId] }))
+    .filter((x): x is { member: PlanningMember; objective: ServiceObjective } => !!x.objective && x.objective.status !== "atteint");
+
+  for (const { member, objective } of incompleteObjectives.slice(0, MAX_NAMED_OBJECTIVES_IN_SUMMARY)) {
+    parts.push(`${member.firstName} : ${objective.planned}/${objective.target} services`);
+  }
+  const remainingCount = incompleteObjectives.length - MAX_NAMED_OBJECTIVES_IN_SUMMARY;
+  if (remainingCount > 0) {
+    parts.push(`${remainingCount} autre${remainingCount > 1 ? "s" : ""} objectif${remainingCount > 1 ? "s" : ""} incomplet${remainingCount > 1 ? "s" : ""}`);
+  }
+
+  return parts;
 }

@@ -6,8 +6,9 @@ import {
   checkWeeklyLimit,
   isDayGenerallyUnavailable,
   computeServiceObjective,
+  computeWeekSummaryParts,
 } from "./compute";
-import type { AvailabilityRow } from "./types";
+import type { AvailabilityRow, PlanningAlert, PlanningMember, ServiceObjective } from "./types";
 
 test("computeShiftDurationHours computes a simple evening shift", () => {
   assert.equal(computeShiftDurationHours("18:00", "23:00"), 5);
@@ -110,4 +111,98 @@ test("computeServiceObjective: impossible when compatible slots fall short of wh
   assert.equal(objective.remaining, 3);
   assert.equal(objective.compatibleSlotsRemaining, 2);
   assert.equal(objective.status, "impossible");
+});
+
+test("computeServiceObjective carries the excluded-days breakdown through unchanged — the exact worked example from the phase 2 spec", () => {
+  const excludedDays = [
+    { dateLabel: "lundi", reason: "indisponible" as const },
+    { dateLabel: "mardi", reason: "indisponible" as const },
+    { dateLabel: "jeudi", reason: "indisponible" as const },
+    { dateLabel: "samedi", reason: "conge" as const },
+  ];
+  const objective = computeServiceObjective(8, 0, [{ dateLabel: "dimanche" }, { dateLabel: "mercredi" }], excludedDays);
+  assert.deepEqual(objective.excludedDays, excludedDays);
+});
+
+test("computeServiceObjective defaults excludedDays to an empty array when omitted", () => {
+  const objective = computeServiceObjective(5, 5, []);
+  assert.deepEqual(objective.excludedDays, []);
+});
+
+function makeMember(overrides: Partial<PlanningMember> = {}): PlanningMember {
+  return {
+    membershipId: "m1",
+    firstName: "Chloé",
+    lastName: "Hamoir",
+    jobTitle: null,
+    weeklyHoursTarget: null,
+    maxShiftsPerWeek: null,
+    ...overrides,
+  };
+}
+
+function makeAlert(overrides: Partial<PlanningAlert> = {}): PlanningAlert {
+  return { id: "alert-1", severity: "watch", title: "titre", ...overrides };
+}
+
+test("computeWeekSummaryParts returns nothing when the week is entirely calm", () => {
+  assert.deepEqual(computeWeekSummaryParts([], [], {}), []);
+});
+
+test("computeWeekSummaryParts counts real conflicts and availability warnings separately", () => {
+  const alerts: PlanningAlert[] = [
+    makeAlert({ id: "shift-1-Congé approuvé ce jour-là", severity: "urgent" }),
+    makeAlert({ id: "shift-2-Chevauche un autre shift ce jour-là", severity: "urgent" }),
+    makeAlert({ id: "shift-3-Disponibilité déclarée en dehors", severity: "important" }),
+  ];
+  const parts = computeWeekSummaryParts(alerts, [], {});
+  assert.ok(parts.includes("2 conflits à vérifier"));
+  assert.ok(parts.includes("1 disponibilité non respectée"));
+});
+
+test("computeWeekSummaryParts counts weekly-limit and no-staff alerts by their id prefix", () => {
+  const alerts: PlanningAlert[] = [
+    makeAlert({ id: "weekly-limit-m1", severity: "important" }),
+    makeAlert({ id: "no-staff-2026-09-15-s1", severity: "urgent" }),
+  ];
+  const parts = computeWeekSummaryParts(alerts, [], {});
+  assert.ok(parts.includes("1 limite hebdomadaire atteinte"));
+  assert.ok(parts.includes("1 service sans personnel planifié"));
+});
+
+test("computeWeekSummaryParts names up to 2 incomplete objectives, then aggregates the rest", () => {
+  const members = [
+    makeMember({ membershipId: "m1", firstName: "Chloé" }),
+    makeMember({ membershipId: "m2", firstName: "Marc" }),
+    makeMember({ membershipId: "m3", firstName: "Julie" }),
+  ];
+  const objective: ServiceObjective = {
+    target: 8,
+    planned: 6,
+    remaining: 2,
+    compatibleSlotsRemaining: 3,
+    compatibleDayLabels: ["dimanche"],
+    excludedDays: [],
+    status: "incomplet",
+  };
+  const objectivesByMember = { m1: objective, m2: objective, m3: objective };
+  const parts = computeWeekSummaryParts([], members, objectivesByMember);
+  assert.ok(parts.includes("Chloé : 6/8 services"));
+  assert.ok(parts.includes("Marc : 6/8 services"));
+  assert.ok(parts.includes("1 autre objectif incomplet"));
+});
+
+test("computeWeekSummaryParts never mentions an objective that is already atteint", () => {
+  const members = [makeMember()];
+  const objective: ServiceObjective = {
+    target: 5,
+    planned: 5,
+    remaining: 0,
+    compatibleSlotsRemaining: 0,
+    compatibleDayLabels: [],
+    excludedDays: [],
+    status: "atteint",
+  };
+  const parts = computeWeekSummaryParts([], members, { m1: objective });
+  assert.deepEqual(parts, []);
 });

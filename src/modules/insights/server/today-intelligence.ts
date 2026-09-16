@@ -4,6 +4,8 @@ import { computeDaysLeft } from "@/modules/stock/compute";
 import { computeWorkloadSummary } from "@/modules/workload/compute";
 import { computeFrequentationSignal, detectLargeGroups, detectNotableConcentration } from "@/modules/frequentation/compute";
 import { getHistoricalCoversByWeekday } from "@/modules/frequentation/server/queries";
+import { resolveActiveService } from "@/modules/service/compute";
+import { timeToMinutes, nowMinutes } from "@/lib/time";
 
 export type AlertSeverity = "urgent" | "important" | "watch";
 
@@ -16,6 +18,16 @@ export type TodayAlert = {
   /// jamais vers un module qui n'est pas encore construit (voir NAV_ITEMS.available).
   action?: { label: string; href: string };
 };
+
+/// Le service actif est déterminé une seule fois pour tout le produit — voir
+/// modules/service/compute.ts. "none" doit être affiché tel quel, jamais remplacé par
+/// une déduction depuis une réservation.
+export type TodayActiveService =
+  | { status: "current"; name: string; startTime: string; endTime: string }
+  | { status: "upcoming"; name: string; startTime: string; endTime: string; minutesFromNow: number }
+  | { status: "none" };
+
+export type TodayOccupancy = { serviceName: string; rate: number };
 
 export type UpcomingReservation = {
   id: string;
@@ -34,8 +46,10 @@ export type TodaySummary = {
   confirmedCount: number;
   unconfirmedCount: number;
   staffOnShift: number;
-  serviceLabel: string | null;
-  occupancyRate: number; // couverts prévus / capacité totale de la salle
+  activeService: TodayActiveService;
+  /// null si aucun service (en cours ou à venir) ne permet de rattacher les couverts à
+  /// une capacité comparable — jamais un pourcentage qui mélangerait plusieurs services.
+  occupancy: TodayOccupancy | null;
   alerts: TodayAlert[];
   /// La prochaine chose qui va se passer dans l'établissement — ce qui doit occuper le
   /// haut du regard du patron avant les KPI agrégés. null s'il n'y a plus rien à venir.
@@ -53,7 +67,7 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
   const dayStart = today;
   const dayEnd = endOfDay(today);
 
-  const [reservations, shifts, timeOffToday, tables, products, historicalCoversByWeekday] = await Promise.all([
+  const [reservations, shifts, timeOffToday, tables, products, services, historicalCoversByWeekday] = await Promise.all([
     prisma.reservation.findMany({
       where: {
         establishmentId,
@@ -76,6 +90,7 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
     }),
     prisma.restaurantTable.findMany({ where: { establishmentId } }),
     prisma.product.findMany({ where: { establishmentId } }),
+    prisma.serviceDefinition.findMany({ where: { establishmentId } }),
     getHistoricalCoversByWeekday(establishmentId, today),
   ]);
 
@@ -83,8 +98,35 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
   const confirmedCount = reservations.filter((r) => r.status === "confirmed" || r.status === "arrived" || r.status === "seated").length;
   const unconfirmedCount = reservations.filter((r) => r.status === "new").length;
   const totalCapacity = tables.reduce((sum, t) => sum + t.capacity, 0);
-  const occupancyRate = totalCapacity > 0 ? Math.min(1, covers / totalCapacity) : 0;
-  const serviceLabel = reservations[0]?.service?.name ?? (shifts[0] ? "Service" : null);
+
+  // Service actif — même fonction que Mode Service, jamais déduit d'une réservation.
+  // `today` est normalisé à minuit (pour les bornes de requête) : il faut l'heure réelle
+  // pour savoir quel service est en cours maintenant.
+  const { current, next } = resolveActiveService(
+    services.map((s) => ({ name: s.name, startTime: s.startTime, endTime: s.endTime, daysOfWeek: s.daysOfWeek.split(",").map(Number) })),
+    new Date()
+  );
+  const activeService: TodayActiveService = current
+    ? { status: "current", ...current }
+    : next
+      ? { status: "upcoming", ...next }
+      : { status: "none" };
+
+  // Occupation : uniquement comparable au service actif (ou, à défaut, au prochain) —
+  // jamais un cumul de plusieurs services contre une capacité statique unique, qui
+  // donnerait un pourcentage sans rapport avec un état réel de la salle.
+  const relevantServiceDef = current
+    ? services.find((s) => s.name === current.name && s.startTime === current.startTime)
+    : next
+      ? services.find((s) => s.name === next.name && s.startTime === next.startTime)
+      : undefined;
+  const occupancy: TodayOccupancy | null =
+    relevantServiceDef && totalCapacity > 0
+      ? {
+          serviceName: relevantServiceDef.name,
+          rate: Math.min(1, reservations.filter((r) => r.serviceId === relevantServiceDef.id).reduce((s, r) => s + r.partySize, 0) / totalCapacity),
+        }
+      : null;
 
   const alerts: TodayAlert[] = [];
 
@@ -171,14 +213,10 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
   // Prochaine échéance : la réservation à venir la plus proche qui n'est pas encore
   // arrivée. On compare des chaînes "HH:MM" au temps courant, tout se joue sur la
   // journée en cours donc c'est suffisant et lisible sans manipuler de fuseaux.
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentMinutes = nowMinutes();
   const upcoming = reservations
     .filter((r) => r.status === "new" || r.status === "confirmed")
-    .map((r) => {
-      const [h, m] = r.time.split(":").map(Number);
-      return { reservation: r, minutesFromNow: h * 60 + m - nowMinutes };
-    })
+    .map((r) => ({ reservation: r, minutesFromNow: timeToMinutes(r.time) - currentMinutes }))
     .filter((r) => r.minutesFromNow >= -15) // encore pertinent même un peu en retard
     .sort((a, b) => a.minutesFromNow - b.minutesFromNow)[0];
 
@@ -201,8 +239,8 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
     confirmedCount,
     unconfirmedCount,
     staffOnShift: shifts.length,
-    serviceLabel,
-    occupancyRate,
+    activeService,
+    occupancy,
     alerts,
     nextUp,
   };

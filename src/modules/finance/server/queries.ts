@@ -1,14 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek } from "date-fns";
+import { startOfDay, endOfDay, subDays, startOfWeek, endOfWeek } from "date-fns";
 import { getCurrentContext, ForbiddenError } from "@/lib/current-context";
+import { toDateKey } from "@/lib/utils";
 import { CLOSING_SOURCE } from "@/modules/finance/server/shared";
 import { computeAverageTicket, computeLaborCostRatio, computeMarginAfterLabor } from "@/modules/finance/compute";
 import { computeShiftDurationHours } from "@/modules/planning/compute";
 import type { FinanceDailyEntry, FinanceSummary, ServiceReportItem } from "@/modules/finance/types";
-
-function toDateKey(d: Date): string {
-  return format(d, "yyyy-MM-dd");
-}
 
 /// Assemble la vue financière à partir des seules données réellement enregistrées
 /// (RevenueEntry, CostEntry catégorie "labor", ServiceReport) — aucun chiffre n'est
@@ -95,8 +92,12 @@ export async function getFinanceSummary(establishmentId: string, rangeDays = 14)
 
 /// Jours des `lookbackDays` derniers jours (hors aujourd'hui, dont le service n'est pas
 /// forcément terminé) sans clôture enregistrée — sert à relancer le manager sans deviner
-/// un CA à sa place.
+/// un CA à sa place. Vérification interne (même politique que getTodayClosing) pour ne
+/// jamais dépendre uniquement d'un futur appelant qui l'aurait oubliée.
 export async function getMissingClosingDates(establishmentId: string, lookbackDays = 14): Promise<string[]> {
+  const ctx = await getCurrentContext();
+  if (!ctx.can("finance.manage")) throw new ForbiddenError("finance.manage");
+
   const rangeStart = startOfDay(subDays(new Date(), lookbackDays));
   const rangeEnd = startOfDay(new Date());
 
@@ -115,8 +116,12 @@ export async function getMissingClosingDates(establishmentId: string, lookbackDa
 }
 
 /// Le CA du jour déjà saisi (le cas échéant), pour pré-remplir le formulaire de clôture
-/// plutôt que de laisser le manager repartir de zéro ou créer un doublon.
+/// plutôt que de laisser le manager repartir de zéro ou créer un doublon. Vérification
+/// interne pour ne jamais dépendre uniquement d'un futur appelant qui l'aurait oubliée.
 export async function getTodayClosing(establishmentId: string): Promise<{ revenueCents: number; covers: number } | null> {
+  const ctx = await getCurrentContext();
+  if (!ctx.can("finance.manage")) throw new ForbiddenError("finance.manage");
+
   const today = startOfDay(new Date());
   const entry = await prisma.revenueEntry.findFirst({
     where: { establishmentId, source: CLOSING_SOURCE, date: today },

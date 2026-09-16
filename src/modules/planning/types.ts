@@ -95,6 +95,14 @@ export type PlanningAlert = {
 /// assez de créneaux compatibles pour atteindre l'objectif, même en les utilisant tous.
 export type ServiceObjectiveStatus = "atteint" | "incomplet" | "impossible";
 
+/// Un jour exclu des créneaux compatibles, et pourquoi — pour pouvoir dire "lundi :
+/// indisponible" plutôt que de ne montrer que le chiffre final. Limité aux deux
+/// contraintes qui bloquent une journée entière (voir isDayGenerallyUnavailable et
+/// les congés approuvés) ; ne couvre pas un shift déjà planifié, qui n'est pas un
+/// obstacle mais une avancée vers l'objectif.
+export type ObjectiveExclusionReason = "indisponible" | "conge";
+export type ObjectiveExclusion = { dateLabel: string; reason: ObjectiveExclusionReason };
+
 export type ServiceObjective = {
   target: number;
   planned: number;
@@ -103,6 +111,9 @@ export type ServiceObjective = {
   /// Libellés des jours (ex: "mercredi") qui restent compatibles avec les contraintes
   /// connues — pour expliquer, pas seulement afficher un chiffre.
   compatibleDayLabels: string[];
+  /// Jours écartés et leur raison — le détail qui permet de comprendre "pourquoi il ne
+  /// reste que X créneaux" sans deviner la logique interne du produit.
+  excludedDays: ObjectiveExclusion[];
   status: ServiceObjectiveStatus;
 };
 
@@ -118,6 +129,10 @@ export type WeekPlanningResult = {
   /// cette granularité) — un signal de demande, jamais croisé ici avec le personnel.
   dayFrequentation: { date: string; dateLabel: string; signal: FrequentationSignal }[];
   alerts: PlanningAlert[];
+  /// Résumé factuel de la semaine en quelques fragments courts (ex. "2 conflits à
+  /// vérifier", "Chloé : 6/8 services") — jamais une recommandation, juste un compte
+  /// de ce que le bandeau d'alertes détaille déjà plus bas.
+  weekSummary: string[];
   totalHoursByMember: Record<string, number>;
   shiftsCountByMember: Record<string, number>;
   totalTeamHours: number;

@@ -3,8 +3,11 @@ import type { FrequentationLevel, FrequentationSignal, LargeGroup } from "./type
 
 /// En dessous de ce nombre de jours de même jour de semaine, on ne peut honnêtement
 /// rien affirmer sur "l'habitude" — mieux vaut "indéterminée" qu'une moyenne fondée sur
-/// un seul échantillon.
-const MIN_SAMPLES_FOR_BASELINE = 2;
+/// trop peu d'échantillons. 2 était trop bas : un seul service exceptionnel (météo,
+/// événement) devient alors "la normale" pour les 10 semaines suivantes de la fenêtre
+/// glissante (voir getHistoricalCoversByWeekday, 12 semaines). 4 reste modeste mais
+/// absorbe mieux un aléa isolé.
+const MIN_SAMPLES_FOR_BASELINE = 4;
 
 /// Écart au-delà duquel une journée est jugée notablement différente de son historique.
 /// Un seuil de variabilité de la demande, jamais un seuil de personnel.
@@ -31,12 +34,15 @@ export function computeFrequentationSignal(expectedCovers: number, historicalSam
 }
 
 // En dessous de ce nombre de réservations, un pic sur un créneau de 30 minutes ne
-// représente rien de statistiquement notable pour un service entier.
-const CONCENTRATION_MIN_RESERVATIONS = 3;
+// représente rien de statistiquement notable pour un service entier. Relevé de 3 à 5 :
+// un dîner normal concentre presque toujours ses arrivées autour de son heure
+// d'ouverture — un seuil trop bas transformait une évidence en fausse alerte à chaque
+// service, pas en signal réellement inhabituel.
+const CONCENTRATION_MIN_RESERVATIONS = 5;
 // Le créneau le plus chargé doit représenter une part significative des couverts du
 // jour pour mériter d'être signalé comme une "concentration", pas juste le créneau le
-// plus rempli parmi d'autres tout aussi remplis.
-const CONCENTRATION_MIN_SHARE = 0.5;
+// plus rempli parmi d'autres tout aussi remplis. Relevé de 0.5 à 0.6 pour la même raison.
+const CONCENTRATION_MIN_SHARE = 0.6;
 
 /// Repère le créneau d'arrivée le plus chargé de la journée s'il est réellement notable
 /// — jamais une déduction sur le personnel requis pour l'absorber.

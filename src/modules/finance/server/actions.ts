@@ -5,13 +5,7 @@ import { revalidatePath } from "next/cache";
 import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
-import { CLOSING_SOURCE } from "@/modules/finance/server/shared";
-
-const ClosingSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  revenueCents: z.number().int().min(0),
-  covers: z.number().int().min(0),
-});
+import { CLOSING_SOURCE, ClosingSchema } from "@/modules/finance/server/shared";
 
 export async function recordDailyClosing(input: z.infer<typeof ClosingSchema>) {
   const ctx = await requirePermission("finance.manage");

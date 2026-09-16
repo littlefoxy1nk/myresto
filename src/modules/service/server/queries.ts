@@ -1,28 +1,30 @@
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay } from "date-fns";
+import { timeToMinutes, nowMinutes as computeNowMinutes } from "@/lib/time";
+import { getCurrentContext, ForbiddenError } from "@/lib/current-context";
 import { getFloorPlan } from "@/modules/floorplan/server/queries";
 import { computeZonePressureLevel } from "@/modules/workload/compute";
+import { resolveActiveService } from "@/modules/service/compute";
 import type { ZonePressureLevel } from "@/modules/workload/types";
-import type { ServiceAlert, ServiceSnapshot, ServiceWindow, TimelineEntry } from "@/modules/service/types";
+import type { ServiceAlert, ServiceSnapshot, TimelineEntry } from "@/modules/service/types";
 
 const SOON_THRESHOLD_MINUTES = 45;
-
-function timeToMinutes(time: string) {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
-}
 
 /// Assemble la vue "salle de contrôle" du service en cours. Ne recalcule jamais l'état
 /// d'une table : getFloorPlan (Mission 1) reste l'unique source de vérité pour libre /
 /// réservée / bientôt / occupée / nettoyage / indisponible. Ce module se contente de lire
 /// les réservations du jour pour la timeline et de croiser les deux pour détecter les
 /// conflits opérationnels (ex: table encore occupée alors qu'une réservation arrive).
+/// Un seul appelant (la page /service) : vérification interne pour ne jamais dépendre
+/// uniquement d'un futur appelant qui l'aurait oubliée.
 export async function getServiceSnapshot(establishmentId: string): Promise<ServiceSnapshot> {
+  const ctx = await getCurrentContext();
+  if (!ctx.can("service.run")) throw new ForbiddenError("service.run");
+
   const now = new Date();
   const dayStart = startOfDay(now);
   const dayEnd = endOfDay(now);
-  const isoDay = now.getDay() === 0 ? 7 : now.getDay();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMinutes = computeNowMinutes(now);
 
   const [zones, services, reservations] = await Promise.all([
     getFloorPlan(establishmentId),
@@ -34,26 +36,12 @@ export async function getServiceSnapshot(establishmentId: string): Promise<Servi
     }),
   ]);
 
-  // --- Service en cours / à venir aujourd'hui ---
-  const todaysServices = services.filter((s) => s.daysOfWeek.split(",").map(Number).includes(isoDay));
-  const currentServiceDef = todaysServices.find(
-    (s) => nowMinutes >= timeToMinutes(s.startTime) && nowMinutes < timeToMinutes(s.endTime)
+  // --- Service en cours / à venir aujourd'hui — seule fonction du produit qui répond à
+  // cette question, voir modules/service/compute.ts.
+  const { current: currentService, next: nextService } = resolveActiveService(
+    services.map((s) => ({ name: s.name, startTime: s.startTime, endTime: s.endTime, daysOfWeek: s.daysOfWeek.split(",").map(Number) })),
+    now
   );
-  const nextServiceDef = todaysServices
-    .filter((s) => timeToMinutes(s.startTime) > nowMinutes)
-    .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))[0];
-
-  const currentService: ServiceWindow = currentServiceDef
-    ? { name: currentServiceDef.name, startTime: currentServiceDef.startTime, endTime: currentServiceDef.endTime }
-    : null;
-  const nextService = nextServiceDef
-    ? {
-        name: nextServiceDef.name,
-        startTime: nextServiceDef.startTime,
-        endTime: nextServiceDef.endTime,
-        minutesFromNow: timeToMinutes(nextServiceDef.startTime) - nowMinutes,
-      }
-    : null;
 
   // --- Timeline ---
   const timeline: TimelineEntry[] = reservations.map((r) => {

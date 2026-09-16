@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { startOfDay, endOfDay, format } from "date-fns";
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
+import { timeToMinutes } from "@/lib/time";
 import { requirePermission, requireAnyPermission } from "@/lib/current-context";
 import { findOrCreateCustomer } from "@/modules/customers/server/matching";
 
@@ -68,11 +69,6 @@ export async function releaseReservationTables(reservationId: string) {
   revalidatePath("/plan-de-salle");
   revalidatePath("/service");
   revalidatePath("/clients");
-}
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
 }
 
 /// Vérifie que les tables choisies existent, appartiennent à l'établissement et ont la

@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { startOfDay, endOfDay, addDays, format } from "date-fns";
+import { startOfDay, endOfDay, addDays } from "date-fns";
 import { getCurrentContext, ForbiddenError } from "@/lib/current-context";
+import { toDateKey } from "@/lib/utils";
+import { isoWeekday } from "@/lib/time";
 import { computeWorkloadSummary } from "@/modules/workload/compute";
 import { computeFrequentationSignal } from "@/modules/frequentation/compute";
 import { getHistoricalCoversByWeekday } from "@/modules/frequentation/server/queries";
@@ -10,12 +12,14 @@ import {
   computeRhAlerts,
   computeServiceObjective,
   computeServiceObjectiveAlerts,
+  computeWeekSummaryParts,
   computeWeeklyLimitAlerts,
   evaluateShift,
   isDayGenerallyUnavailable,
 } from "@/modules/planning/compute";
 import type {
   AvailabilityRow,
+  ObjectiveExclusion,
   PlanningAlert,
   PlanningDayService,
   PlanningMember,
@@ -27,10 +31,6 @@ import type {
 } from "@/modules/planning/types";
 
 const TARGET_SHIFTS_RULE_TYPE = "target_shifts_per_week";
-
-function toDateKey(d: Date): string {
-  return format(d, "yyyy-MM-dd");
-}
 
 function dayLabel(d: Date): string {
   const label = new Intl.DateTimeFormat("fr-BE", { weekday: "short", day: "numeric", month: "short" }).format(d);
@@ -142,7 +142,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
 
   const planningShifts: PlanningShift[] = shifts.map((s) => {
     const dateKey = toDateKey(s.date);
-    const isoDay = s.date.getDay() === 0 ? 7 : s.date.getDay();
+    const isoDay = isoWeekday(s.date);
     const otherShiftsSameDay = (shiftsByMemberDay.get(`${s.membershipId}|${dateKey}`) ?? []).filter((o) => o.id !== s.id);
     const memberAvailabilities = (availabilitiesByMember[s.membershipId] ?? []).filter((a) => a.dayOfWeek === isoDay);
 
@@ -191,7 +191,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
   // (charge/tendance) est un module séparé, jamais croisée ici avec le personnel.
   const dayServices: PlanningDayService[] = [];
   for (const d of days) {
-    const isoDay = d.getDay() === 0 ? 7 : d.getDay();
+    const isoDay = isoWeekday(d);
     const dateKey = toDateKey(d);
     const servicesToday = services.filter((s) => s.daysOfWeek.split(",").map(Number).includes(isoDay));
 
@@ -256,12 +256,19 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     const planned = shiftsCountByMember[rule.membershipId] ?? 0;
     const memberAvailabilities = availabilitiesByMember[rule.membershipId] ?? [];
     const compatibleSlots: { dateLabel: string }[] = [];
+    const excludedDays: ObjectiveExclusion[] = [];
 
     for (const d of days) {
-      const isoDay = d.getDay() === 0 ? 7 : d.getDay();
+      const isoDay = isoWeekday(d);
       const dateKey = toDateKey(d);
-      if (absentOn.get(dateKey)?.has(rule.membershipId)) continue;
-      if (isDayGenerallyUnavailable(memberAvailabilities, isoDay)) continue;
+      if (absentOn.get(dateKey)?.has(rule.membershipId)) {
+        excludedDays.push({ dateLabel: weekdayOnlyLabel(d), reason: "conge" });
+        continue;
+      }
+      if (isDayGenerallyUnavailable(memberAvailabilities, isoDay)) {
+        excludedDays.push({ dateLabel: weekdayOnlyLabel(d), reason: "indisponible" });
+        continue;
+      }
 
       const servicesToday = services.filter((s) => s.daysOfWeek.split(",").map(Number).includes(isoDay));
       for (const service of servicesToday) {
@@ -271,7 +278,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
       }
     }
 
-    objectivesByMember[rule.membershipId] = computeServiceObjective(target, planned, compatibleSlots);
+    objectivesByMember[rule.membershipId] = computeServiceObjective(target, planned, compatibleSlots, excludedDays);
   }
 
   // Le pire niveau de la semaine par personne — shifts en conflit/warning, limite
@@ -308,6 +315,8 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     return rank[a.severity] - rank[b.severity];
   });
 
+  const weekSummary = computeWeekSummaryParts(alerts, members, objectivesByMember);
+
   return {
     weekStart: toDateKey(weekStart),
     weekDays,
@@ -318,6 +327,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     dayServices,
     dayFrequentation,
     alerts,
+    weekSummary,
     totalHoursByMember,
     shiftsCountByMember,
     totalTeamHours,

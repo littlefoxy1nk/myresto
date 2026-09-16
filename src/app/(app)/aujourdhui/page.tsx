@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { getCurrentContext } from "@/lib/current-context";
-import { computeTodaySummary } from "@/modules/insights/server/today-intelligence";
+import { computeTodaySummary, type TodayActiveService } from "@/modules/insights/server/today-intelligence";
 import { estimateTodayRevenue } from "@/modules/finance/server/forecast";
 import { getTodayClosing } from "@/modules/finance/server/queries";
 import { ClosingButton } from "@/modules/finance/components/closing-button";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/utils";
-import { AlertTriangle, AlertCircle, Eye, Clock, LineChart, Boxes } from "lucide-react";
+import { AlertTriangle, AlertCircle, Eye, Clock, LineChart, Boxes, CalendarDays, Palmtree } from "lucide-react";
 import { RESERVATION_STATUS_LABEL } from "@/modules/reservations/status";
 
 const SEVERITY_CONFIG = {
@@ -25,6 +25,15 @@ function formatTimeFromNow(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return m === 0 ? `dans ${h}h` : `dans ${h}h${String(m).padStart(2, "0")}`;
+}
+
+/// Toujours dérivé de la même source de vérité que Mode Service (resolveActiveService)
+/// — jamais une déduction depuis une réservation. "none" est dit tel quel : un patron
+/// doit pouvoir faire confiance à cette ligne pour savoir où il en est, pas deviner.
+function formatActiveService(activeService: TodayActiveService): string {
+  if (activeService.status === "current") return `${activeService.name} en cours`;
+  if (activeService.status === "upcoming") return `Prochain service : ${activeService.name} à ${activeService.startTime}`;
+  return "Aucun service actif en ce moment";
 }
 
 export default async function AujourdhuiPage() {
@@ -42,52 +51,22 @@ export default async function AujourdhuiPage() {
     month: "long",
   }).format(summary.date);
 
+  const canSeeFinances = ctx.can("finance.view");
+  const canSeeStock = ctx.can("inventory.view");
+  const canSeePlanning = ctx.can("schedule.view");
+  const canSeeTimeOff = ctx.can("timeoff.manage");
+  const hasQuickLinks = canSeeFinances || canSeeStock || canSeePlanning || canSeeTimeOff;
+
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm capitalize text-muted-foreground">{dateLabel}</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Aujourd&apos;hui</h1>
-          <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-            {ctx.establishment.name}
-            {summary.serviceLabel ? ` · ${summary.serviceLabel}` : ""}
-            {ctx.establishment.isDemo && <Badge variant="accent">Données de démonstration</Badge>}
-          </p>
-        </div>
-        {canManageFinance && (
-          <ClosingButton
-            date={todayDateKey}
-            dateLabel="aujourd'hui"
-            initialRevenueCents={todayClosing?.revenueCents ?? null}
-            initialCovers={todayClosing?.covers ?? null}
-            alreadyClosed={todayClosing != null}
-          />
-        )}
+      <div>
+        <p className="text-sm capitalize text-muted-foreground">{dateLabel}</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Aujourd&apos;hui</h1>
+        <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+          {ctx.establishment.name} · {formatActiveService(summary.activeService)}
+          {ctx.establishment.isDemo && <Badge variant="accent">Données de démonstration</Badge>}
+        </p>
       </div>
-
-      {/* Finances et Stock vivent dans la barre latérale desktop mais n'ont pas d'onglet
-          dans la barre de navigation mobile (6 places déjà prises) — ce raccourci est
-          leur seul point d'entrée sur mobile pour les rôles qui y ont accès. */}
-      {(ctx.can("finance.view") || ctx.can("inventory.view")) && (
-        <div className="flex gap-2 md:hidden">
-          {ctx.can("finance.view") && (
-            <Button asChild size="sm" variant="secondary" className="flex-1">
-              <Link href="/finances">
-                <LineChart size={15} aria-hidden="true" />
-                Finances
-              </Link>
-            </Button>
-          )}
-          {ctx.can("inventory.view") && (
-            <Button asChild size="sm" variant="secondary" className="flex-1">
-              <Link href="/stock">
-                <Boxes size={15} aria-hidden="true" />
-                Stock
-              </Link>
-            </Button>
-          )}
-        </div>
-      )}
 
       {/* Prochaine échéance — la première chose que raconte le dashboard, avant les
           chiffres agrégés : ce qui va concrètement se passer ensuite dans la salle. */}
@@ -141,7 +120,11 @@ export default async function AujourdhuiPage() {
         <Kpi label="Réservations" value={String(summary.reservationsCount)} />
         <Kpi label="Couverts" value={String(summary.covers)} />
         <Kpi label="Personnel" value={String(summary.staffOnShift)} />
-        <Kpi label="Occupation" value={`${Math.round(summary.occupancyRate * 100)}%`} />
+        {/* Pas de pourcentage si aucun service ne permet de le rattacher à une capacité
+            comparable — voir occupancy dans today-intelligence.ts. */}
+        {summary.occupancy && (
+          <Kpi label={`Occupation · ${summary.occupancy.serviceName}`} value={`${Math.round(summary.occupancy.rate * 100)}%`} />
+        )}
       </div>
 
       {/* À faire */}
@@ -185,6 +168,61 @@ export default async function AujourdhuiPage() {
           </div>
         )}
       </section>
+
+      {/* Clôture et raccourcis de navigation — volontairement en bas de page : ce sont
+          des actions/liens secondaires, jamais plus visibles que la prochaine échéance
+          ou les alertes du moment. */}
+      {canManageFinance && (
+        <div>
+          <ClosingButton
+            date={todayDateKey}
+            dateLabel="aujourd'hui"
+            initialRevenueCents={todayClosing?.revenueCents ?? null}
+            initialCovers={todayClosing?.covers ?? null}
+            alreadyClosed={todayClosing != null}
+          />
+        </div>
+      )}
+
+      {/* Finances, Stock, Planning et Congés vivent dans la barre latérale desktop mais
+          n'ont pas d'onglet dans la barre de navigation mobile (6 places déjà prises) —
+          ce raccourci est leur seul point d'entrée sur mobile pour les rôles concernés. */}
+      {hasQuickLinks && (
+        <div className="grid grid-cols-2 gap-2 md:hidden">
+          {canSeePlanning && (
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/planning">
+                <CalendarDays size={15} aria-hidden="true" />
+                Planning
+              </Link>
+            </Button>
+          )}
+          {canSeeTimeOff && (
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/conges">
+                <Palmtree size={15} aria-hidden="true" />
+                Congés
+              </Link>
+            </Button>
+          )}
+          {canSeeFinances && (
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/finances">
+                <LineChart size={15} aria-hidden="true" />
+                Finances
+              </Link>
+            </Button>
+          )}
+          {canSeeStock && (
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/stock">
+                <Boxes size={15} aria-hidden="true" />
+                Stock
+              </Link>
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

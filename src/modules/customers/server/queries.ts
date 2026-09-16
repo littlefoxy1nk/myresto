@@ -1,12 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { format } from "date-fns";
 import { getCurrentContext, ForbiddenError } from "@/lib/current-context";
+import { toDateKey } from "@/lib/utils";
 import { computeCustomerStats } from "@/modules/customers/compute";
 import type { CustomerDetail, CustomerReservationHistoryItem, CustomerSummary } from "@/modules/customers/types";
-
-function toDateKey(d: Date): string {
-  return format(d, "yyyy-MM-dd");
-}
 
 /// Liste des clients avec leurs statistiques dérivées de l'historique réel (voir
 /// compute.ts) — jamais du compteur stocké sur Customer, pour éviter toute divergence.

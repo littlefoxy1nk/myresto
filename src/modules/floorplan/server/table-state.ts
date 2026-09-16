@@ -1,3 +1,4 @@
+import { timeToMinutes, nowMinutes as computeNowMinutes } from "@/lib/time";
 import type { TableLiveState, TableManualStatus, TableUpcomingReservation } from "@/modules/floorplan/types";
 
 const SOON_THRESHOLD_MINUTES = 45;
@@ -24,12 +25,11 @@ export function computeTableLiveState(
     return { liveState: "unavailable", activeReservation: null };
   }
 
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMinutes = computeNowMinutes(now);
   const withMinutes = reservationsToday
     .filter((r) => r.status !== "cancelled" && r.status !== "no_show")
     .map((r) => {
-      const [h, m] = r.time.split(":").map(Number);
-      const startMinutes = h * 60 + m;
+      const startMinutes = timeToMinutes(r.time);
       return { r, startMinutes, endMinutes: startMinutes + r.durationMinutes };
     });
 
@@ -83,8 +83,7 @@ export function computeSlotAvailability(
   const conflict = reservationsOnDate
     .filter((r) => r.status !== "cancelled" && r.status !== "no_show" && r.id !== excludeReservationId)
     .map((r) => {
-      const [h, m] = r.time.split(":").map(Number);
-      const startMinutes = h * 60 + m;
+      const startMinutes = timeToMinutes(r.time);
       return { r, startMinutes, endMinutes: startMinutes + r.durationMinutes };
     })
     .find((x) => x.startMinutes < requestedEndMinutes && x.endMinutes > requestedStartMinutes);

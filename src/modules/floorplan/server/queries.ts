@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay, isSameDay } from "date-fns";
+import { timeToMinutes } from "@/lib/time";
 import { computeTableLiveState, computeSlotAvailability, type ReservationForStateCalc } from "./table-state";
 import type {
   ZoneWithTables,
@@ -71,6 +72,14 @@ function reservationsByTableMap(
 /// état live calculé à partir des réservations du jour, et appartenance à un groupe de
 /// tables actif. C'est la fonction que la page appelle ; le calcul d'état lui-même
 /// (table-state.ts) est pur et pourra être réutilisé par le futur Mode Service.
+///
+/// Politique de permission DÉLIBÉRÉE, à ne pas "uniformiser" par un ajout naïf : cette
+/// fonction est partagée par deux appelants légitimes qui n'ont pas la même permission
+/// (plan-de-salle exige floorplan.view, Mode Service exige service.run) — elle reste
+/// donc volontairement permission-agnostique, et c'est à CHAQUE appelant de vérifier son
+/// propre droit avant de l'appeler (voir plan-de-salle/page.tsx et service/server/queries.ts).
+/// Contrairement aux autres query functions de sensibilité comparable, ne PAS lui ajouter
+/// un self-check sur une permission unique — ce serait bloquer l'un des deux appelants.
 export async function getFloorPlan(establishmentId: string): Promise<ZoneWithTables[]> {
   const now = new Date();
   const dayStart = startOfDay(now);
@@ -134,8 +143,7 @@ export async function getFloorPlanForSlot(
   const dayStart = startOfDay(date);
   const dayEnd = endOfDay(date);
   const isToday = isSameDay(date, new Date());
-  const [h, m] = time.split(":").map(Number);
-  const requestedStartMinutes = h * 60 + m;
+  const requestedStartMinutes = timeToMinutes(time);
 
   const [{ zones, groupByTable }, reservations] = await Promise.all([
     fetchZonesAndGroups(establishmentId, date),

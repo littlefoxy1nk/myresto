@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { addDays, format } from "date-fns";
-import { ChevronLeft, ChevronRight, Copy, Plus, Target } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast-bus";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PlanningAlerts } from "@/modules/planning/components/planning-alerts";
 import { FrequentationSummary } from "@/modules/planning/components/frequentation-summary";
@@ -129,43 +130,58 @@ export function PlanningApp({
     setDeleteId(null);
   }
 
-  /// Objectif de services d'une personne : un fait ("5/8"), et si non atteint, une
-  /// explication concrète (jours encore compatibles, ou pourquoi c'est impossible) —
-  /// jamais juste un chiffre sans contexte.
+  /// Objectif de services d'une personne : un fait visible en texte clair ("Chloé —
+  /// 6/8 services"), jamais une icône seule à découvrir par hasard — et si non atteint,
+  /// une explication concrète (jours encore compatibles, ou pourquoi c'est impossible,
+  /// avec le détail jour par jour). Reste présenté comme une contrainte du planning,
+  /// jamais comme une recommandation automatique de personnel.
   function renderObjective(m: PlanningMember) {
     const objective = data.objectivesByMember[m.membershipId];
+
+    if (!objective) {
+      if (!data.canEdit) return null;
+      return (
+        <button
+          onClick={() => setObjectiveFor(m)}
+          className="mt-1.5 text-xs font-medium text-muted-foreground underline-offset-2 outline-none transition-colors hover:text-accent hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          + Définir un objectif de services
+        </button>
+      );
+    }
+
+    const statusColor =
+      objective.status === "impossible" ? "text-urgent" : objective.status === "incomplet" ? "text-important" : "text-good";
+
     return (
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        {objective && (
-          <span
-            className={cn(
-              "text-xs font-medium",
-              objective.status === "impossible" ? "text-urgent" : objective.status === "incomplet" ? "text-important" : "text-good"
-            )}
-          >
-            🎯 {objective.planned}/{objective.target} services
-          </span>
-        )}
-        {data.canEdit && (
-          <button
-            onClick={() => setObjectiveFor(m)}
-            aria-label={`Définir l'objectif de services de ${m.firstName}`}
-            className="rounded-md p-0.5 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <Target size={12} aria-hidden="true" />
-          </button>
-        )}
-        {objective && objective.status === "incomplet" && (
-          <p className="w-full text-xs text-muted-foreground">
-            {objective.remaining} service{objective.remaining > 1 ? "s" : ""} restant{objective.remaining > 1 ? "s" : ""} —
-            compatible {objective.compatibleDayLabels.join(", ")}
+      <div className="mt-1.5">
+        <button
+          onClick={() => data.canEdit && setObjectiveFor(m)}
+          disabled={!data.canEdit}
+          className={cn(
+            "text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-accent",
+            statusColor,
+            data.canEdit && "underline-offset-2 hover:underline"
+          )}
+        >
+          {m.firstName} — {objective.planned}/{objective.target} services
+        </button>
+        {objective.status === "incomplet" && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {objective.remaining} restant{objective.remaining > 1 ? "s" : ""} — compatible avec {objective.compatibleDayLabels.join(", ")}
           </p>
         )}
-        {objective && objective.status === "impossible" && (
-          <p className="w-full text-xs text-urgent">
+        {objective.status === "impossible" && (
+          <p className="mt-0.5 text-xs text-urgent">
             Objectif impossible avec les contraintes actuelles ({objective.compatibleSlotsRemaining} créneau
-            {objective.compatibleSlotsRemaining > 1 ? "x" : ""} compatible{objective.compatibleSlotsRemaining > 1 ? "s" : ""} pour{" "}
-            {objective.remaining} restant{objective.remaining > 1 ? "s" : ""}).
+            {objective.compatibleSlotsRemaining > 1 ? "x" : ""} pour {objective.remaining} restant{objective.remaining > 1 ? "s" : ""}).
+          </p>
+        )}
+        {/* Le détail jour par jour aide à comprendre "pourquoi" dans les deux cas non
+            atteints — pas seulement quand l'objectif devient impossible. */}
+        {objective.status !== "atteint" && objective.excludedDays.length > 0 && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {objective.excludedDays.map((e) => `${e.dateLabel} : ${e.reason === "conge" ? "congé" : "indisponible"}`).join(" · ")}
           </p>
         )}
       </div>
@@ -185,6 +201,13 @@ export function PlanningApp({
                 ? "border-important bg-important-soft text-important"
                 : "border-border bg-muted"
           );
+          // Le détail complet d'un avertissement (texte long) ne s'affiche plus dans la
+          // cellule — il alourdissait la grille et le répétait déjà écrit dans le
+          // bandeau d'alertes plus haut. Ici : juste un repère court + un titre survolable ;
+          // le détail complet reste disponible en un clic (la modale d'édition l'affiche
+          // via le même aperçu en temps réel — voir shift-form-dialog.tsx).
+          const warningSummary = s.warnings.length === 0 ? null : s.conflictLevel === "conflict" ? "Conflit" : "À vérifier";
+          const titleText = s.warnings.map((w) => w.message).join(" · ") || undefined;
           const content = (
             <>
               <div className="font-medium">
@@ -193,23 +216,25 @@ export function PlanningApp({
               <div className={s.conflictLevel === "ok" ? "truncate text-muted-foreground" : "truncate"}>
                 {SHIFT_POSITION_LABELS[s.position as keyof typeof SHIFT_POSITION_LABELS] ?? s.position}
               </div>
-              {s.warnings.map((w) => (
-                <div key={w.message} className="mt-0.5 font-medium">
-                  {w.message}
+              {warningSummary && (
+                <div className="mt-0.5 flex items-center gap-1 font-medium">
+                  <ConflictDot level={s.conflictLevel} />
+                  {warningSummary}
                 </div>
-              ))}
+              )}
             </>
           );
           return data.canEdit ? (
             <button
               key={s.id}
+              title={titleText}
               onClick={() => setDialog({ mode: "edit", shift: s })}
               className={cn(chipClass, "outline-none transition-colors hover:opacity-80 focus-visible:ring-2 focus-visible:ring-accent")}
             >
               {content}
             </button>
           ) : (
-            <div key={s.id} className={chipClass}>
+            <div key={s.id} title={titleText} className={chipClass}>
               {content}
             </div>
           );
@@ -276,6 +301,16 @@ export function PlanningApp({
           )}
         </div>
       </div>
+
+      {/* Résumé factuel de la semaine — un compte de ce que le bandeau d'alertes détaille
+          déjà plus bas, jamais une recommandation ("planning optimal", "il faut X
+          serveurs"). Absent si la semaine est calme : pas de carte vide à lire. */}
+      {data.weekSummary.length > 0 && (
+        <Card className="p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cette semaine</p>
+          <p className="mt-1 text-sm">{data.weekSummary.join(" · ")}</p>
+        </Card>
+      )}
 
       <PlanningAlerts alerts={data.alerts} />
       <FrequentationSummary days={data.dayFrequentation} />
