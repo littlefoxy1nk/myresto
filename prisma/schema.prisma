@@ -451,6 +451,9 @@ model MarketingPost {
   campaign        Campaign?     @relation(fields: [campaignId], references: [id])
   title           String
   content         String
+  /// Description libre du visuel prévu (ex: "Photo du nouveau menu") — pas de vraie
+  /// bibliothèque de médias dans cette phase, volontairement différé.
+  mediaNote       String?
   channel         String        // instagram | facebook | email | sms
   scheduledFor    DateTime
   status          String        @default("draft") // draft | scheduled | published

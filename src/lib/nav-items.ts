@@ -33,8 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/clients", label: "Clients", icon: "Heart", permission: "crm.view", available: true },
   { href: "/finances", label: "Finances", icon: "LineChart", permission: "finance.view", available: true },
   { href: "/stock", label: "Stock", icon: "Boxes", permission: "inventory.view", available: true },
-  // Phase 5
-  { href: "/marketing", label: "Marketing", icon: "Megaphone", permission: "marketing.view", available: false },
+  { href: "/marketing", label: "Communication", icon: "Megaphone", permission: "marketing.view", available: true },
 
   // Toujours en dernier dans la sidebar desktop — la configuration de l'établissement
   // n'est pas une tâche opérationnelle du quotidien, elle ne doit pas se mêler aux

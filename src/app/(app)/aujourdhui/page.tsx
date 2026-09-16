@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/utils";
-import { AlertTriangle, AlertCircle, Eye, Clock, LineChart, Boxes, CalendarDays, Palmtree } from "lucide-react";
+import { AlertTriangle, AlertCircle, Eye, Clock, LineChart, Boxes, CalendarDays, Palmtree, Megaphone } from "lucide-react";
 import { RESERVATION_STATUS_LABEL } from "@/modules/reservations/status";
 
 const SEVERITY_CONFIG = {
@@ -55,7 +55,8 @@ export default async function AujourdhuiPage() {
   const canSeeStock = ctx.can("inventory.view");
   const canSeePlanning = ctx.can("schedule.view");
   const canSeeTimeOff = ctx.can("timeoff.manage");
-  const hasQuickLinks = canSeeFinances || canSeeStock || canSeePlanning || canSeeTimeOff;
+  const canSeeMarketing = ctx.can("marketing.view");
+  const hasQuickLinks = canSeeFinances || canSeeStock || canSeePlanning || canSeeTimeOff || canSeeMarketing;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -184,9 +185,10 @@ export default async function AujourdhuiPage() {
         </div>
       )}
 
-      {/* Finances, Stock, Planning et Congés vivent dans la barre latérale desktop mais
-          n'ont pas d'onglet dans la barre de navigation mobile (6 places déjà prises) —
-          ce raccourci est leur seul point d'entrée sur mobile pour les rôles concernés. */}
+      {/* Finances, Stock, Planning, Congés et Communication vivent dans la barre latérale
+          desktop mais n'ont pas d'onglet dans la barre de navigation mobile (6 places
+          déjà prises) — ce raccourci est leur seul point d'entrée sur mobile pour les
+          rôles concernés. */}
       {hasQuickLinks && (
         <div className="grid grid-cols-2 gap-2 md:hidden">
           {canSeePlanning && (
@@ -218,6 +220,14 @@ export default async function AujourdhuiPage() {
               <Link href="/stock">
                 <Boxes size={15} aria-hidden="true" />
                 Stock
+              </Link>
+            </Button>
+          )}
+          {canSeeMarketing && (
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/marketing">
+                <Megaphone size={15} aria-hidden="true" />
+                Communication
               </Link>
             </Button>
           )}
