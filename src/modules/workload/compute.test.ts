@@ -10,8 +10,8 @@ test("computeWorkloadSummary aggregates covers and reservations per zone", () =>
       { time: "20:00", partySize: 3, zoneId: "z2" },
     ],
     [
-      { id: "z1", name: "Terrasse", tablesCount: 5, assignedStaffCount: 1 },
-      { id: "z2", name: "Salle", tablesCount: 8, assignedStaffCount: 2 },
+      { id: "z1", name: "Terrasse", tablesCount: 5 },
+      { id: "z2", name: "Salle", tablesCount: 8 },
     ]
   );
 
@@ -25,7 +25,7 @@ test("computeWorkloadSummary aggregates covers and reservations per zone", () =>
 test("computeWorkloadSummary groups unassigned reservations under their own bucket", () => {
   const summary = computeWorkloadSummary(
     [{ time: "19:00", partySize: 2, zoneId: null }],
-    [{ id: "z1", name: "Terrasse", tablesCount: 5, assignedStaffCount: 1 }]
+    [{ id: "z1", name: "Terrasse", tablesCount: 5 }]
   );
   const unassigned = summary.byZone.find((z) => z.zoneName === "Sans table assignée");
   assert.ok(unassigned);

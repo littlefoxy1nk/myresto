@@ -12,7 +12,6 @@ import { WalkInDialog } from "@/modules/service/components/walk-in-dialog";
 
 export function ServiceTableSheet({
   table,
-  responsibleNames,
   onClose,
   onMarkArrived,
   onMarkSeated,
@@ -20,7 +19,6 @@ export function ServiceTableSheet({
   onMarkReady,
 }: {
   table: TableWithLiveState;
-  responsibleNames?: string[];
   onClose: () => void;
   onMarkArrived: (reservationId: string) => void;
   onMarkSeated: (reservationId: string) => void;
@@ -40,11 +38,6 @@ export function ServiceTableSheet({
             <Badge variant={style.badge}>{style.label}</Badge>
             <span className="text-xs text-muted-foreground">{table.capacity} pl.</span>
           </div>
-          {responsibleNames && responsibleNames.length > 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Responsable : <span className="font-medium text-foreground">{responsibleNames.join(", ")}</span>
-            </p>
-          )}
         </div>
         <button
           onClick={onClose}

@@ -25,7 +25,6 @@ export function computeWorkloadSummary(
       covers,
       reservationsCount: zoneReservations.length,
       tablesCount: zone.tablesCount,
-      assignedStaffCount: zone.assignedStaffCount,
     };
   });
 
@@ -37,7 +36,6 @@ export function computeWorkloadSummary(
       covers: unassigned.reduce((s, r) => s + r.partySize, 0),
       reservationsCount: unassigned.length,
       tablesCount: 0,
-      assignedStaffCount: 0,
     });
   }
 

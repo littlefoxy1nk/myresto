@@ -14,7 +14,6 @@ export type WorkloadZoneInput = {
   id: string;
   name: string;
   tablesCount: number;
-  assignedStaffCount: number;
 };
 
 export type ZoneWorkload = {
@@ -23,8 +22,6 @@ export type ZoneWorkload = {
   covers: number;
   reservationsCount: number;
   tablesCount: number;
-  /// Un fait (qui est affecté à cette zone), jamais transformé en ratio couverts/personnel.
-  assignedStaffCount: number;
 };
 
 export type ArrivalWindow = {

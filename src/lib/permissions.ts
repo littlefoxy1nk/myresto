@@ -13,7 +13,6 @@ export const PERMISSIONS = [
   // Équipe / planning
   { key: "staff.view", label: "Voir l'équipe", category: "staff" },
   { key: "staff.manage", label: "Gérer l'équipe (fiches, rôles)", category: "staff" },
-  { key: "staff.assign", label: "Affecter l'équipe aux zones/tables", category: "staff" },
   { key: "schedule.view", label: "Voir le planning", category: "staff" },
   { key: "schedule.edit", label: "Modifier le planning", category: "staff" },
   { key: "timeoff.manage", label: "Valider les congés / absences", category: "staff" },
@@ -63,7 +62,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRoleKey, PermissionKey[]> = 
   DIRECTOR: ALL,
   MANAGER: [
     "reservations.view", "reservations.edit", "floorplan.view", "floorplan.edit", "service.run",
-    "staff.view", "staff.manage", "staff.assign", "schedule.view", "schedule.edit", "timeoff.manage",
+    "staff.view", "staff.manage", "schedule.view", "schedule.edit", "timeoff.manage",
     "inventory.view", "inventory.manage",
     "crm.view", "crm.manage",
     "marketing.view", "marketing.publish",
@@ -71,7 +70,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRoleKey, PermissionKey[]> = 
   ],
   FLOOR_MANAGER: [
     "reservations.view", "reservations.edit", "floorplan.view", "floorplan.edit", "service.run",
-    "staff.view", "staff.assign", "schedule.view",
+    "staff.view", "schedule.view",
     "crm.view", "crm.manage",
     "finance.manage",
   ],

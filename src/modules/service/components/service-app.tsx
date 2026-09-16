@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Users2 } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast-bus";
 import { ZoneTabs } from "@/modules/floorplan/components/zone-tabs";
 import { FloorPlanCanvas } from "@/modules/floorplan/components/floor-plan-canvas";
@@ -15,20 +14,11 @@ import { useAutoRefresh } from "@/modules/service/components/use-auto-refresh";
 import { formatMinutes } from "@/modules/service/format";
 import { updateReservationStatus, releaseReservationTables } from "@/modules/reservations/server/actions";
 import { setTableManualStatus } from "@/modules/floorplan/server/actions";
-import { ZoneAssignmentsSummary } from "@/modules/staff/components/zone-assignments-summary";
-import { AssignmentManagerDialog } from "@/modules/staff/components/assignment-manager-dialog";
-import type { ZoneAssignmentsResult } from "@/modules/staff/server/assignments";
 import type { ServiceSnapshot, ServiceAlert } from "@/modules/service/types";
 
 const REFRESH_INTERVAL_MS = 30_000;
 
-export function ServiceApp({
-  snapshot,
-  assignments,
-}: {
-  snapshot: ServiceSnapshot;
-  assignments: ZoneAssignmentsResult;
-}) {
+export function ServiceApp({ snapshot }: { snapshot: ServiceSnapshot }) {
   useAutoRefresh(REFRESH_INTERVAL_MS);
 
   const [activeZoneId, setActiveZoneId] = useState<string | null>(snapshot.zones[0]?.id ?? null);
@@ -37,9 +27,6 @@ export function ServiceApp({
 
   const activeZone = snapshot.zones.find((z) => z.id === activeZoneId) ?? snapshot.zones[0] ?? null;
   const selectedTable = activeZone?.tables.find((t) => t.id === selectedTableId) ?? null;
-  const responsibleForSelectedTable = selectedTable
-    ? assignments.zones.find((z) => z.zoneId === selectedTable.zoneId)?.members.map((m) => `${m.firstName} ${m.lastName}`) ?? []
-    : [];
   // Arrivé mais pas encore installé : sans cette liste, la personne "disparaît" du
   // cockpit dès qu'elle quitte "Prochaines arrivées", jusqu'à cliquer sa table une à une.
   const arrivedWaiting = snapshot.timeline.filter((t) => t.status === "arrived");
@@ -122,27 +109,6 @@ export function ServiceApp({
         </section>
       )}
 
-      <section className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-            <Users2 size={14} aria-hidden="true" />
-            Équipe du service
-          </h2>
-          {assignments.canEdit && (
-            <AssignmentManagerDialog
-              zones={assignments.zones}
-              assignableMembers={assignments.assignableMembers}
-              trigger={
-                <Button size="sm" variant="ghost">
-                  Modifier
-                </Button>
-              }
-            />
-          )}
-        </div>
-        <ZoneAssignmentsSummary zones={assignments.zones} />
-      </section>
-
       {activeZone && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold">Plan de salle</h2>
@@ -171,7 +137,6 @@ export function ServiceApp({
               <ServiceTableSheet
                 key={selectedTable.id}
                 table={selectedTable}
-                responsibleNames={responsibleForSelectedTable}
                 onClose={() => setSelectedTableId(null)}
                 onMarkArrived={(id) => guarded(() => updateReservationStatus(id, "arrived"), "Client marqué arrivé")}
                 onMarkSeated={(id) => guarded(() => updateReservationStatus(id, "seated"), "Table installée")}

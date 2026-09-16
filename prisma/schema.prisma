@@ -53,7 +53,6 @@ model Establishment {
   zones           Zone[]
   tables          RestaurantTable[]
   tableGroups     TableGroup[]
-  staffAssignments StaffAssignment[]
   reservations    Reservation[]
   customers       Customer[]
   shifts          Shift[]
@@ -124,7 +123,6 @@ model Membership {
   availabilities  Availability[]
   timeOffRequests TimeOffRequest[]
   documents       EmployeeDocument[]
-  staffAssignments StaffAssignment[]
   notifications   Notification[]
 
   @@unique([userId, establishmentId])
@@ -277,6 +275,10 @@ model SchedulingRule {
 // PLAN DE SALLE
 // =========================================================================
 
+/// Un regroupement PHYSIQUE de tables (Terrasse, Salle avant, Salle arrière...), pour
+/// organiser le plan de salle — jamais un rattachement de personnel. Affecter un
+/// employé à une zone ("Marie fait l'avant") a été délibérément écarté : ce n'est pas
+/// une décision que MYRESTO doit modéliser ou suggérer.
 model Zone {
   id              String            @id @default(cuid())
   establishmentId String
@@ -285,7 +287,6 @@ model Zone {
   type            String            @default("salle") // salle | terrasse | bar | prive | autre
   sortOrder       Int               @default(0)
   tables          RestaurantTable[]
-  staffAssignments StaffAssignment[]
 }
 
 model RestaurantTable {
@@ -312,29 +313,7 @@ model RestaurantTable {
 
   reservationTables ReservationTable[]
   groupMemberships  TableGroupMember[]
-  staffAssignments  StaffAssignment[]
   favoritedBy       Customer[]
-}
-
-/// Affectation opérationnelle "en ce moment" — qui couvre quelle zone (et éventuellement
-/// une table précise) pendant le service en cours. Volontairement sans date/heure : ce
-/// n'est pas un événement planifié (voir Shift, qui reste le concept du futur Planning RH),
-/// c'est un état qu'on pose et qu'on retire, au même titre que RestaurantTable.status.
-/// Le futur Planning pourra un jour générer ces lignes automatiquement à partir des Shifts
-/// du jour ; pour l'instant elles sont posées à la main, avant ou pendant le service.
-model StaffAssignment {
-  id              String        @id @default(cuid())
-  establishmentId String
-  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
-  membershipId    String
-  membership      Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  zoneId          String
-  zone            Zone          @relation(fields: [zoneId], references: [id], onDelete: Cascade)
-  /// null = toute la zone ; sinon une table précise à l'intérieur de cette zone (non
-  /// exposé dans l'UI V1, mais déjà modélisé pour ne pas devoir migrer plus tard).
-  tableId         String?
-  table           RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  createdAt       DateTime      @default(now())
 }
 
 /// Regroupement physique de tables (ex: T4+T5 poussées ensemble), indépendant d'une
