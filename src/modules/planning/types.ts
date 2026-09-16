@@ -4,6 +4,11 @@
 
 import type { FrequentationSignal } from "@/modules/frequentation/types";
 
+/// Type de SchedulingRule qui porte l'objectif de services hebdomadaire d'une personne
+/// — partagé par planning/server/{actions,queries}.ts et myspace/server/queries.ts,
+/// jamais redéfini localement.
+export const TARGET_SHIFTS_RULE_TYPE = "target_shifts_per_week";
+
 export const SHIFT_POSITIONS = ["salle", "cuisine", "bar", "direction"] as const;
 export type ShiftPosition = (typeof SHIFT_POSITIONS)[number];
 

@@ -47,7 +47,7 @@ export default async function ParametresPage() {
             <p className="text-sm font-medium">
               {ctx.user.firstName} {ctx.user.lastName}
             </p>
-            <p className="text-xs text-muted-foreground">{ctx.user.email}</p>
+            <p className="text-xs text-muted-foreground">{ctx.user.email ?? ctx.user.username}</p>
           </div>
           <form action={logout}>
             <Button type="submit" size="sm" variant="outline">

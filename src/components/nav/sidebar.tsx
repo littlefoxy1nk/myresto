@@ -13,11 +13,13 @@ export function Sidebar({
   establishmentName,
   userName,
   isDemo,
+  badges,
 }: {
   items: NavItem[];
   establishmentName: string;
   userName: string;
   isDemo?: boolean;
+  badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
 
@@ -40,6 +42,7 @@ export function Sidebar({
         {items.map((item) => {
           const Icon = Icons[item.icon as keyof typeof Icons] as Icons.LucideIcon;
           const active = pathname === item.href || pathname?.startsWith(item.href + "/");
+          const badgeCount = badges?.[item.href] ?? 0;
           return (
             <Link
               key={item.href}
@@ -54,7 +57,12 @@ export function Sidebar({
               )}
             >
               {Icon && <Icon size={17} strokeWidth={2} aria-hidden="true" />}
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {badgeCount > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-urgent px-1 text-[10px] font-semibold text-white">
+                  {badgeCount > 9 ? "9+" : badgeCount}
+                </span>
+              )}
             </Link>
           );
         })}

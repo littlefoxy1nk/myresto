@@ -72,14 +72,24 @@ model Establishment {
   campaigns       Campaign[]
   auditLogs       AuditLog[]
   agendaEvents    AgendaEvent[]
+  notifications   Notification[]
 }
 
+/// Deux moyens de connexion indépendants, chacun optionnel — mais un utilisateur doit
+/// toujours avoir au moins l'un des deux (vérifié en application, pas en base) :
+/// - email + passwordHash : le compte du propriétaire à l'inscription, ou un employé à
+///   qui on a choisi de donner un accès par email.
+/// - username + codeHash : le mode par défaut pour un employé créé sans adresse email —
+///   voir staff/server/actions.ts. `email` reste alors un simple champ de profil,
+///   utilisable plus tard comme canal de notification, jamais comme identifiant requis.
 model User {
   id            String       @id @default(cuid())
   companyId     String
   company       Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  email         String       @unique
-  passwordHash  String
+  email         String?      @unique
+  passwordHash  String?
+  username      String?      @unique
+  codeHash      String?
   firstName     String
   lastName      String
   phone         String?
@@ -115,8 +125,27 @@ model Membership {
   timeOffRequests TimeOffRequest[]
   documents       EmployeeDocument[]
   staffAssignments StaffAssignment[]
+  notifications   Notification[]
 
   @@unique([userId, establishmentId])
+}
+
+/// Notification personnelle adressée à un membre précis — jamais une alerte
+/// d'établissement (voir le modèle Alert, qui reste inutilisé et distinct). Un
+/// changement d'horaire, une décision de congé, une nouvelle demande à traiter : du
+/// factuel, jamais une recommandation. `readAt` null = non lue.
+model Notification {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  membershipId    String
+  membership      Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  type            String        // shift_changed | shift_cancelled | leave_approved | leave_rejected | leave_requested
+  title           String
+  body            String?
+  linkHref        String?
+  readAt          DateTime?
+  createdAt       DateTime      @default(now())
 }
 
 model EmployeeDocument {

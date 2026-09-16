@@ -17,20 +17,19 @@ import {
   evaluateShift,
   isDayGenerallyUnavailable,
 } from "@/modules/planning/compute";
-import type {
-  AvailabilityRow,
-  ObjectiveExclusion,
-  PlanningAlert,
-  PlanningDayService,
-  PlanningMember,
-  PlanningServiceDefinition,
-  PlanningShift,
-  ServiceObjective,
-  ShiftConflictLevel,
-  WeekPlanningResult,
+import {
+  TARGET_SHIFTS_RULE_TYPE,
+  type AvailabilityRow,
+  type ObjectiveExclusion,
+  type PlanningAlert,
+  type PlanningDayService,
+  type PlanningMember,
+  type PlanningServiceDefinition,
+  type PlanningShift,
+  type ServiceObjective,
+  type ShiftConflictLevel,
+  type WeekPlanningResult,
 } from "@/modules/planning/types";
-
-const TARGET_SHIFTS_RULE_TYPE = "target_shifts_per_week";
 
 function dayLabel(d: Date): string {
   const label = new Intl.DateTimeFormat("fr-BE", { weekday: "short", day: "numeric", month: "short" }).format(d);

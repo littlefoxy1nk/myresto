@@ -9,25 +9,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Mot de passe", type: "password" },
+        identifier: { label: "Email ou identifiant", type: "text" },
+        secret: { label: "Mot de passe ou code", type: "password" },
       },
+      /// Un employé sans e-mail se connecte par identifiant + code, un compte créé avec
+      /// e-mail se connecte par email + mot de passe — voir le commentaire sur User dans
+      /// schema.prisma. On ne devine pas lequel des deux d'après la forme du champ saisi
+      /// (un identifiant pourrait ressembler à un email) : on cherche l'utilisateur par
+      /// l'un OU l'autre, puis on essaie chaque secret réellement défini pour ce compte.
       authorize: async (credentials) => {
-        const email = credentials?.email as string | undefined;
-        const password = credentials?.password as string | undefined;
-        if (!email || !password) return null;
+        const identifier = credentials?.identifier as string | undefined;
+        const secret = credentials?.secret as string | undefined;
+        if (!identifier || !secret) return null;
 
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prisma.user.findFirst({
+          where: { OR: [{ email: identifier }, { username: identifier }] },
+        });
         if (!user) return null;
 
-        const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) return null;
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: `${user.firstName} ${user.lastName}`,
-        };
+        const candidateHashes = [user.passwordHash, user.codeHash].filter((h): h is string => !!h);
+        for (const hash of candidateHashes) {
+          if (await bcrypt.compare(secret, hash)) {
+            return { id: user.id, email: user.email, name: `${user.firstName} ${user.lastName}` };
+          }
+        }
+        return null;
       },
     }),
   ],

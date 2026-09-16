@@ -19,6 +19,9 @@ export type NavItem = {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/aujourdhui", label: "Aujourd'hui", mobileLabel: "Auj.", icon: "Sun", mobile: true, available: true },
+  // Sans `permission` : visible par tout le monde, y compris un rôle qui n'a accès à
+  // rien d'autre — c'est l'espace de CHACUN, pas un module métier réservé.
+  { href: "/mon-espace", label: "Mon espace", mobileLabel: "Moi", icon: "UserCircle", mobile: true, available: true },
   { href: "/reservations", label: "Réservations", mobileLabel: "Résa", icon: "CalendarClock", permission: "reservations.view", mobile: true, available: true },
   { href: "/plan-de-salle", label: "Plan de salle", mobileLabel: "Plan", icon: "LayoutGrid", permission: "floorplan.view", mobile: true, available: true },
   { href: "/service", label: "Service", icon: "Utensils", permission: "service.run", mobile: true, available: true },

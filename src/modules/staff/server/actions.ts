@@ -6,11 +6,12 @@ import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
+import { baseUsername } from "@/modules/staff/username";
 
 const CreateEmployeeSchema = z.object({
   firstName: z.string().min(1, "Le prénom est requis."),
   lastName: z.string().min(1, "Le nom est requis."),
-  email: z.string().email("Adresse email invalide."),
+  email: z.string().email("Adresse email invalide.").optional().or(z.literal("")),
   phone: z.string().optional(),
   roleId: z.string().min(1, "Choisissez un rôle."),
   jobTitle: z.string().optional(),
@@ -31,7 +32,7 @@ export type CreateEmployeeState = {
   fieldErrors?: Partial<Record<keyof CreateEmployeeValues, string>>;
   values: CreateEmployeeValues;
   attempt: number;
-  success?: { name: string; tempPassword: string };
+  success?: { name: string; username: string; code: string };
 };
 
 // Pas de constante exportée ici au-delà des fonctions : un fichier "use server" ne peut
@@ -51,9 +52,26 @@ function valuesFromFormData(formData: FormData): CreateEmployeeValues {
   };
 }
 
-function generateTempPassword() {
-  // Lisible à l'oral pour être communiqué facilement à l'employé (pas de caractères ambigus).
-  return crypto.randomBytes(6).toString("base64url").replace(/[-_]/g, "9");
+/// L'identité RH (prénom/nom) est distincte du moyen de connexion — voir le
+/// commentaire sur User dans schema.prisma. Un employé n'a pas besoin d'une adresse
+/// email pour recevoir un accès : on lui génère un identifiant lisible ("chloe.dupont")
+/// à partir de son nom, avec un suffixe numérique en cas de doublon dans l'entreprise.
+async function generateUniqueUsername(firstName: string, lastName: string): Promise<string> {
+  const base = baseUsername(firstName, lastName);
+  let candidate = base;
+  let suffix = 1;
+  while (await prisma.user.findUnique({ where: { username: candidate } })) {
+    suffix += 1;
+    candidate = `${base}${suffix}`;
+  }
+  return candidate;
+}
+
+/// Code numérique à 6 chiffres — assez simple à retaper sur un écran de service, assez
+/// long pour ne pas être trivialement deviné. Généré par tirage cryptographique (pas
+/// Math.random), jamais stocké en clair (voir codeHash).
+function generateAccessCode(): string {
+  return crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
 }
 
 export async function createEmployee(
@@ -74,6 +92,7 @@ export async function createEmployee(
     return { error: "Merci de corriger les champs indiqués ci-dessous.", fieldErrors, values, attempt };
   }
   const data = parsed.data;
+  const email = data.email || null;
 
   const role = await prisma.role.findFirst({
     where: { id: data.roleId, establishmentId: ctx.establishment.id },
@@ -87,24 +106,28 @@ export async function createEmployee(
     };
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
-  if (existingUser) {
-    return {
-      error: "Un compte existe déjà avec cet email.",
-      fieldErrors: { email: "Cette adresse est déjà utilisée." },
-      values,
-      attempt,
-    };
+  if (email) {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return {
+        error: "Un compte existe déjà avec cet email.",
+        fieldErrors: { email: "Cette adresse est déjà utilisée." },
+        values,
+        attempt,
+      };
+    }
   }
 
-  const tempPassword = generateTempPassword();
-  const passwordHash = await bcrypt.hash(tempPassword, 10);
+  const username = await generateUniqueUsername(data.firstName, data.lastName);
+  const code = generateAccessCode();
+  const codeHash = await bcrypt.hash(code, 10);
 
   const user = await prisma.user.create({
     data: {
       companyId: ctx.establishment.companyId,
-      email: data.email,
-      passwordHash,
+      email,
+      username,
+      codeHash,
       firstName: data.firstName,
       lastName: data.lastName,
       phone: data.phone || null,
@@ -142,6 +165,6 @@ export async function createEmployee(
   return {
     values: { firstName: "", lastName: "", email: "", phone: "", roleId: "", jobTitle: "", availableDays: [] },
     attempt,
-    success: { name: `${data.firstName} ${data.lastName}`, tempPassword },
+    success: { name: `${data.firstName} ${data.lastName}`, username, code },
   };
 }

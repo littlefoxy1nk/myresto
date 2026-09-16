@@ -52,10 +52,13 @@ export function NewEmployeeForm({ roles }: { roles: { id: string; label: string 
           <p className="text-sm font-medium">{state.success.name} a été ajouté(e) à l&apos;équipe.</p>
         </div>
         <div className="rounded-xl bg-muted p-4">
-          <p className="text-xs text-muted-foreground">Mot de passe temporaire</p>
-          <p className="mt-1 font-mono text-lg font-semibold tracking-wide">{state.success.tempPassword}</p>
+          <p className="text-xs text-muted-foreground">Identifiant</p>
+          <p className="mt-1 font-mono text-lg font-semibold tracking-wide">{state.success.username}</p>
+          <p className="mt-3 text-xs text-muted-foreground">Code d&apos;accès</p>
+          <p className="mt-1 font-mono text-lg font-semibold tracking-wide">{state.success.code}</p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Communiquez-le à l&apos;employé — il ne sera plus affiché ensuite.
+            Communiquez ces deux informations à l&apos;employé — le code ne sera plus affiché ensuite. Il pourra le
+            changer depuis son espace personnel.
           </p>
         </div>
         <div className="flex gap-2">
@@ -98,14 +101,16 @@ export function NewEmployeeForm({ roles }: { roles: { id: string; label: string 
         />
       </div>
       <Field
-        label="Email"
+        label="Email (optionnel)"
         name="email"
         type="email"
-        required
         defaultValue={v.email}
         error={errors.email}
         inputRef={firstErrorKey === "email" ? firstErrorFieldRef : undefined}
       />
+      <p className="-mt-3 text-xs text-muted-foreground">
+        Sans email, un identifiant et un code d&apos;accès seront générés automatiquement.
+      </p>
       <Field label="Téléphone" name="phone" type="tel" defaultValue={v.phone} error={errors.phone} />
 
       <div className="space-y-1.5">

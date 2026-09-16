@@ -5,7 +5,14 @@ import { revalidatePath } from "next/cache";
 import { addDays, differenceInCalendarDays, endOfDay, startOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
-import { SHIFT_POSITIONS } from "@/modules/planning/types";
+import { toDateKey } from "@/lib/utils";
+import { notifyMember } from "@/modules/myspace/server/notify";
+import { SHIFT_POSITIONS, TARGET_SHIFTS_RULE_TYPE } from "@/modules/planning/types";
+
+function formatShiftDayLabel(date: Date): string {
+  const label = new Intl.DateTimeFormat("fr-BE", { weekday: "long", day: "numeric", month: "long" }).format(date);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 const ShiftSchema = z.object({
   membershipId: z.string().min(1),
@@ -58,6 +65,15 @@ export async function createShift(input: ShiftInput) {
     },
   });
 
+  await notifyMember({
+    establishmentId: ctx.establishment.id,
+    membershipId: data.membershipId,
+    type: "shift_changed",
+    title: "Un nouveau service vous a été attribué",
+    body: `${formatShiftDayLabel(shift.date)} · ${data.startTime}–${data.endTime}`,
+    linkHref: "/mon-espace",
+  });
+
   revalidatePlanningPaths();
   return shift;
 }
@@ -82,6 +98,27 @@ export async function updateShift(id: string, input: ShiftInput) {
     },
   });
 
+  await notifyMember({
+    establishmentId: ctx.establishment.id,
+    membershipId: data.membershipId,
+    type: "shift_changed",
+    title: "Votre horaire a été modifié",
+    body: `${formatShiftDayLabel(shift.date)} · ${data.startTime}–${data.endTime}`,
+    linkHref: "/mon-espace",
+  });
+  // Le shift a changé de personne : celle qui le portait avant doit aussi savoir
+  // qu'elle ne travaille plus ce créneau, pas seulement la nouvelle personne assignée.
+  if (existing.membershipId !== data.membershipId) {
+    await notifyMember({
+      establishmentId: ctx.establishment.id,
+      membershipId: existing.membershipId,
+      type: "shift_changed",
+      title: "Un service qui vous était assigné a été réattribué",
+      body: `${formatShiftDayLabel(existing.date)} · ${existing.startTime}–${existing.endTime}`,
+      linkHref: "/mon-espace",
+    });
+  }
+
   revalidatePlanningPaths();
   return shift;
 }
@@ -92,6 +129,16 @@ export async function deleteShift(id: string) {
   if (!existing) throw new Error("Shift introuvable.");
 
   await prisma.shift.delete({ where: { id } });
+
+  await notifyMember({
+    establishmentId: ctx.establishment.id,
+    membershipId: existing.membershipId,
+    type: "shift_cancelled",
+    title: "Un service a été retiré de votre planning",
+    body: `${formatShiftDayLabel(existing.date)} · ${existing.startTime}–${existing.endTime}`,
+    linkHref: "/mon-espace",
+  });
+
   revalidatePlanningPaths();
 }
 
@@ -131,8 +178,6 @@ export async function duplicateWeek(sourceWeekStart: string, targetWeekStart: st
   revalidatePlanningPaths();
   return shifts.length;
 }
-
-const TARGET_SHIFTS_RULE_TYPE = "target_shifts_per_week";
 
 /// Objectif de services hebdomadaire d'une personne, stocké dans SchedulingRule
 /// (réutilisation du modèle existant plutôt qu'un nouveau champ — voir le rapport de
