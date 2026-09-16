@@ -23,7 +23,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/plan-de-salle", label: "Plan de salle", mobileLabel: "Plan", icon: "LayoutGrid", permission: "floorplan.view", mobile: true, available: true },
   { href: "/service", label: "Service", icon: "Utensils", permission: "service.run", mobile: true, available: true },
   { href: "/equipe", label: "Équipe", icon: "Users", permission: "staff.view", mobile: true, available: true },
-  { href: "/parametres", label: "Paramètres", mobileLabel: "Réglages", icon: "Settings", permission: "settings.manage", mobile: true, available: true },
 
   // Phase 2
   { href: "/planning", label: "Planning", icon: "CalendarDays", permission: "schedule.view", available: true },
@@ -33,6 +32,12 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/stock", label: "Stock", icon: "Boxes", permission: "inventory.view", available: true },
   // Phase 5
   { href: "/marketing", label: "Marketing", icon: "Megaphone", permission: "marketing.view", available: false },
+
+  // Toujours en dernier dans la sidebar desktop — la configuration de l'établissement
+  // n'est pas une tâche opérationnelle du quotidien, elle ne doit pas se mêler aux
+  // modules qu'on utilise pour faire tourner le service. Reste `mobile: true` : sa
+  // position dans la barre du bas n'est pas affectée (déjà filtrée séparément).
+  { href: "/parametres", label: "Paramètres", mobileLabel: "Réglages", icon: "Settings", permission: "settings.manage", mobile: true, available: true },
 ];
 
 export function visibleNavItems(can: (permission: PermissionKey) => boolean): NavItem[] {
