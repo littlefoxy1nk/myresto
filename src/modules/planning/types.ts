@@ -31,6 +31,11 @@ export type AvailabilityRow = {
   kind: AvailabilityKind;
   startTime: string | null; // null + kind=unavailable = indisponible toute la journée
   endTime: string | null;
+  /// Non défini (ou null) = ancien mode "journée entière ou plage horaire libre",
+  /// toujours pris en charge pour les établissements qui préfèrent ça. Défini = la
+  /// ligne ne s'applique qu'à ce service précis (startTime/endTime alors ignorés — le
+  /// service porte déjà son propre horaire). Voir isServiceUnavailable/checkAvailability.
+  serviceId?: string | null;
 };
 
 export type PlanningMember = {

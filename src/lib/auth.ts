@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { isLockedOut, computeFailedAttempt } from "@/lib/login-lockout";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
@@ -27,12 +28,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
         if (!user) return null;
 
+        const now = new Date();
+        if (isLockedOut(user.lockedUntil, now)) {
+          return null;
+        }
+
         const candidateHashes = [user.passwordHash, user.codeHash].filter((h): h is string => !!h);
         for (const hash of candidateHashes) {
           if (await bcrypt.compare(secret, hash)) {
+            if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { failedLoginAttempts: 0, lockedUntil: null },
+              });
+            }
             return { id: user.id, email: user.email, name: `${user.firstName} ${user.lastName}` };
           }
         }
+
+        const { failedLoginAttempts, lockedUntil } = computeFailedAttempt(user.failedLoginAttempts, now);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { failedLoginAttempts, lockedUntil },
+        });
         return null;
       },
     }),

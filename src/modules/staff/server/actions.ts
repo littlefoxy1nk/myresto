@@ -168,3 +168,34 @@ export async function createEmployee(
     success: { name: `${data.firstName} ${data.lastName}`, username, code },
   };
 }
+
+export type RegenerateCodeResult = { error: string } | { code: string };
+
+/// Le seul moyen de débloquer un employé verrouillé (voir auth.ts) est de lui régénérer
+/// un code : ça remplace le secret ET remet le compteur d'essais à zéro, comme à la
+/// création du compte. On ne réutilise pas l'ancien code même s'il n'a pas expiré — un
+/// employé qui demande un nouveau code a souvent oublié ou perdu l'ancien.
+export async function regenerateEmployeeCode(membershipId: string): Promise<RegenerateCodeResult> {
+  const ctx = await requirePermission("staff.manage");
+
+  const membership = await prisma.membership.findFirst({
+    where: { id: membershipId, establishmentId: ctx.establishment.id },
+    include: { user: true },
+  });
+  if (!membership) {
+    return { error: "Employé introuvable." };
+  }
+
+  const code = generateAccessCode();
+  const codeHash = await bcrypt.hash(code, 10);
+
+  await prisma.user.update({
+    where: { id: membership.userId },
+    data: { codeHash, failedLoginAttempts: 0, lockedUntil: null },
+  });
+
+  revalidatePath(`/equipe/${membershipId}`);
+  revalidatePath("/equipe");
+
+  return { code };
+}

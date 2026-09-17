@@ -1,4 +1,5 @@
 export type TimeOffStatus = "pending" | "approved" | "rejected";
+export type TimeOffKind = "conge" | "maladie";
 
 export type TimeOffRequestItem = {
   id: string;
@@ -9,4 +10,6 @@ export type TimeOffRequestItem = {
   endDate: string; // "yyyy-MM-dd"
   reason: string | null;
   status: TimeOffStatus;
+  kind: TimeOffKind;
+  document: { id: string; originalName: string } | null;
 };

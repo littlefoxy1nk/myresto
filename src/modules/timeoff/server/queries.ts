@@ -15,7 +15,7 @@ export async function getTimeOffRequests(establishmentId: string): Promise<{ req
 
   const rows = await prisma.timeOffRequest.findMany({
     where: { establishmentId },
-    include: { membership: { include: { user: true } } },
+    include: { membership: { include: { user: true } }, documents: true },
     orderBy: [{ startDate: "desc" }],
   });
 
@@ -29,6 +29,8 @@ export async function getTimeOffRequests(establishmentId: string): Promise<{ req
       endDate: format(r.endDate, "yyyy-MM-dd"),
       reason: r.reason,
       status: r.status as TimeOffStatus,
+      kind: r.kind as TimeOffRequestItem["kind"],
+      document: r.documents[0] ? { id: r.documents[0].id, originalName: r.documents[0].originalName } : null,
     }))
     // en attente d'abord (ce qui demande une action), puis par statut, la date de
     // tri primaire (startDate desc) étant déjà appliquée en base.

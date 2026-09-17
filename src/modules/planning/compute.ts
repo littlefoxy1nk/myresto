@@ -44,12 +44,23 @@ export type AvailabilityCheck =
 /// semaine) d'une personne. "unavailable" est prioritaire — une indisponibilité
 /// explicite prime sur une simple préférence. Si la personne n'a rien déclaré du tout
 /// pour ce jour, on ne peut rien affirmer honnêtement : "ok" par défaut, jamais un
-/// avertissement fondé sur une absence de donnée.
-export function checkAvailability(shift: { startTime: string; endTime: string }, availabilities: AvailabilityRow[]): AvailabilityCheck {
+/// avertissement fondé sur une absence de donnée. Une ligne liée à un service précis
+/// (serviceId) ne s'applique qu'aux shifts de CE service — voir le commentaire sur
+/// AvailabilityRow ; les lignes sans service restent le mode "journée entière ou plage
+/// horaire libre" déjà en place.
+export function checkAvailability(
+  shift: { startTime: string; endTime: string; serviceId?: string | null },
+  availabilities: AvailabilityRow[]
+): AvailabilityCheck {
   const shiftStart = timeToMinutes(shift.startTime);
   const shiftEnd = timeToMinutes(shift.endTime);
+  const shiftServiceId = shift.serviceId ?? null;
+  const relevant = availabilities.filter((a) => (a.serviceId ?? null) == null || a.serviceId === shiftServiceId);
 
-  for (const a of availabilities.filter((a) => a.kind === "unavailable")) {
+  for (const a of relevant.filter((a) => a.kind === "unavailable")) {
+    if (a.serviceId != null) {
+      return { status: "unavailable", reason: "Indisponible déclaré pour ce service" };
+    }
     const uStart = a.startTime ? timeToMinutes(a.startTime) : 0;
     const uEnd = a.endTime ? timeToMinutes(a.endTime) : 24 * 60;
     if (shiftStart < uEnd && uStart < shiftEnd) {
@@ -60,7 +71,7 @@ export function checkAvailability(shift: { startTime: string; endTime: string },
     }
   }
 
-  const preferred = availabilities.filter((a) => a.kind === "preferred" && a.startTime && a.endTime);
+  const preferred = relevant.filter((a) => a.kind === "preferred" && a.startTime && a.endTime);
   if (preferred.length > 0) {
     const withinAny = preferred.some((p) => shiftStart >= timeToMinutes(p.startTime!) && shiftEnd <= timeToMinutes(p.endTime!));
     if (!withinAny) {
@@ -75,12 +86,30 @@ export function checkAvailability(shift: { startTime: string; endTime: string },
   return { status: "ok" };
 }
 
-/// Un jour de semaine est "indisponible en général" quand une indisponibilité
-/// déclarée couvre la journée entière (pas seulement une plage horaire) — c'est cette
-/// notion, pas une plage précise, qui détermine si un créneau reste compatible pour
-/// atteindre un objectif de services (voir computeServiceObjective).
-export function isDayGenerallyUnavailable(availabilities: AvailabilityRow[], dayOfWeek: number): boolean {
-  return availabilities.some((a) => a.dayOfWeek === dayOfWeek && a.kind === "unavailable" && a.startTime == null);
+/// Un jour de semaine est "indisponible en général" soit à l'ancienne (une ligne
+/// "journée entière" sans service ni horaire), soit quand TOUS les services de
+/// l'établissement actifs ce jour-là (serviceIdsToday, déjà filtrés par appelant) sont
+/// individuellement marqués indisponibles — s'il n'en reste qu'un de coché, la journée
+/// garde un créneau compatible, elle n'est pas "générale". C'est cette notion qui
+/// détermine si un créneau reste compatible pour un objectif de services (voir
+/// computeServiceObjective) — pas une plage précise.
+export function isDayGenerallyUnavailable(
+  availabilities: AvailabilityRow[],
+  dayOfWeek: number,
+  serviceIdsToday: string[] = []
+): boolean {
+  const dayUnavailable = availabilities.filter((a) => a.dayOfWeek === dayOfWeek && a.kind === "unavailable");
+  if (dayUnavailable.some((a) => (a.serviceId ?? null) == null && a.startTime == null)) return true;
+  if (serviceIdsToday.length === 0) return false;
+  const unavailableServiceIds = new Set(dayUnavailable.filter((a) => a.serviceId != null).map((a) => a.serviceId));
+  return serviceIdsToday.every((id) => unavailableServiceIds.has(id));
+}
+
+/// Un service précis (pas la journée entière) est marqué indisponible pour ce jour de
+/// semaine — utilisé pour exclure UN créneau compatible sans exclure toute la journée
+/// (voir isDayGenerallyUnavailable pour le cas "tous les services").
+export function isServiceUnavailable(availabilities: AvailabilityRow[], dayOfWeek: number, serviceId: string): boolean {
+  return availabilities.some((a) => a.dayOfWeek === dayOfWeek && a.kind === "unavailable" && a.serviceId === serviceId);
 }
 
 export type ShiftEvaluation = { level: ShiftConflictLevel; warnings: ShiftWarning[] };
@@ -97,7 +126,7 @@ export type ShiftEvaluation = { level: ShiftConflictLevel; warnings: ShiftWarnin
 /// fait par personne-semaine, pas par shift — elle serait sinon répétée sur chaque shift
 /// de la semaine une fois le seuil atteint. Voir checkWeeklyLimit.
 export function evaluateShift(
-  shift: { startTime: string; endTime: string },
+  shift: { startTime: string; endTime: string; serviceId?: string | null },
   context: {
     /// Les autres shifts de la même personne le même jour (le shift évalué exclu).
     otherShiftsSameDay: { startTime: string; endTime: string }[];

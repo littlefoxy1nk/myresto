@@ -5,9 +5,18 @@ import { Button } from "@/components/ui/button";
 import { approveTimeOffRequest, rejectTimeOffRequest } from "@/modules/timeoff/server/actions";
 import { toast } from "@/lib/toast-bus";
 
-export function TimeOffActionButton({ requestId, action }: { requestId: string; action: "approve" | "reject" }) {
+export function TimeOffActionButton({
+  requestId,
+  action,
+  kind = "conge",
+}: {
+  requestId: string;
+  action: "approve" | "reject";
+  kind?: "conge" | "maladie";
+}) {
   const [pending, startTransition] = useTransition();
-  const label = action === "approve" ? "Accepter" : "Refuser";
+  const label =
+    action === "approve" ? (kind === "maladie" ? "Marquer comme traité" : "Accepter") : kind === "maladie" ? "Contester" : "Refuser";
 
   return (
     <Button
@@ -19,10 +28,10 @@ export function TimeOffActionButton({ requestId, action }: { requestId: string; 
           try {
             if (action === "approve") {
               await approveTimeOffRequest(requestId);
-              toast("Congé accepté");
+              toast(kind === "maladie" ? "Absence traitée" : "Congé accepté");
             } else {
               await rejectTimeOffRequest(requestId);
-              toast("Congé refusé");
+              toast(kind === "maladie" ? "Absence contestée" : "Congé refusé");
             }
           } catch (err) {
             toast(err instanceof Error ? err.message : "Une erreur est survenue.", "error");

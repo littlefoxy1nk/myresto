@@ -61,33 +61,35 @@ export default async function EquipePage() {
           const target = m.weeklyHoursTarget ?? 0;
 
           return (
-            <Card key={m.id} className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent">
-                  {m.user.firstName.charAt(0)}
-                  {m.user.lastName.charAt(0)}
+            <Link key={m.id} href={`/equipe/${m.id}`}>
+              <Card className="p-4 transition-colors hover:bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent">
+                    {m.user.firstName.charAt(0)}
+                    {m.user.lastName.charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {m.user.firstName} {m.user.lastName}
+                    </p>
+                    {m.jobTitle && m.jobTitle !== m.role.label && (
+                      <p className="truncate text-xs text-muted-foreground">{m.jobTitle}</p>
+                    )}
+                  </div>
+                  <Badge variant="neutral">{m.role.label}</Badge>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {m.user.firstName} {m.user.lastName}
-                  </p>
-                  {m.jobTitle && m.jobTitle !== m.role.label && (
-                    <p className="truncate text-xs text-muted-foreground">{m.jobTitle}</p>
+                <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>
+                    {m.shifts.length} service{m.shifts.length > 1 ? "s" : ""} cette semaine
+                  </span>
+                  {target > 0 && (
+                    <span>
+                      {hoursThisWeek.toFixed(0)}h / {target}h
+                    </span>
                   )}
                 </div>
-                <Badge variant="neutral">{m.role.label}</Badge>
-              </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  {m.shifts.length} service{m.shifts.length > 1 ? "s" : ""} cette semaine
-                </span>
-                {target > 0 && (
-                  <span>
-                    {hoursThisWeek.toFixed(0)}h / {target}h
-                  </span>
-                )}
-              </div>
-            </Card>
+              </Card>
+            </Link>
           );
         })}
       </div>

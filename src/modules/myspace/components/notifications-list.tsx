@@ -12,6 +12,12 @@ function formatWhen(iso: string): string {
   return new Intl.DateTimeFormat("fr-BE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 }
 
+const SEVERITY_DOT: Record<MyNotification["severity"], string> = {
+  urgent: "bg-urgent",
+  important: "bg-important",
+  watch: "bg-watch",
+};
+
 export function NotificationsList({ notifications }: { notifications: MyNotification[] }) {
   const [items, setItems] = useState(notifications);
   const [, startTransition] = useTransition();
@@ -53,7 +59,7 @@ export function NotificationsList({ notifications }: { notifications: MyNotifica
             key={n.id}
             className={cn("flex items-start gap-3 p-3", !n.isRead && "border-accent/40 bg-accent-soft/30")}
           >
-            {!n.isRead && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden="true" />}
+            {!n.isRead && <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", SEVERITY_DOT[n.severity])} aria-hidden="true" />}
             {n.linkHref ? (
               <Link href={n.linkHref} onClick={() => !n.isRead && markOneRead(n.id)} className="min-w-0 flex-1">
                 {content}

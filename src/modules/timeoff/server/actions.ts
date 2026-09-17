@@ -34,7 +34,8 @@ export async function approveTimeOffRequest(id: string) {
     establishmentId: ctx.establishment.id,
     membershipId: request.membershipId,
     type: "leave_approved",
-    title: "Votre demande de congé a été acceptée",
+    severity: "urgent",
+    title: request.kind === "maladie" ? "Votre arrêt maladie a été enregistré" : "Votre demande de congé a été acceptée",
     body: `Du ${toDateKey(request.startDate)} au ${toDateKey(request.endDate)}.`,
     linkHref: "/mon-espace",
   });
@@ -55,7 +56,8 @@ export async function rejectTimeOffRequest(id: string) {
     establishmentId: ctx.establishment.id,
     membershipId: request.membershipId,
     type: "leave_rejected",
-    title: "Votre demande de congé a été refusée",
+    severity: "urgent",
+    title: request.kind === "maladie" ? "Votre arrêt maladie a été contesté" : "Votre demande de congé a été refusée",
     body: `Du ${toDateKey(request.startDate)} au ${toDateKey(request.endDate)}.`,
     linkHref: "/mon-espace",
   });

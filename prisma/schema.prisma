@@ -72,6 +72,7 @@ model Establishment {
   auditLogs       AuditLog[]
   agendaEvents    AgendaEvent[]
   notifications   Notification[]
+  replacementRequests ReplacementRequest[]
 }
 
 /// Deux moyens de connexion indépendants, chacun optionnel — mais un utilisateur doit
@@ -89,6 +90,11 @@ model User {
   passwordHash  String?
   username      String?      @unique
   codeHash      String?
+  /// Verrouillage après tentatives échouées répétées — un code à 6 chiffres n'a de sens
+  /// que combiné à une limite d'essais. Remis à zéro à chaque connexion réussie ET quand
+  /// le manager régénère le code (voir staff/server/actions.ts).
+  failedLoginAttempts Int    @default(0)
+  lockedUntil   DateTime?
   firstName     String
   lastName      String
   phone         String?
@@ -124,6 +130,9 @@ model Membership {
   timeOffRequests TimeOffRequest[]
   documents       EmployeeDocument[]
   notifications   Notification[]
+  replacementRequestsMade ReplacementRequest[] @relation("ReplacementRequestedBy")
+  replacementsResolvedFor ReplacementRequest[] @relation("ReplacementResolvedFor")
+  replacementVolunteers   ReplacementVolunteer[]
 
   @@unique([userId, establishmentId])
 }
@@ -138,7 +147,11 @@ model Notification {
   establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
   membershipId    String
   membership      Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  type            String        // shift_changed | shift_cancelled | leave_approved | leave_rejected | leave_requested
+  type            String        // shift_changed | shift_cancelled | leave_approved | leave_rejected | leave_requested | replacement_needed
+  /// Réutilise la taxonomie déjà affichée ailleurs dans l'app (urgent 🔴 / important 🟠 /
+  /// watch 🟡) plutôt que d'en inventer une nouvelle. Pas de défaut : notifyMember exige
+  /// un choix explicite à chaque site d'appel, voir myspace/server/notify.ts.
+  severity        String
   title           String
   body            String?
   linkHref        String?
@@ -146,13 +159,22 @@ model Notification {
   createdAt       DateTime      @default(now())
 }
 
+/// Stocké hors de `public/` (jamais servi directement par un lien statique) : voir
+/// l'API de téléchargement authentifiée dans src/app/api/employee-documents/[id]/route.ts.
+/// `fileName` est un nom aléatoire côté serveur, distinct de `originalName` (le nom
+/// donné par l'utilisateur, jamais utilisé pour construire un chemin de fichier).
 model EmployeeDocument {
-  id           String     @id @default(cuid())
-  membershipId String
-  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  label        String
-  url          String
-  createdAt    DateTime   @default(now())
+  id              String          @id @default(cuid())
+  membershipId    String
+  membership      Membership      @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  timeOffRequestId String?
+  timeOffRequest  TimeOffRequest? @relation(fields: [timeOffRequestId], references: [id], onDelete: SetNull)
+  label           String
+  fileName        String          // nom sur disque, dans uploads/employee-documents/
+  originalName    String
+  mimeType        String
+  size            Int
+  createdAt       DateTime        @default(now())
 }
 
 /// Rôle système ou personnalisé, propre à un établissement (sauf rôles "template" globaux).
@@ -209,6 +231,7 @@ model ServiceDefinition {
 
   shifts          Shift[]
   reservations    Reservation[]
+  availabilities  Availability[]
 }
 
 model Shift {
@@ -228,8 +251,52 @@ model Shift {
   notes           String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+
+  replacementRequests ReplacementRequest[]
 }
 
+/// Une personne signale qu'elle ne peut pas assurer un shift déjà planifié ; d'autres,
+/// dont l'éligibilité est calculée factuellement (poste/compétences, pas de
+/// chevauchement, pas de congé approuvé ce jour — voir replacement/compute.ts), peuvent
+/// se proposer. Le manager choisit toujours qui prend le shift, jamais une assignation
+/// automatique : voir resolveReplacementRequest dans replacement/server/actions.ts.
+/// Pas d'auto-escalade si personne ne se propose (pas d'infra de tâches planifiées dans
+/// ce produit) — le manager voit simplement "0 volontaire" à chaque consultation.
+model ReplacementRequest {
+  id                    String       @id @default(cuid())
+  establishmentId       String
+  establishment         Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  shiftId               String
+  shift                 Shift        @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  requestedById         String
+  requestedBy           Membership   @relation("ReplacementRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+  reason                String?
+  status                String       @default("open") // open | resolved
+  resolvedMembershipId  String?
+  resolvedFor           Membership?  @relation("ReplacementResolvedFor", fields: [resolvedMembershipId], references: [id], onDelete: SetNull)
+  createdAt             DateTime     @default(now())
+
+  volunteers            ReplacementVolunteer[]
+}
+
+model ReplacementVolunteer {
+  id                   String             @id @default(cuid())
+  replacementRequestId String
+  replacementRequest   ReplacementRequest @relation(fields: [replacementRequestId], references: [id], onDelete: Cascade)
+  membershipId         String
+  membership           Membership         @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  createdAt            DateTime           @default(now())
+
+  @@unique([replacementRequestId, membershipId])
+}
+
+/// serviceId null = ancien mode "journée entière ou plage horaire libre" (startTime/
+/// endTime utilisés). serviceId défini = la ligne ne porte que sur ce service précis
+/// (startTime/endTime alors ignorés, le service porte déjà son propre horaire) — voir
+/// le commentaire sur AvailabilityRow dans planning/types.ts. Permet à un établissement
+/// avec des services définis (déjeuner/dîner, ou toute plage choisie par le patron —
+/// voir ServiceDefinition) de déclarer une indisponibilité par service plutôt que par
+/// horaire libre, sans perdre la souplesse existante pour ceux qui préfèrent l'inverse.
 model Availability {
   id              String        @id @default(cuid())
   establishmentId String
@@ -237,9 +304,11 @@ model Availability {
   membershipId    String
   membership      Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
   dayOfWeek       Int           // 1..7
-  startTime       String?       // null = indisponible toute la journée
+  startTime       String?       // null = indisponible toute la journée (ou tout le service, si serviceId défini)
   endTime         String?
   kind            String        @default("preferred") // preferred | unavailable
+  serviceId       String?
+  service         ServiceDefinition? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   createdAt       DateTime      @default(now())
 }
 
@@ -252,11 +321,18 @@ model TimeOffRequest {
   startDate       DateTime
   endDate         DateTime
   reason          String?
+  /// congé = demandé à l'avance, décision libre du manager ; maladie = déclarée par
+  /// l'employé (souvent le jour même), le manager "traite" l'alerte plutôt qu'il ne
+  /// l'"accepte" à proprement parler. Même machine à états (pending/approved/rejected)
+  /// dans les deux cas : voir timeoff/server/actions.ts, seul le libellé change.
+  kind            String        @default("conge") // conge | maladie
   status          String        @default("pending") // pending | approved | rejected
   reviewedById    String?
   reviewNote      String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+
+  documents       EmployeeDocument[]
 }
 
 /// Règle métier utilisée par le moteur de planning (contraintes dures/souples).

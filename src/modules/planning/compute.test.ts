@@ -5,6 +5,8 @@ import {
   evaluateShift,
   checkWeeklyLimit,
   isDayGenerallyUnavailable,
+  isServiceUnavailable,
+  checkAvailability,
   computeServiceObjective,
   computeWeekSummaryParts,
 } from "./compute";
@@ -85,6 +87,38 @@ test("isDayGenerallyUnavailable is true only for a full-day unavailability on th
   assert.equal(isDayGenerallyUnavailable(availabilities, 2), true);
   assert.equal(isDayGenerallyUnavailable(availabilities, 3), false);
   assert.equal(isDayGenerallyUnavailable(availabilities, 4), false);
+});
+
+test("isDayGenerallyUnavailable is false when only some of the day's services are marked unavailable", () => {
+  const availabilities: AvailabilityRow[] = [{ dayOfWeek: 2, kind: "unavailable", startTime: null, endTime: null, serviceId: "dejeuner" }];
+  assert.equal(isDayGenerallyUnavailable(availabilities, 2, ["dejeuner", "diner"]), false);
+});
+
+test("isDayGenerallyUnavailable is true once every service running that day is marked unavailable", () => {
+  const availabilities: AvailabilityRow[] = [
+    { dayOfWeek: 2, kind: "unavailable", startTime: null, endTime: null, serviceId: "dejeuner" },
+    { dayOfWeek: 2, kind: "unavailable", startTime: null, endTime: null, serviceId: "diner" },
+  ];
+  assert.equal(isDayGenerallyUnavailable(availabilities, 2, ["dejeuner", "diner"]), true);
+});
+
+test("isServiceUnavailable is true only for the matching service on that weekday", () => {
+  const availabilities: AvailabilityRow[] = [{ dayOfWeek: 2, kind: "unavailable", startTime: null, endTime: null, serviceId: "dejeuner" }];
+  assert.equal(isServiceUnavailable(availabilities, 2, "dejeuner"), true);
+  assert.equal(isServiceUnavailable(availabilities, 2, "diner"), false);
+  assert.equal(isServiceUnavailable(availabilities, 3, "dejeuner"), false);
+});
+
+test("checkAvailability flags a shift whose service is marked unavailable, even without a time range declared", () => {
+  const availabilities: AvailabilityRow[] = [{ dayOfWeek: 1, kind: "unavailable", startTime: null, endTime: null, serviceId: "diner" }];
+  const result = checkAvailability({ startTime: "18:30", endTime: "23:00", serviceId: "diner" }, availabilities);
+  assert.equal(result.status, "unavailable");
+});
+
+test("checkAvailability ignores a service-scoped unavailability declared for a different service", () => {
+  const availabilities: AvailabilityRow[] = [{ dayOfWeek: 1, kind: "unavailable", startTime: null, endTime: null, serviceId: "diner" }];
+  const result = checkAvailability({ startTime: "11:30", endTime: "14:30", serviceId: "dejeuner" }, availabilities);
+  assert.equal(result.status, "ok");
 });
 
 test("computeServiceObjective: atteint once planned meets target", () => {

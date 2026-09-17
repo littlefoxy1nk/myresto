@@ -45,3 +45,6 @@ next-env.d.ts
 # base de données locale de développement
 /prisma/dev.db
 /prisma/dev.db-journal
+
+# fichiers uploadés (certificats médicaux, etc.) — jamais dans public/, jamais versionnés
+/uploads

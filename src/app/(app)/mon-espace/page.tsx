@@ -1,12 +1,17 @@
 import { getCurrentContext } from "@/lib/current-context";
 import { getMyDashboard } from "@/modules/myspace/server/queries";
 import { RequestTimeOffButton } from "@/modules/myspace/components/request-timeoff-button";
+import { DeclareSickLeaveButton } from "@/modules/myspace/components/declare-sick-leave-button";
+import { CertificateButton } from "@/modules/myspace/components/certificate-button";
+import { RequestReplacementButton } from "@/modules/myspace/components/request-replacement-button";
+import { ReplacementOpportunities } from "@/modules/myspace/components/replacement-opportunities";
 import { ChangeCodeButton } from "@/modules/myspace/components/change-code-button";
 import { AvailabilityToggles } from "@/modules/myspace/components/availability-toggles";
 import { NotificationsList } from "@/modules/myspace/components/notifications-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, CalendarDays } from "lucide-react";
+import { toDateKey } from "@/lib/utils";
 
 const TIMEOFF_STATUS_LABEL: Record<string, string> = { pending: "En attente", approved: "Acceptée", rejected: "Refusée" };
 const TIMEOFF_STATUS_VARIANT: Record<string, "watch" | "good" | "neutral"> = {
@@ -23,6 +28,7 @@ function formatPeriod(startDate: string, endDate: string) {
 export default async function MonEspacePage() {
   const ctx = await getCurrentContext();
   const data = await getMyDashboard();
+  const todayKey = toDateKey(new Date());
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -97,27 +103,42 @@ export default async function MonEspacePage() {
                     {s.serviceName ? ` · ${s.serviceName}` : ""}
                   </p>
                 </div>
+                {s.date >= todayKey && (
+                  <RequestReplacementButton shiftId={s.id} hasOpenReplacementRequest={s.hasOpenReplacementRequest} />
+                )}
               </Card>
             ))}
           </div>
         )}
       </section>
 
-      {/* Mes congés */}
+      {/* Remplacements à couvrir */}
+      <ReplacementOpportunities opportunities={data.replacementOpportunities} />
+
+      {/* Mes congés & absences */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold">Mes congés</h2>
-          <RequestTimeOffButton />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold">Mes congés & absences</h2>
+          <div className="flex flex-wrap gap-2">
+            <DeclareSickLeaveButton />
+            <RequestTimeOffButton />
+          </div>
         </div>
         {data.timeOffRequests.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">Aucune demande de congé pour le moment.</Card>
+          <Card className="p-6 text-center text-sm text-muted-foreground">Aucune demande pour le moment.</Card>
         ) : (
           <div className="space-y-2">
             {data.timeOffRequests.map((r) => (
               <Card key={r.id} className="flex flex-wrap items-center gap-2 p-3">
                 <span className="text-sm">{formatPeriod(r.startDate, r.endDate)}</span>
+                {r.kind === "maladie" && <Badge variant="urgent">Maladie</Badge>}
                 <Badge variant={TIMEOFF_STATUS_VARIANT[r.status]}>{TIMEOFF_STATUS_LABEL[r.status]}</Badge>
                 {r.reason && <span className="text-xs text-muted-foreground">· {r.reason}</span>}
+                {r.kind === "maladie" && (
+                  <div className="ml-auto">
+                    <CertificateButton timeOffRequestId={r.id} document={r.document} />
+                  </div>
+                )}
               </Card>
             ))}
           </div>
@@ -131,7 +152,11 @@ export default async function MonEspacePage() {
           Marquez les jours où vous n&apos;êtes jamais disponible. MYRESTO en tient compte pour vos objectifs de
           services.
         </p>
-        <AvailabilityToggles initialUnavailableDays={data.unavailableDays} />
+        <AvailabilityToggles
+          services={data.availabilityServices}
+          initialUnavailableDays={data.unavailableDays}
+          initialUnavailableServiceCells={data.unavailableServiceCells}
+        />
       </section>
 
       {/* Notifications */}

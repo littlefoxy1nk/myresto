@@ -3,6 +3,8 @@
 /// (pas de conflictLevel, pas de comparaison à l'équipe) : un employé regarde ses
 /// propres horaires, pas la grille complète.
 
+import type { MyReplacementOpportunity } from "@/modules/replacement/types";
+
 export type MyShift = {
   id: string;
   date: string; // "yyyy-MM-dd"
@@ -11,6 +13,9 @@ export type MyShift = {
   endTime: string;
   serviceName: string | null;
   position: string;
+  /// Un remplacement est déjà en cours de recherche pour ce shift — évite de proposer
+  /// le bouton "je ne peux pas assurer ce service" une seconde fois.
+  hasOpenReplacementRequest: boolean;
 };
 
 export type MyObjective = {
@@ -20,6 +25,7 @@ export type MyObjective = {
 };
 
 export type MyTimeOffStatus = "pending" | "approved" | "rejected";
+export type MyTimeOffKind = "conge" | "maladie";
 
 export type MyTimeOffRequest = {
   id: string;
@@ -27,12 +33,23 @@ export type MyTimeOffRequest = {
   endDate: string;
   reason: string | null;
   status: MyTimeOffStatus;
+  kind: MyTimeOffKind;
   createdAt: string;
+  document: { id: string; originalName: string } | null;
+};
+
+export type MyAvailabilityService = {
+  id: string;
+  name: string;
+  /// 1=lundi..7=dimanche — pour ne proposer une case à cocher que les jours où ce
+  /// service tourne réellement (voir ServiceDefinition.daysOfWeek).
+  daysOfWeek: number[];
 };
 
 export type MyNotification = {
   id: string;
   type: string;
+  severity: "urgent" | "important" | "watch";
   title: string;
   body: string | null;
   linkHref: string | null;
@@ -48,6 +65,9 @@ export type MyDashboard = {
   todayShifts: MyShift[];
   weekShifts: MyShift[];
   weekShiftsCount: number;
+  /// Remplacements ouverts ailleurs, pour lesquels cette personne est factuellement
+  /// éligible — voir replacement/compute.ts.
+  replacementOpportunities: MyReplacementOpportunity[];
   /// null si aucun objectif n'a été défini pour cette personne — jamais 0, qui
   /// laisserait croire à un objectif réel de "zéro service".
   objective: MyObjective | null;
@@ -57,7 +77,16 @@ export type MyDashboard = {
   hasCode: boolean;
   hasEmail: boolean;
   username: string | null;
-  /// Jours (1=lundi..7=dimanche) déclarés indisponibles toute la journée — voir
-  /// setMyDayUnavailability. Simple liste, pas de plage horaire.
+  /// Jours (1=lundi..7=dimanche) déclarés indisponibles toute la journée à l'ancienne
+  /// (setMyDayUnavailability) — n'a plus vocation à grandir dès que des services sont
+  /// configurés (availabilityServices non vide), mais reste lu pour rester compatible
+  /// avec des données déclarées avant l'ajout des indisponibilités par service.
   unavailableDays: number[];
+  /// Services de l'établissement, pour la grille "par service" — vide tant que le
+  /// patron n'a configuré aucun service (voir ServiceDefinition) : l'UI retombe alors
+  /// sur le mode journée entière ci-dessus.
+  availabilityServices: MyAvailabilityService[];
+  /// Cases cochées de la grille par service — une entrée par (jour, service) marqué
+  /// indisponible.
+  unavailableServiceCells: { dayOfWeek: number; serviceId: string }[];
 };

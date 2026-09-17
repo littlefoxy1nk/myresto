@@ -3,7 +3,8 @@ import { startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns";
 import { getCurrentContext } from "@/lib/current-context";
 import { toDateKey } from "@/lib/utils";
 import { TARGET_SHIFTS_RULE_TYPE } from "@/modules/planning/types";
-import type { MyDashboard, MyShift, MyTimeOffRequest, MyNotification } from "@/modules/myspace/types";
+import { getMyReplacementOpportunities } from "@/modules/replacement/server/queries";
+import type { MyAvailabilityService, MyDashboard, MyShift, MyTimeOffRequest, MyNotification } from "@/modules/myspace/types";
 
 function fullDayLabel(d: Date): string {
   const label = new Intl.DateTimeFormat("fr-BE", { weekday: "long", day: "numeric", month: "long" }).format(d);
@@ -23,28 +24,42 @@ export async function getMyDashboard(): Promise<MyDashboard> {
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
 
-  const [shifts, rule, timeOffRows, notificationRows, unavailableRows] = await Promise.all([
-    prisma.shift.findMany({
-      where: { membershipId, date: { gte: weekStart, lte: weekEnd }, status: { not: "cancelled" } },
-      include: { service: true },
-      orderBy: [{ date: "asc" }, { startTime: "asc" }],
-    }),
-    prisma.schedulingRule.findFirst({ where: { establishmentId, membershipId, type: TARGET_SHIFTS_RULE_TYPE } }),
-    prisma.timeOffRequest.findMany({
-      where: { membershipId },
-      orderBy: { startDate: "desc" },
-      take: 10,
-    }),
-    prisma.notification.findMany({
-      where: { membershipId },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    }),
-    prisma.availability.findMany({
-      where: { membershipId, kind: "unavailable", startTime: null, endTime: null },
-      select: { dayOfWeek: true },
-    }),
-  ]);
+  const [shifts, rule, timeOffRows, notificationRows, unavailableRows, serviceDefinitions, unavailableServiceRows, openReplacementRequests, replacementOpportunities] =
+    await Promise.all([
+      prisma.shift.findMany({
+        where: { membershipId, date: { gte: weekStart, lte: weekEnd }, status: { not: "cancelled" } },
+        include: { service: true },
+        orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      }),
+      prisma.schedulingRule.findFirst({ where: { establishmentId, membershipId, type: TARGET_SHIFTS_RULE_TYPE } }),
+      prisma.timeOffRequest.findMany({
+        where: { membershipId },
+        include: { documents: true },
+        orderBy: { startDate: "desc" },
+        take: 10,
+      }),
+      prisma.notification.findMany({
+        where: { membershipId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+      prisma.availability.findMany({
+        where: { membershipId, kind: "unavailable", startTime: null, endTime: null, serviceId: null },
+        select: { dayOfWeek: true },
+      }),
+      prisma.serviceDefinition.findMany({ where: { establishmentId } }),
+      prisma.availability.findMany({
+        where: { membershipId, kind: "unavailable", serviceId: { not: null } },
+        select: { dayOfWeek: true, serviceId: true },
+      }),
+      prisma.replacementRequest.findMany({
+        where: { requestedById: membershipId, status: "open" },
+        select: { shiftId: true },
+      }),
+      getMyReplacementOpportunities(),
+    ]);
+
+  const openReplacementShiftIds = new Set(openReplacementRequests.map((r) => r.shiftId));
 
   const toMyShift = (s: (typeof shifts)[number]): MyShift => ({
     id: s.id,
@@ -54,6 +69,7 @@ export async function getMyDashboard(): Promise<MyDashboard> {
     endTime: s.endTime,
     serviceName: s.service?.name ?? null,
     position: s.position,
+    hasOpenReplacementRequest: openReplacementShiftIds.has(s.id),
   });
 
   const weekShifts = shifts.map(toMyShift);
@@ -79,12 +95,15 @@ export async function getMyDashboard(): Promise<MyDashboard> {
     endDate: toDateKey(r.endDate),
     reason: r.reason,
     status: r.status as MyTimeOffRequest["status"],
+    kind: r.kind as MyTimeOffRequest["kind"],
     createdAt: r.createdAt.toISOString(),
+    document: r.documents[0] ? { id: r.documents[0].id, originalName: r.documents[0].originalName } : null,
   }));
 
   const notifications: MyNotification[] = notificationRows.map((n) => ({
     id: n.id,
     type: n.type,
+    severity: n.severity as MyNotification["severity"],
     title: n.title,
     body: n.body,
     linkHref: n.linkHref,
@@ -99,6 +118,7 @@ export async function getMyDashboard(): Promise<MyDashboard> {
     todayShifts,
     weekShifts,
     weekShiftsCount: weekShifts.length,
+    replacementOpportunities,
     objective,
     timeOffRequests,
     notifications,
@@ -107,6 +127,10 @@ export async function getMyDashboard(): Promise<MyDashboard> {
     hasEmail: ctx.user.email != null,
     username: ctx.user.username,
     unavailableDays: unavailableRows.map((r) => r.dayOfWeek),
+    availabilityServices: serviceDefinitions.map(
+      (s): MyAvailabilityService => ({ id: s.id, name: s.name, daysOfWeek: s.daysOfWeek.split(",").map(Number) })
+    ),
+    unavailableServiceCells: unavailableServiceRows.map((r) => ({ dayOfWeek: r.dayOfWeek, serviceId: r.serviceId! })),
   };
 }
 

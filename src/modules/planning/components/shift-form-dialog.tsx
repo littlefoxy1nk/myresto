@@ -76,7 +76,7 @@ export function ShiftFormDialog({
     const isoDay = isoDayOfWeek(date);
     const availabilities = (availabilitiesByMember[membershipId] ?? []).filter((a) => a.dayOfWeek === isoDay);
 
-    const evaluation = evaluateShift({ startTime, endTime }, { otherShiftsSameDay, isAbsentThatDay, availabilities });
+    const evaluation = evaluateShift({ startTime, endTime, serviceId }, { otherShiftsSameDay, isAbsentThatDay, availabilities });
     const warnings = [...evaluation.warnings];
 
     const member = members.find((m) => m.membershipId === membershipId);
@@ -92,6 +92,7 @@ export function ShiftFormDialog({
     date,
     startTime,
     endTime,
+    serviceId,
     allShifts,
     editingShiftId,
     absentMembershipIdsByDate,
