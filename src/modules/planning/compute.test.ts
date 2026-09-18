@@ -7,6 +7,7 @@ import {
   isDayGenerallyUnavailable,
   isServiceUnavailable,
   checkAvailability,
+  occurrenceAvailabilities,
   computeServiceObjective,
   computeWeekSummaryParts,
 } from "./compute";
@@ -119,6 +120,50 @@ test("checkAvailability ignores a service-scoped unavailability declared for a d
   const availabilities: AvailabilityRow[] = [{ dayOfWeek: 1, kind: "unavailable", startTime: null, endTime: null, serviceId: "diner" }];
   const result = checkAvailability({ startTime: "11:30", endTime: "14:30", serviceId: "dejeuner" }, availabilities);
   assert.equal(result.status, "ok");
+});
+
+test("checkAvailability warns when a shift falls outside the declared usual working pattern", () => {
+  const availabilities: AvailabilityRow[] = [{ dayOfWeek: 1, kind: "preferred", startTime: null, endTime: null, serviceId: "dejeuner" }];
+  const result = checkAvailability({ startTime: "19:00", endTime: "23:00", serviceId: "diner" }, availabilities);
+  assert.equal(result.status, "outside_preferred");
+});
+
+test("checkAvailability is ok for a shift matching the declared usual working pattern", () => {
+  const availabilities: AvailabilityRow[] = [
+    { dayOfWeek: 1, kind: "preferred", startTime: null, endTime: null, serviceId: "dejeuner" },
+    { dayOfWeek: 1, kind: "preferred", startTime: null, endTime: null, serviceId: "diner" },
+  ];
+  const result = checkAvailability({ startTime: "19:00", endTime: "23:00", serviceId: "diner" }, availabilities);
+  assert.equal(result.status, "ok");
+});
+
+test("checkAvailability treats a one-off addition (already filtered in) exactly like the recurring pattern", () => {
+  // occurrenceAvailabilities has already reduced the list to this exact date by the
+  // time checkAvailability sees it — from here, a one-off row is indistinguishable
+  // from a recurring one.
+  const availabilities: AvailabilityRow[] = [{ dayOfWeek: 6, kind: "preferred", startTime: null, endTime: null, serviceId: "diner", date: "2026-09-19" }];
+  const result = checkAvailability({ startTime: "19:00", endTime: "23:00", serviceId: "diner" }, availabilities);
+  assert.equal(result.status, "ok");
+});
+
+test("occurrenceAvailabilities keeps recurring rows matching the weekday and drops recurring rows for other weekdays", () => {
+  const availabilities: AvailabilityRow[] = [
+    { dayOfWeek: 6, kind: "preferred", startTime: null, endTime: null, serviceId: "diner" },
+    { dayOfWeek: 2, kind: "preferred", startTime: null, endTime: null, serviceId: "diner" },
+  ];
+  const result = occurrenceAvailabilities(availabilities, 6, "2026-09-19");
+  assert.equal(result.length, 1);
+  assert.equal(result[0].dayOfWeek, 6);
+});
+
+test("occurrenceAvailabilities keeps a one-off row only on its exact date, regardless of weekday match", () => {
+  const availabilities: AvailabilityRow[] = [
+    { dayOfWeek: 6, kind: "preferred", startTime: null, endTime: null, serviceId: "diner", date: "2026-09-19" },
+    { dayOfWeek: 6, kind: "preferred", startTime: null, endTime: null, serviceId: "diner", date: "2026-09-26" },
+  ];
+  const result = occurrenceAvailabilities(availabilities, 6, "2026-09-19");
+  assert.equal(result.length, 1);
+  assert.equal(result[0].date, "2026-09-19");
 });
 
 test("computeServiceObjective: atteint once planned meets target", () => {

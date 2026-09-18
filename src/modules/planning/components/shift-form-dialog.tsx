@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { evaluateShift, checkWeeklyLimit } from "@/modules/planning/compute";
+import { evaluateShift, checkWeeklyLimit, occurrenceAvailabilities } from "@/modules/planning/compute";
 import { SHIFT_POSITIONS, SHIFT_POSITION_LABELS, type ShiftPosition } from "@/modules/planning/types";
 import type { AvailabilityRow, PlanningMember, PlanningServiceDefinition, PlanningShift } from "@/modules/planning/types";
 
@@ -74,7 +74,7 @@ export function ShiftFormDialog({
       .map((s) => ({ startTime: s.startTime, endTime: s.endTime }));
     const isAbsentThatDay = (absentMembershipIdsByDate[date] ?? []).includes(membershipId);
     const isoDay = isoDayOfWeek(date);
-    const availabilities = (availabilitiesByMember[membershipId] ?? []).filter((a) => a.dayOfWeek === isoDay);
+    const availabilities = occurrenceAvailabilities(availabilitiesByMember[membershipId] ?? [], isoDay, date);
 
     const evaluation = evaluateShift({ startTime, endTime, serviceId }, { otherShiftsSameDay, isAbsentThatDay, availabilities });
     const warnings = [...evaluation.warnings];

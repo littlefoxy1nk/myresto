@@ -77,16 +77,23 @@ export type MyDashboard = {
   hasCode: boolean;
   hasEmail: boolean;
   username: string | null;
-  /// Jours (1=lundi..7=dimanche) déclarés indisponibles toute la journée à l'ancienne
-  /// (setMyDayUnavailability) — n'a plus vocation à grandir dès que des services sont
-  /// configurés (availabilityServices non vide), mais reste lu pour rester compatible
-  /// avec des données déclarées avant l'ajout des indisponibilités par service.
-  unavailableDays: number[];
+  /// fixe = horaire habituel déclaré par le manager, lecture seule ici (voir
+  /// employmentType sur Membership) ; flexijob = modifiable directement par la
+  /// personne, voir AvailabilityToggles et setMyUsualAvailability.
+  employmentType: "fixe" | "flexijob";
   /// Services de l'établissement, pour la grille "par service" — vide tant que le
-  /// patron n'a configuré aucun service (voir ServiceDefinition) : l'UI retombe alors
-  /// sur le mode journée entière ci-dessus.
+  /// patron n'a configuré aucun service (voir ServiceDefinition).
   availabilityServices: MyAvailabilityService[];
-  /// Cases cochées de la grille par service — une entrée par (jour, service) marqué
-  /// indisponible.
-  unavailableServiceCells: { dayOfWeek: number; serviceId: string }[];
+  /// Horaire habituel (récurrent, chaque semaine) : une entrée par (jour, service) où
+  /// la personne travaille normalement — déclaré par le manager pour un·e fixe, par
+  /// la personne elle-même pour un·e flexijob.
+  usualAvailabilityCells: { dayOfWeek: number; serviceId: string }[];
+  /// Disponibilités ponctuelles ajoutées "en plus" pour la semaine affichée (voir
+  /// addMyOneOffAvailability) — jamais une modification de l'horaire habituel,
+  /// toujours libre de retirer à tout moment, quel que soit le statut.
+  oneOffAvailability: { id: string; date: string; serviceId: string }[];
+  /// Les 7 dates ("yyyy-MM-dd", lundi→dimanche) de la semaine calendaire en cours,
+  /// calculées côté serveur — pour proposer les bons jours à l'ajout ponctuel sans
+  /// recalculer "aujourd'hui" côté client (fuseau horaire, horloge).
+  currentWeekDates: string[];
 };

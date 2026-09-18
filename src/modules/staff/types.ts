@@ -31,13 +31,19 @@ export type EmployeeProfile = {
   hiredAt: string | null;
   weeklyHoursTarget: number | null;
   skills: string | null;
+  /// fixe = c'est cette fiche qui déclare l'horaire habituel (voir
+  /// usualAvailabilityCells, éditable ici) ; flexijob = la personne le déclare
+  /// elle-même depuis mon-espace, cette fiche reste en lecture seule pour ce champ.
+  employmentType: "fixe" | "flexijob";
   weekShifts: EmployeeShift[];
   weekShiftsCount: number;
   timeOffRequests: EmployeeTimeOffRequest[];
-  unavailableDays: number[];
-  /// Vide dès que l'établissement a configuré des services (voir ServiceDefinition) —
-  /// dans ce cas seul unavailableServiceCells est renseigné, voir mon-espace pour la
-  /// même dualité côté auto-déclaration.
   availabilityServices: { id: string; name: string; daysOfWeek: number[] }[];
-  unavailableServiceCells: { dayOfWeek: number; serviceId: string }[];
+  /// Horaire habituel (récurrent) : une entrée par (jour, service) où la personne
+  /// travaille normalement.
+  usualAvailabilityCells: { dayOfWeek: number; serviceId: string }[];
+  /// Disponibilités ponctuelles ajoutées par la personne elle-même pour la semaine en
+  /// cours (voir myspace/server/actions.ts, addMyOneOffAvailability) — lecture seule
+  /// ici, juste pour que le manager les voie.
+  oneOffAvailability: { date: string; serviceId: string }[];
 };

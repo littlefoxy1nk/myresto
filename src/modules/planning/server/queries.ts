@@ -17,6 +17,7 @@ import {
   evaluateShift,
   isDayGenerallyUnavailable,
   isServiceUnavailable,
+  occurrenceAvailabilities,
 } from "@/modules/planning/compute";
 import {
   TARGET_SHIFTS_RULE_TYPE,
@@ -113,6 +114,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
       startTime: a.startTime,
       endTime: a.endTime,
       serviceId: a.serviceId,
+      date: a.date ? toDateKey(a.date) : null,
     });
     availabilitiesByMember[a.membershipId] = list;
   }
@@ -150,7 +152,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     const dateKey = toDateKey(s.date);
     const isoDay = isoWeekday(s.date);
     const otherShiftsSameDay = (shiftsByMemberDay.get(`${s.membershipId}|${dateKey}`) ?? []).filter((o) => o.id !== s.id);
-    const memberAvailabilities = (availabilitiesByMember[s.membershipId] ?? []).filter((a) => a.dayOfWeek === isoDay);
+    const memberAvailabilities = occurrenceAvailabilities(availabilitiesByMember[s.membershipId] ?? [], isoDay, dateKey);
 
     const evaluation = evaluateShift(
       { startTime: s.startTime, endTime: s.endTime, serviceId: s.serviceId },
@@ -273,8 +275,9 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
       }
 
       const servicesToday = services.filter((s) => s.daysOfWeek.split(",").map(Number).includes(isoDay));
+      const occurrenceAvailabilitiesForDay = occurrenceAvailabilities(memberAvailabilities, isoDay, dateKey);
 
-      if (isDayGenerallyUnavailable(memberAvailabilities, isoDay, servicesToday.map((s) => s.id))) {
+      if (isDayGenerallyUnavailable(occurrenceAvailabilitiesForDay, isoDay, servicesToday.map((s) => s.id))) {
         excludedDays.push({ dateLabel: weekdayOnlyLabel(d), reason: "indisponible" });
         continue;
       }
@@ -284,7 +287,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
         if (shiftsByMemberDateService.has(key)) continue; // déjà planifié, pas "restant"
         // Indisponible pour CE service précisément : le créneau n'est pas compatible,
         // sans pour autant exclure toute la journée si un autre service reste ouvert.
-        if (isServiceUnavailable(memberAvailabilities, isoDay, service.id)) continue;
+        if (isServiceUnavailable(occurrenceAvailabilitiesForDay, isoDay, service.id)) continue;
         compatibleSlots.push({ dateLabel: weekdayOnlyLabel(d) });
       }
     }

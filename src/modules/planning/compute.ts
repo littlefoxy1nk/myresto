@@ -40,14 +40,15 @@ export type AvailabilityCheck =
   | { status: "unavailable"; reason: string }
   | { status: "outside_preferred"; reason: string };
 
-/// Compare un créneau de shift aux disponibilités déclarées (récurrentes, par jour de
-/// semaine) d'une personne. "unavailable" est prioritaire — une indisponibilité
-/// explicite prime sur une simple préférence. Si la personne n'a rien déclaré du tout
-/// pour ce jour, on ne peut rien affirmer honnêtement : "ok" par défaut, jamais un
-/// avertissement fondé sur une absence de donnée. Une ligne liée à un service précis
-/// (serviceId) ne s'applique qu'aux shifts de CE service — voir le commentaire sur
-/// AvailabilityRow ; les lignes sans service restent le mode "journée entière ou plage
-/// horaire libre" déjà en place.
+/// Compare un créneau de shift aux disponibilités déclarées (déjà réduites par
+/// l'appelant à celles applicables à cette occurrence précise — récurrentes de ce jour
+/// de semaine, ou ponctuelles de cette date exacte, voir le commentaire sur
+/// Availability.date dans schema.prisma) d'une personne. "unavailable" est
+/// prioritaire — une indisponibilité explicite prime sur l'horaire habituel. Si la
+/// personne n'a rien déclaré du tout, on ne peut rien affirmer honnêtement : "ok" par
+/// défaut, jamais un avertissement fondé sur une absence de donnée. Une ligne liée à
+/// un service précis (serviceId) ne s'applique qu'aux shifts de CE service ; les
+/// lignes sans service restent le mode "journée entière ou plage horaire libre".
 export function checkAvailability(
   shift: { startTime: string; endTime: string; serviceId?: string | null },
   availabilities: AvailabilityRow[]
@@ -55,10 +56,10 @@ export function checkAvailability(
   const shiftStart = timeToMinutes(shift.startTime);
   const shiftEnd = timeToMinutes(shift.endTime);
   const shiftServiceId = shift.serviceId ?? null;
-  const relevant = availabilities.filter((a) => (a.serviceId ?? null) == null || a.serviceId === shiftServiceId);
 
-  for (const a of relevant.filter((a) => a.kind === "unavailable")) {
+  for (const a of availabilities.filter((a) => a.kind === "unavailable")) {
     if (a.serviceId != null) {
+      if (a.serviceId !== shiftServiceId) continue;
       return { status: "unavailable", reason: "Indisponible déclaré pour ce service" };
     }
     const uStart = a.startTime ? timeToMinutes(a.startTime) : 0;
@@ -71,7 +72,20 @@ export function checkAvailability(
     }
   }
 
-  const preferred = relevant.filter((a) => a.kind === "preferred" && a.startTime && a.endTime);
+  // Horaire habituel par service (nouveau, positif) : dès qu'au moins un service est
+  // déclaré comme "travaillé habituellement" ce jour-là, un shift sur un AUTRE service
+  // ce même jour sort de ce modèle — un signal doux (warning), jamais un conflit dur,
+  // exactement comme l'ancienne plage horaire libre ci-dessous.
+  const usualPattern = availabilities.filter((a) => a.kind === "preferred" && a.serviceId != null);
+  if (usualPattern.length > 0) {
+    const matches = usualPattern.some((p) => p.serviceId === shiftServiceId);
+    if (!matches) {
+      return { status: "outside_preferred", reason: "Ne travaille pas habituellement ce service ce jour-là" };
+    }
+    return { status: "ok" };
+  }
+
+  const preferred = availabilities.filter((a) => a.kind === "preferred" && a.serviceId == null && a.startTime && a.endTime);
   if (preferred.length > 0) {
     const withinAny = preferred.some((p) => shiftStart >= timeToMinutes(p.startTime!) && shiftEnd <= timeToMinutes(p.endTime!));
     if (!withinAny) {
@@ -84,6 +98,15 @@ export function checkAvailability(
   }
 
   return { status: "ok" };
+}
+
+/// Réduit une liste de disponibilités à celles qui s'appliquent réellement à UNE
+/// occurrence précise (ce jour de semaine récurrent, OU cette date exacte pour une
+/// ligne ponctuelle) — à appeler avant checkAvailability/isDayGenerallyUnavailable/
+/// isServiceUnavailable, qui ne savent lire que dayOfWeek/kind/serviceId sans avoir à
+/// se soucier de la distinction récurrent/ponctuel.
+export function occurrenceAvailabilities(availabilities: AvailabilityRow[], dayOfWeek: number, dateKey: string): AvailabilityRow[] {
+  return availabilities.filter((a) => (a.date ? a.date === dateKey : a.dayOfWeek === dayOfWeek));
 }
 
 /// Un jour de semaine est "indisponible en général" soit à l'ancienne (une ligne

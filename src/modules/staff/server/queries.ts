@@ -27,7 +27,7 @@ export async function getEmployeeProfile(membershipId: string): Promise<Employee
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
 
-  const [shifts, timeOffRows, unavailableRows, serviceDefinitions, unavailableServiceRows] = await Promise.all([
+  const [shifts, timeOffRows, serviceDefinitions, usualAvailabilityRows, oneOffRows] = await Promise.all([
     prisma.shift.findMany({
       where: { membershipId, date: { gte: weekStart, lte: weekEnd }, status: { not: "cancelled" } },
       include: { service: true },
@@ -39,14 +39,14 @@ export async function getEmployeeProfile(membershipId: string): Promise<Employee
       orderBy: { startDate: "desc" },
       take: 10,
     }),
-    prisma.availability.findMany({
-      where: { membershipId, kind: "unavailable", startTime: null, endTime: null, serviceId: null },
-      select: { dayOfWeek: true },
-    }),
     prisma.serviceDefinition.findMany({ where: { establishmentId: ctx.establishment.id } }),
     prisma.availability.findMany({
-      where: { membershipId, kind: "unavailable", serviceId: { not: null } },
+      where: { membershipId, kind: "preferred", serviceId: { not: null }, date: null },
       select: { dayOfWeek: true, serviceId: true },
+    }),
+    prisma.availability.findMany({
+      where: { membershipId, kind: "preferred", serviceId: { not: null }, date: { gte: weekStart, lte: weekEnd } },
+      select: { date: true, serviceId: true },
     }),
   ]);
 
@@ -73,6 +73,7 @@ export async function getEmployeeProfile(membershipId: string): Promise<Employee
     hiredAt: membership.hiredAt ? toDateKey(membership.hiredAt) : null,
     weeklyHoursTarget: membership.weeklyHoursTarget,
     skills: membership.skills,
+    employmentType: membership.employmentType as EmployeeProfile["employmentType"],
     weekShifts,
     weekShiftsCount: weekShifts.length,
     timeOffRequests: timeOffRows.map((r) => ({
@@ -84,8 +85,8 @@ export async function getEmployeeProfile(membershipId: string): Promise<Employee
       kind: r.kind as "conge" | "maladie",
       document: r.documents[0] ? { id: r.documents[0].id, originalName: r.documents[0].originalName } : null,
     })),
-    unavailableDays: unavailableRows.map((r) => r.dayOfWeek),
     availabilityServices: serviceDefinitions.map((s) => ({ id: s.id, name: s.name, daysOfWeek: s.daysOfWeek.split(",").map(Number) })),
-    unavailableServiceCells: unavailableServiceRows.map((r) => ({ dayOfWeek: r.dayOfWeek, serviceId: r.serviceId! })),
+    usualAvailabilityCells: usualAvailabilityRows.map((r) => ({ dayOfWeek: r.dayOfWeek, serviceId: r.serviceId! })),
+    oneOffAvailability: oneOffRows.map((r) => ({ date: toDateKey(r.date!), serviceId: r.serviceId! })),
   };
 }

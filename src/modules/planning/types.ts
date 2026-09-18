@@ -36,6 +36,11 @@ export type AvailabilityRow = {
   /// ligne ne s'applique qu'à ce service précis (startTime/endTime alors ignorés — le
   /// service porte déjà son propre horaire). Voir isServiceUnavailable/checkAvailability.
   serviceId?: string | null;
+  /// "yyyy-MM-dd" — non défini (ou null) = récurrent, s'applique chaque semaine sur ce
+  /// dayOfWeek. Défini = ponctuel, ne s'applique qu'à cette date précise — voir
+  /// occurrenceAvailabilities (compute.ts), qui filtre une liste à ce qui s'applique
+  /// réellement à une occurrence donnée avant de la passer à checkAvailability.
+  date?: string | null;
 };
 
 export type PlanningMember = {

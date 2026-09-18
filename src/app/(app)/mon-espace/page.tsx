@@ -147,15 +147,18 @@ export default async function MonEspacePage() {
 
       {/* Mes disponibilités */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Mes indisponibilités habituelles</h2>
+        <h2 className="text-base font-semibold">Mes disponibilités</h2>
         <p className="text-sm text-muted-foreground">
-          Marquez les jours où vous n&apos;êtes jamais disponible. MYRESTO en tient compte pour vos objectifs de
-          services.
+          {data.employmentType === "flexijob"
+            ? "Déclarez les services où vous travaillez habituellement — votre manager en est informé à chaque changement."
+            : "Votre horaire habituel est déclaré par votre manager. Vous pouvez ajouter une disponibilité en plus pour cette semaine."}
         </p>
         <AvailabilityToggles
+          employmentType={data.employmentType}
           services={data.availabilityServices}
-          initialUnavailableDays={data.unavailableDays}
-          initialUnavailableServiceCells={data.unavailableServiceCells}
+          usualAvailabilityCells={data.usualAvailabilityCells}
+          oneOffAvailability={data.oneOffAvailability}
+          currentWeekDates={data.currentWeekDates}
         />
       </section>
 

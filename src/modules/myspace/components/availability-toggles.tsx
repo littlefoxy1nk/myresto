@@ -1,184 +1,112 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { cn } from "@/lib/utils";
+import { X } from "lucide-react";
+import { EditableServiceGrid, ReadOnlyServiceGrid } from "@/components/availability/editable-service-grid";
 import { toast } from "@/lib/toast-bus";
-import { setMyDayUnavailability, setMyServiceUnavailability, setMyServicesUnavailability } from "@/modules/myspace/server/actions";
-import type { MyAvailabilityService } from "@/modules/myspace/types";
+import {
+  setMyUsualAvailability,
+  setMyUsualAvailabilityBulk,
+  addMyOneOffAvailability,
+  removeMyOneOffAvailability,
+} from "@/modules/myspace/server/actions";
+import type { MyAvailabilityService, MyDashboard } from "@/modules/myspace/types";
 
-const DAYS = [
-  { value: 1, label: "Lun" },
-  { value: 2, label: "Mar" },
-  { value: 3, label: "Mer" },
-  { value: 4, label: "Jeu" },
-  { value: 5, label: "Ven" },
-  { value: 6, label: "Sam" },
-  { value: 7, label: "Dim" },
-];
-
-function cellKey(dayOfWeek: number, serviceId: string) {
-  return `${dayOfWeek}:${serviceId}`;
-}
-
-/// Toggle simple par jour — utilisé uniquement quand l'établissement n'a configuré
-/// aucun service (voir ServiceDefinition) : la journée entière reste la seule notion
-/// disponible dans ce cas, comme avant l'ajout des disponibilités par service.
-function WholeDayToggles({ initialUnavailableDays }: { initialUnavailableDays: number[] }) {
-  const [unavailable, setUnavailable] = useState(new Set(initialUnavailableDays));
-  const [, startTransition] = useTransition();
-
-  function toggle(day: number) {
-    const next = new Set(unavailable);
-    const willBeUnavailable = !next.has(day);
-    if (willBeUnavailable) next.add(day);
-    else next.delete(day);
-    setUnavailable(next);
-
-    startTransition(async () => {
-      try {
-        await setMyDayUnavailability(day, willBeUnavailable);
-      } catch (err) {
-        setUnavailable(unavailable);
-        toast(err instanceof Error ? err.message : "Une erreur est survenue.", "error");
-      }
-    });
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {DAYS.map((day) => {
-        const isUnavailable = unavailable.has(day.value);
-        return (
-          <button
-            key={day.value}
-            type="button"
-            onClick={() => toggle(day.value)}
-            aria-pressed={isUnavailable}
-            className={cn(
-              "rounded-xl border px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
-              isUnavailable ? "border-urgent bg-urgent-soft text-urgent" : "border-border bg-background text-foreground hover:bg-muted"
-            )}
-          >
-            {day.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/// Grille par service dès que l'établissement en a configuré au moins un — un
-/// restaurant à deux services (déjeuner/dîner) déclare son indisponibilité service par
-/// service ; "Toute la journée" reste un raccourci qui coche tous les services du jour
-/// d'un coup, pas un troisième mode de stockage (voir setMyServiceUnavailability).
-function PerServiceToggles({
+/// Ajout ponctuel "en plus" pour la semaine affichée — jamais une modification de
+/// l'horaire habituel : une couleur distincte (accent) pour ne jamais confondre les
+/// deux. Notifie qui construit le planning à chaque ajout (voir
+/// addMyOneOffAvailability), retrait libre à tout moment.
+function OneOffAvailabilitySection({
   services,
-  initialUnavailableServiceCells,
+  currentWeekDates,
+  initialOneOff,
 }: {
   services: MyAvailabilityService[];
-  initialUnavailableServiceCells: { dayOfWeek: number; serviceId: string }[];
+  currentWeekDates: string[];
+  initialOneOff: { id: string; date: string; serviceId: string }[];
 }) {
-  const [unavailableCells, setUnavailableCells] = useState(
-    new Set(initialUnavailableServiceCells.map((c) => cellKey(c.dayOfWeek, c.serviceId)))
-  );
+  const [entries, setEntries] = useState(initialOneOff);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  function toggleService(dayOfWeek: number, serviceId: string, nextValue: boolean) {
-    const key = cellKey(dayOfWeek, serviceId);
-    setUnavailableCells((prev) => {
-      const next = new Set(prev);
-      if (nextValue) next.add(key);
-      else next.delete(key);
-      return next;
-    });
+  function dateLabel(dateKey: string) {
+    return new Intl.DateTimeFormat("fr-BE", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${dateKey}T00:00:00`));
+  }
 
+  function isoDayOfWeek(dateKey: string): number {
+    const [y, m, d] = dateKey.split("-").map(Number);
+    const day = new Date(y, m - 1, d).getDay();
+    return day === 0 ? 7 : day;
+  }
+
+  function add(date: string, serviceId: string) {
+    const key = `${date}:${serviceId}`;
+    setPendingKey(key);
     startTransition(async () => {
       try {
-        await setMyServiceUnavailability(dayOfWeek, serviceId, nextValue);
+        const result = await addMyOneOffAvailability({ date, serviceId });
+        setEntries((prev) => [...prev, { id: result.id, date, serviceId }]);
+        toast("Disponibilité ajoutée");
       } catch (err) {
-        setUnavailableCells((prev) => {
-          const reverted = new Set(prev);
-          if (nextValue) reverted.delete(key);
-          else reverted.add(key);
-          return reverted;
-        });
+        toast(err instanceof Error ? err.message : "Une erreur est survenue.", "error");
+      } finally {
+        setPendingKey(null);
+      }
+    });
+  }
+
+  function remove(entry: { id: string; date: string; serviceId: string }) {
+    setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+    startTransition(async () => {
+      try {
+        await removeMyOneOffAvailability(entry.id);
+      } catch (err) {
+        setEntries((prev) => [...prev, entry]);
         toast(err instanceof Error ? err.message : "Une erreur est survenue.", "error");
       }
     });
   }
 
-  function toggleWholeDay(dayOfWeek: number, servicesToday: MyAvailabilityService[], nextValue: boolean) {
-    const keys = servicesToday.map((s) => cellKey(dayOfWeek, s.id));
-    setUnavailableCells((prev) => {
-      const next = new Set(prev);
-      for (const key of keys) {
-        if (nextValue) next.add(key);
-        else next.delete(key);
-      }
-      return next;
-    });
-
-    startTransition(async () => {
-      try {
-        await setMyServicesUnavailability(
-          dayOfWeek,
-          servicesToday.map((s) => s.id),
-          nextValue
-        );
-      } catch (err) {
-        setUnavailableCells((prev) => {
-          const reverted = new Set(prev);
-          for (const key of keys) {
-            if (nextValue) reverted.delete(key);
-            else reverted.add(key);
-          }
-          return reverted;
-        });
-        toast(err instanceof Error ? err.message : "Une erreur est survenue.", "error");
-      }
-    });
-  }
+  const entryKey = (date: string, serviceId: string) => `${date}:${serviceId}`;
+  const entryByKey = new Map(entries.map((e) => [entryKey(e.date, e.serviceId), e]));
 
   return (
     <div className="space-y-2">
-      {DAYS.map((day) => {
-        const servicesToday = services.filter((s) => s.daysOfWeek.includes(day.value));
+      {currentWeekDates.map((date) => {
+        const servicesToday = services.filter((s) => s.daysOfWeek.includes(isoDayOfWeek(date)));
         if (servicesToday.length === 0) return null;
-        const allUnavailable = servicesToday.every((s) => unavailableCells.has(cellKey(day.value, s.id)));
-
         return (
-          <div key={day.value} className="flex flex-wrap items-center gap-2">
-            <span className="w-9 shrink-0 text-xs font-medium text-muted-foreground">{day.label}</span>
+          <div key={date} className="flex flex-wrap items-center gap-2">
+            <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">{dateLabel(date)}</span>
             {servicesToday.map((service) => {
-              const isUnavailable = unavailableCells.has(cellKey(day.value, service.id));
+              const key = entryKey(date, service.id);
+              const entry = entryByKey.get(key);
+              const pending = pendingKey === key;
+              if (entry) {
+                return (
+                  <button
+                    key={service.id}
+                    type="button"
+                    onClick={() => remove(entry)}
+                    className="inline-flex items-center gap-1 rounded-xl border border-accent bg-accent-soft px-3 py-2 text-xs font-medium text-accent"
+                  >
+                    {service.name}
+                    <X size={12} aria-hidden="true" />
+                  </button>
+                );
+              }
               return (
                 <button
                   key={service.id}
                   type="button"
-                  onClick={() => toggleService(day.value, service.id, !isUnavailable)}
-                  aria-pressed={isUnavailable}
-                  className={cn(
-                    "rounded-xl border px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
-                    isUnavailable ? "border-urgent bg-urgent-soft text-urgent" : "border-border bg-background text-foreground hover:bg-muted"
-                  )}
+                  disabled={pending}
+                  onClick={() => add(date, service.id)}
+                  className="rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  {service.name}
+                  {pending ? "…" : `+ ${service.name}`}
                 </button>
               );
             })}
-            {servicesToday.length > 1 && (
-              <button
-                type="button"
-                onClick={() => toggleWholeDay(day.value, servicesToday, !allUnavailable)}
-                aria-pressed={allUnavailable}
-                className={cn(
-                  "rounded-xl border border-dashed px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
-                  allUnavailable ? "border-urgent bg-urgent-soft text-urgent" : "border-border text-muted-foreground hover:bg-muted"
-                )}
-              >
-                Toute la journée
-              </button>
-            )}
           </div>
         );
       })}
@@ -187,16 +115,48 @@ function PerServiceToggles({
 }
 
 export function AvailabilityToggles({
+  employmentType,
   services,
-  initialUnavailableDays,
-  initialUnavailableServiceCells,
+  usualAvailabilityCells,
+  oneOffAvailability,
+  currentWeekDates,
 }: {
+  employmentType: MyDashboard["employmentType"];
   services: MyAvailabilityService[];
-  initialUnavailableDays: number[];
-  initialUnavailableServiceCells: { dayOfWeek: number; serviceId: string }[];
+  usualAvailabilityCells: { dayOfWeek: number; serviceId: string }[];
+  oneOffAvailability: { id: string; date: string; serviceId: string }[];
+  currentWeekDates: string[];
 }) {
   if (services.length === 0) {
-    return <WholeDayToggles initialUnavailableDays={initialUnavailableDays} />;
+    return <p className="text-sm text-muted-foreground">Aucun service n&apos;est configuré pour cet établissement.</p>;
   }
-  return <PerServiceToggles services={services} initialUnavailableServiceCells={initialUnavailableServiceCells} />;
+
+  return (
+    <div className="space-y-5">
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Horaire habituel</h3>
+        {employmentType === "flexijob" ? (
+          <EditableServiceGrid
+            services={services}
+            initialCells={usualAvailabilityCells}
+            onToggleOne={setMyUsualAvailability}
+            onToggleMany={setMyUsualAvailabilityBulk}
+          />
+        ) : (
+          <ReadOnlyServiceGrid
+            services={services}
+            cells={usualAvailabilityCells}
+            emptyMessage="Votre manager n'a pas encore renseigné votre horaire habituel."
+          />
+        )}
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Disponibilité en plus cette semaine</h3>
+        <p className="text-xs text-muted-foreground">
+          Ajoutez un service où vous pouvez travailler en plus de votre horaire habituel — votre manager en sera averti.
+        </p>
+        <OneOffAvailabilitySection services={services} currentWeekDates={currentWeekDates} initialOneOff={oneOffAvailability} />
+      </div>
+    </div>
+  );
 }

@@ -3,8 +3,11 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
+import { startOfDay, startOfWeek, endOfWeek } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { getCurrentContext } from "@/lib/current-context";
+import { toDateKey } from "@/lib/utils";
+import { isoWeekday } from "@/lib/time";
 import { notifyMember } from "@/modules/myspace/server/notify";
 import { saveEmployeeDocument, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/employee-document-storage";
 
@@ -12,6 +15,33 @@ function revalidateMyPaths() {
   revalidatePath("/mon-espace");
   revalidatePath("/conges");
   revalidatePath("/planning");
+}
+
+/// Notifie qui construit le planning (schedule.edit) d'un changement de disponibilité
+/// venant de l'employé lui-même — un manager qui n'édite pas le planning n'a pas
+/// besoin de le savoir immédiatement, il le verra de toute façon sur la fiche employé.
+async function notifyScheduleEditors(establishmentId: string, excludeMembershipId: string, title: string, body: string) {
+  const editors = await prisma.membership.findMany({
+    where: {
+      establishmentId,
+      status: "active",
+      id: { not: excludeMembershipId },
+      role: { permissions: { some: { permission: { key: "schedule.edit" } } } },
+    },
+  });
+  await Promise.all(
+    editors.map((m) =>
+      notifyMember({
+        establishmentId,
+        membershipId: m.id,
+        type: "availability_changed",
+        severity: "watch",
+        title,
+        body,
+        linkHref: "/planning",
+      })
+    )
+  );
 }
 
 const RequestTimeOffSchema = z
@@ -189,41 +219,32 @@ export async function changeMyCode(input: z.infer<typeof ChangeCodeSchema>) {
   await prisma.user.update({ where: { id: ctx.user.id }, data: { codeHash } });
 }
 
-/// Indisponibilité déclarée pour un jour de semaine entier — la même notion que
-/// isDayGenerallyUnavailable (planning/compute.ts), pour rester cohérent avec ce que
-/// le moteur d'objectifs consomme déjà. Ne gère pas les plages horaires précises
-/// ("disponible seulement le soir") : une évolution possible, pas construite ici.
-export async function setMyDayUnavailability(dayOfWeek: number, unavailable: boolean) {
+/// L'horaire habituel (kind="preferred" + serviceId, récurrent) n'est modifiable par
+/// l'employé lui-même que pour un statut flexijob — pour un statut fixe, c'est le
+/// manager qui le déclare (voir staff/server/actions.ts, setEmployeeUsualAvailability),
+/// l'employé ne peut qu'ajouter des disponibilités ponctuelles (voir
+/// addMyOneOffAvailability ci-dessous). Chaque modification flexijob notifie qui
+/// construit le planning : contrairement à un manager qui décide, ici c'est
+/// l'employé qui change ce que le manager doit prendre en compte.
+async function requireFlexijob() {
   const ctx = await getCurrentContext();
-  if (dayOfWeek < 1 || dayOfWeek > 7) throw new Error("Jour invalide.");
-
-  await prisma.availability.deleteMany({
-    where: { membershipId: ctx.membership.id, dayOfWeek, kind: "unavailable", startTime: null, endTime: null },
-  });
-
-  if (unavailable) {
-    await prisma.availability.create({
-      data: { establishmentId: ctx.establishment.id, membershipId: ctx.membership.id, dayOfWeek, kind: "unavailable" },
-    });
+  if (ctx.membership.employmentType !== "flexijob") {
+    throw new Error("Réservé aux comptes flexijob — votre horaire habituel est géré par votre manager.");
   }
-
-  revalidatePath("/mon-espace");
-  revalidatePath("/planning");
+  return ctx;
 }
 
-/// Indisponibilité déclarée pour UN service précis d'un jour de semaine — le mode par
-/// défaut dès que l'établissement a configuré des services (voir ServiceDefinition).
-export async function setMyServiceUnavailability(dayOfWeek: number, serviceId: string, unavailable: boolean) {
-  await setMyServicesUnavailability(dayOfWeek, [serviceId], unavailable);
+export async function setMyUsualAvailability(dayOfWeek: number, serviceId: string, works: boolean) {
+  await setMyUsualAvailabilityBulk(dayOfWeek, [serviceId], works);
 }
 
 /// "Toute la journée" (voir AvailabilityToggles côté client) coche tous les services
 /// d'un jour en un seul aller-retour serveur — plutôt qu'un appel par service, ce qui
 /// déclencherait plusieurs Server Actions concurrentes (et donc plusieurs
 /// revalidatePath) depuis un seul clic, un scénario qui peut se désynchroniser côté
-/// client. Un seul mode de stockage (une ligne par service), jamais un troisième mode.
-export async function setMyServicesUnavailability(dayOfWeek: number, serviceIds: string[], unavailable: boolean) {
-  const ctx = await getCurrentContext();
+/// client (déjà rencontré une fois avec l'ancienne version de ce mécanisme).
+export async function setMyUsualAvailabilityBulk(dayOfWeek: number, serviceIds: string[], works: boolean) {
+  const ctx = await requireFlexijob();
   if (dayOfWeek < 1 || dayOfWeek > 7) throw new Error("Jour invalide.");
   if (serviceIds.length === 0) return;
 
@@ -233,21 +254,99 @@ export async function setMyServicesUnavailability(dayOfWeek: number, serviceIds:
   if (services.length !== serviceIds.length) throw new Error("Service introuvable.");
 
   await prisma.availability.deleteMany({
-    where: { membershipId: ctx.membership.id, dayOfWeek, kind: "unavailable", serviceId: { in: serviceIds } },
+    where: { membershipId: ctx.membership.id, dayOfWeek, kind: "preferred", serviceId: { in: serviceIds }, date: null },
   });
 
-  if (unavailable) {
+  if (works) {
     await prisma.availability.createMany({
       data: serviceIds.map((serviceId) => ({
         establishmentId: ctx.establishment.id,
         membershipId: ctx.membership.id,
         dayOfWeek,
-        kind: "unavailable",
+        kind: "preferred",
         serviceId,
       })),
     });
   }
 
+  const dayLabel = new Intl.DateTimeFormat("fr-BE", { weekday: "long" }).format(new Date(2024, 0, dayOfWeek));
+  const serviceNames = services.map((s) => s.name).join(", ");
+  const memberName = `${ctx.user.firstName} ${ctx.user.lastName}`;
+  await notifyScheduleEditors(
+    ctx.establishment.id,
+    ctx.membership.id,
+    `${memberName} a modifié son horaire habituel`,
+    `${dayLabel} · ${serviceNames} : ${works ? "ajouté" : "retiré"}.`
+  );
+
+  revalidatePath("/mon-espace");
+  revalidatePath("/planning");
+}
+
+const OneOffAvailabilitySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  serviceId: z.string().min(1),
+});
+
+/// Disponibilité ajoutée "en plus" par l'employé lui-même (fixe ou flexijob) au-delà
+/// de son horaire habituel — jamais une modification de celui-ci, une déclaration
+/// ponctuelle pour cette date précise (voir Availability.date). Limitée à la semaine
+/// affichée (calendaire, lundi-dimanche) : au-delà, ça devient une modification de
+/// l'horaire habituel, réservée au manager (ou au flexijob via setMyUsualAvailability).
+export async function addMyOneOffAvailability(input: z.infer<typeof OneOffAvailabilitySchema>): Promise<{ id: string }> {
+  const ctx = await getCurrentContext();
+  const data = OneOffAvailabilitySchema.parse(input);
+
+  const today = startOfDay(new Date());
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const date = new Date(`${data.date}T00:00:00`);
+  if (date < weekStart || date > weekEnd) {
+    throw new Error("Cette date sort de la semaine en cours.");
+  }
+
+  const service = await prisma.serviceDefinition.findFirst({
+    where: { id: data.serviceId, establishmentId: ctx.establishment.id },
+  });
+  if (!service) throw new Error("Service introuvable.");
+
+  const existing = await prisma.availability.findFirst({
+    where: { membershipId: ctx.membership.id, date, serviceId: data.serviceId, kind: "preferred" },
+  });
+  const row =
+    existing ??
+    (await prisma.availability.create({
+      data: {
+        establishmentId: ctx.establishment.id,
+        membershipId: ctx.membership.id,
+        dayOfWeek: isoWeekday(date),
+        kind: "preferred",
+        serviceId: data.serviceId,
+        date,
+      },
+    }));
+
+  if (!existing) {
+    const memberName = `${ctx.user.firstName} ${ctx.user.lastName}`;
+    await notifyScheduleEditors(
+      ctx.establishment.id,
+      ctx.membership.id,
+      `${memberName} s'est rendu disponible en plus`,
+      `${toDateKey(date)} · ${service.name}.`
+    );
+  }
+
+  revalidatePath("/mon-espace");
+  revalidatePath("/planning");
+  return { id: row.id };
+}
+
+/// Retrait libre à tout moment — jamais pour un tiers (scope à ctx.membership.id).
+export async function removeMyOneOffAvailability(availabilityId: string) {
+  const ctx = await getCurrentContext();
+  await prisma.availability.deleteMany({
+    where: { id: availabilityId, membershipId: ctx.membership.id, date: { not: null } },
+  });
   revalidatePath("/mon-espace");
   revalidatePath("/planning");
 }

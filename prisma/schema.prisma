@@ -116,6 +116,12 @@ model Membership {
   roleId          String
   role            Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
   status          String        @default("active") // active | inactive
+  /// fixe = l'horaire habituel (voir Availability) est déclaré par le manager, l'employé
+  /// le consulte en lecture seule et ne peut qu'ajouter des disponibilités ponctuelles.
+  /// flexijob = statut belge du même nom : le manager pose un horaire de départ mais
+  /// l'employé peut le modifier librement à tout moment (chaque modification notifie
+  /// le manager) — voir myspace/server/actions.ts (setMyUsualAvailability).
+  employmentType  String        @default("fixe") // fixe | flexijob
   jobTitle        String?       // ex: "Chef de rang", "Second de cuisine"
   hiredAt         DateTime?
   weeklyHoursTarget Float?      // heures contractuelles / semaine
@@ -147,7 +153,7 @@ model Notification {
   establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
   membershipId    String
   membership      Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  type            String        // shift_changed | shift_cancelled | leave_approved | leave_rejected | leave_requested | replacement_needed
+  type            String        // shift_changed | shift_cancelled | leave_approved | leave_rejected | leave_requested | replacement_needed | availability_changed
   /// Réutilise la taxonomie déjà affichée ailleurs dans l'app (urgent 🔴 / important 🟠 /
   /// watch 🟡) plutôt que d'en inventer une nouvelle. Pas de défaut : notifyMember exige
   /// un choix explicite à chaque site d'appel, voir myspace/server/notify.ts.
@@ -297,18 +303,29 @@ model ReplacementVolunteer {
 /// avec des services définis (déjeuner/dîner, ou toute plage choisie par le patron —
 /// voir ServiceDefinition) de déclarer une indisponibilité par service plutôt que par
 /// horaire libre, sans perdre la souplesse existante pour ceux qui préfèrent l'inverse.
+/// kind="preferred" + serviceId défini + date=null = horaire HABITUEL (récurrent,
+/// chaque semaine) : "travaille normalement ce service ce jour-là". Décrit par le
+/// manager pour un·e fixe, par l'employé·e lui/elle-même pour un·e flexijob.
+/// kind="preferred" + serviceId défini + date défini = disponibilité PONCTUELLE
+/// ("en plus", cette semaine seulement) — ajoutée librement par l'employé·e, ne
+/// s'applique qu'à cette date précise, jamais aux autres occurrences du même jour de
+/// semaine. Voir addMyOneOffAvailability dans myspace/server/actions.ts.
+/// kind="unavailable" reste le mécanisme de blocage dur existant (Étape 7) — inchangé.
 model Availability {
   id              String        @id @default(cuid())
   establishmentId String
   establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
   membershipId    String
   membership      Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  dayOfWeek       Int           // 1..7
+  dayOfWeek       Int           // 1..7 — dérivé de `date` quand celle-ci est définie
   startTime       String?       // null = indisponible toute la journée (ou tout le service, si serviceId défini)
   endTime         String?
   kind            String        @default("preferred") // preferred | unavailable
   serviceId       String?
   service         ServiceDefinition? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  /// null = récurrent (chaque semaine, par dayOfWeek). Défini = ponctuel, valable
+  /// uniquement pour cette date précise.
+  date            DateTime?
   createdAt       DateTime      @default(now())
 }
 

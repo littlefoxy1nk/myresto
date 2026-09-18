@@ -6,7 +6,8 @@ export type NotificationType =
   | "leave_approved"
   | "leave_rejected"
   | "leave_requested"
-  | "replacement_needed";
+  | "replacement_needed"
+  | "availability_changed";
 export type NotificationSeverity = "urgent" | "important" | "watch";
 
 /// Point d'entrée unique pour créer une notification personnelle — utilisé par

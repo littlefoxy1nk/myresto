@@ -199,3 +199,57 @@ export async function regenerateEmployeeCode(membershipId: string): Promise<Rege
 
   return { code };
 }
+
+/// fixe | flexijob (voir Membership.employmentType dans schema.prisma) — change qui a
+/// le droit d'écrire l'horaire habituel de cette personne : le manager (fixe) ou la
+/// personne elle-même (flexijob, voir myspace/server/actions.ts).
+export async function setEmployeeEmploymentType(membershipId: string, employmentType: "fixe" | "flexijob") {
+  const ctx = await requirePermission("staff.manage");
+  const membership = await prisma.membership.findFirst({ where: { id: membershipId, establishmentId: ctx.establishment.id } });
+  if (!membership) throw new Error("Employé introuvable.");
+
+  await prisma.membership.update({ where: { id: membershipId }, data: { employmentType } });
+  revalidatePath(`/equipe/${membershipId}`);
+}
+
+export async function setEmployeeUsualAvailability(membershipId: string, dayOfWeek: number, serviceId: string, works: boolean) {
+  await setEmployeeUsualAvailabilityBulk(membershipId, dayOfWeek, [serviceId], works);
+}
+
+/// Horaire habituel déclaré par le manager pour un·e employé·e fixe — même mécanisme
+/// que setMyUsualAvailabilityBulk côté flexijob (myspace/server/actions.ts), mais
+/// gated par staff.manage et un membershipId explicite plutôt que ctx.membership.id.
+/// "Toute la journée" en un seul aller-retour serveur pour la même raison qu'ailleurs :
+/// éviter plusieurs Server Actions concurrentes depuis un seul clic.
+export async function setEmployeeUsualAvailabilityBulk(membershipId: string, dayOfWeek: number, serviceIds: string[], works: boolean) {
+  const ctx = await requirePermission("staff.manage");
+  if (dayOfWeek < 1 || dayOfWeek > 7) throw new Error("Jour invalide.");
+  if (serviceIds.length === 0) return;
+
+  const membership = await prisma.membership.findFirst({ where: { id: membershipId, establishmentId: ctx.establishment.id } });
+  if (!membership) throw new Error("Employé introuvable.");
+
+  const services = await prisma.serviceDefinition.findMany({
+    where: { id: { in: serviceIds }, establishmentId: ctx.establishment.id },
+  });
+  if (services.length !== serviceIds.length) throw new Error("Service introuvable.");
+
+  await prisma.availability.deleteMany({
+    where: { membershipId, dayOfWeek, kind: "preferred", serviceId: { in: serviceIds }, date: null },
+  });
+
+  if (works) {
+    await prisma.availability.createMany({
+      data: serviceIds.map((serviceId) => ({
+        establishmentId: ctx.establishment.id,
+        membershipId,
+        dayOfWeek,
+        kind: "preferred",
+        serviceId,
+      })),
+    });
+  }
+
+  revalidatePath(`/equipe/${membershipId}`);
+  revalidatePath("/planning");
+}

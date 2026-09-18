@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns";
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { getCurrentContext } from "@/lib/current-context";
 import { toDateKey } from "@/lib/utils";
 import { TARGET_SHIFTS_RULE_TYPE } from "@/modules/planning/types";
@@ -24,7 +24,7 @@ export async function getMyDashboard(): Promise<MyDashboard> {
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
 
-  const [shifts, rule, timeOffRows, notificationRows, unavailableRows, serviceDefinitions, unavailableServiceRows, openReplacementRequests, replacementOpportunities] =
+  const [shifts, rule, timeOffRows, notificationRows, serviceDefinitions, usualAvailabilityRows, oneOffRows, openReplacementRequests, replacementOpportunities] =
     await Promise.all([
       prisma.shift.findMany({
         where: { membershipId, date: { gte: weekStart, lte: weekEnd }, status: { not: "cancelled" } },
@@ -43,14 +43,14 @@ export async function getMyDashboard(): Promise<MyDashboard> {
         orderBy: { createdAt: "desc" },
         take: 20,
       }),
-      prisma.availability.findMany({
-        where: { membershipId, kind: "unavailable", startTime: null, endTime: null, serviceId: null },
-        select: { dayOfWeek: true },
-      }),
       prisma.serviceDefinition.findMany({ where: { establishmentId } }),
       prisma.availability.findMany({
-        where: { membershipId, kind: "unavailable", serviceId: { not: null } },
+        where: { membershipId, kind: "preferred", serviceId: { not: null }, date: null },
         select: { dayOfWeek: true, serviceId: true },
+      }),
+      prisma.availability.findMany({
+        where: { membershipId, kind: "preferred", serviceId: { not: null }, date: { gte: weekStart, lte: weekEnd } },
+        select: { id: true, date: true, serviceId: true },
       }),
       prisma.replacementRequest.findMany({
         where: { requestedById: membershipId, status: "open" },
@@ -126,18 +126,36 @@ export async function getMyDashboard(): Promise<MyDashboard> {
     hasCode: ctx.user.codeHash != null,
     hasEmail: ctx.user.email != null,
     username: ctx.user.username,
-    unavailableDays: unavailableRows.map((r) => r.dayOfWeek),
+    employmentType: ctx.membership.employmentType as MyDashboard["employmentType"],
     availabilityServices: serviceDefinitions.map(
       (s): MyAvailabilityService => ({ id: s.id, name: s.name, daysOfWeek: s.daysOfWeek.split(",").map(Number) })
     ),
-    unavailableServiceCells: unavailableServiceRows.map((r) => ({ dayOfWeek: r.dayOfWeek, serviceId: r.serviceId! })),
+    usualAvailabilityCells: usualAvailabilityRows.map((r) => ({ dayOfWeek: r.dayOfWeek, serviceId: r.serviceId! })),
+    oneOffAvailability: oneOffRows.map((r) => ({ id: r.id, date: toDateKey(r.date!), serviceId: r.serviceId! })),
+    currentWeekDates: Array.from({ length: 7 }, (_, i) => toDateKey(addDays(weekStart, i))),
   };
 }
 
-/// Utilisé pour le badge de notifications non lues affiché dans la navigation — une
-/// requête légère, séparée du dashboard complet pour ne pas re-fetcher shifts/congés à
-/// chaque rendu de layout.
-export async function getUnreadNotificationsCount(): Promise<number> {
+/// Alimente la clochette de notifications affichée sur chaque page (voir
+/// src/app/(app)/layout.tsx) — une requête légère, séparée du dashboard complet pour ne
+/// pas re-fetcher shifts/congés/disponibilités à chaque rendu de layout.
+export async function getNotificationBellData(): Promise<{ notifications: MyNotification[]; unreadCount: number }> {
   const ctx = await getCurrentContext();
-  return prisma.notification.count({ where: { membershipId: ctx.membership.id, readAt: null } });
+  const rows = await prisma.notification.findMany({
+    where: { membershipId: ctx.membership.id },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+  });
+  const notifications: MyNotification[] = rows.map((n) => ({
+    id: n.id,
+    type: n.type,
+    severity: n.severity as MyNotification["severity"],
+    title: n.title,
+    body: n.body,
+    linkHref: n.linkHref,
+    isRead: n.readAt != null,
+    createdAt: n.createdAt.toISOString(),
+  }));
+  const unreadCount = await prisma.notification.count({ where: { membershipId: ctx.membership.id, readAt: null } });
+  return { notifications, unreadCount };
 }
