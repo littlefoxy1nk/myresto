@@ -73,6 +73,7 @@ model Establishment {
   agendaEvents    AgendaEvent[]
   notifications   Notification[]
   replacementRequests ReplacementRequest[]
+  planningNotes   PlanningNote[]
 }
 
 /// Deux moyens de connexion indépendants, chacun optionnel — mais un utilisateur doit
@@ -139,6 +140,7 @@ model Membership {
   replacementRequestsMade ReplacementRequest[] @relation("ReplacementRequestedBy")
   replacementsResolvedFor ReplacementRequest[] @relation("ReplacementResolvedFor")
   replacementVolunteers   ReplacementVolunteer[]
+  planningNotesCreated    PlanningNote[]
 
   @@unique([userId, establishmentId])
 }
@@ -251,7 +253,7 @@ model Shift {
   date            DateTime          // jour du shift (00:00)
   startTime       String            // "18:00"
   endTime         String            // "23:00"
-  position        String            // "salle" | "cuisine" | "bar" | "direction"
+  position        String            // "salle" | "cuisine" | "bar" | "plonge" | "direction"
   status          String            @default("planned") // planned | published | confirmed | completed | cancelled
   source          String            @default("manual")  // manual | auto_generated
   notes           String?
@@ -294,6 +296,23 @@ model ReplacementVolunteer {
   createdAt            DateTime           @default(now())
 
   @@unique([replacementRequestId, membershipId])
+}
+
+/// Un rappel factuel posé par le manager sur une date précise (ex: "Jeudi 14h30 :
+/// entretien des fûts") — visible par tout le monde sur le planning, y compris la vue
+/// simplifiée des employés (voir Étape "planning travailleurs") qui ne montre ni les
+/// alertes RH ni les conflits, seulement l'horaire ET ces notes. Jamais un shift, une
+/// tâche assignée ou un accusé de lecture — un simple pense-bête daté.
+model PlanningNote {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  date            DateTime
+  time            String?       // "HH:MM", optionnel — un rappel n'a pas toujours une heure précise
+  message         String
+  createdById     String
+  createdBy       Membership    @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
 }
 
 /// serviceId null = ancien mode "journée entière ou plage horaire libre" (startTime/

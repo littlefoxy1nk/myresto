@@ -19,7 +19,7 @@ export async function getEmployeeProfile(membershipId: string): Promise<Employee
 
   const membership = await prisma.membership.findFirst({
     where: { id: membershipId, establishmentId: ctx.establishment.id },
-    include: { user: true, role: true },
+    include: { user: true, role: { include: { permissions: { include: { permission: true } } } } },
   });
   if (!membership) throw new Error("Employé introuvable.");
 
@@ -64,7 +64,10 @@ export async function getEmployeeProfile(membershipId: string): Promise<Employee
     name: `${membership.user.firstName} ${membership.user.lastName}`,
     firstName: membership.user.firstName,
     lastName: membership.user.lastName,
+    roleId: membership.roleId,
     roleLabel: membership.role.label,
+    roleIsSystem: membership.role.isSystem,
+    currentPermissions: membership.role.permissions.map((rp) => rp.permission.key),
     jobTitle: membership.jobTitle,
     email: membership.user.email,
     username: membership.user.username,

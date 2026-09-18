@@ -22,13 +22,17 @@ export const NAV_ITEMS: NavItem[] = [
   // Sans `permission` : visible par tout le monde, y compris un rôle qui n'a accès à
   // rien d'autre — c'est l'espace de CHACUN, pas un module métier réservé.
   { href: "/mon-espace", label: "Mon espace", mobileLabel: "Moi", icon: "UserCircle", mobile: true, available: true },
+  // Juste après "Mon espace" et visible en mobile : c'est la première chose qu'un
+  // employé veut consulter depuis son téléphone (voir schedule.view — tout le monde
+  // qui peut voir un planning peut aussi y accéder directement, pas seulement les
+  // managers qui l'éditent).
+  { href: "/planning", label: "Planning", icon: "CalendarDays", permission: "schedule.view", mobile: true, available: true },
   { href: "/reservations", label: "Réservations", mobileLabel: "Résa", icon: "CalendarClock", permission: "reservations.view", mobile: true, available: true },
   { href: "/plan-de-salle", label: "Plan de salle", mobileLabel: "Plan", icon: "LayoutGrid", permission: "floorplan.view", mobile: true, available: true },
   { href: "/service", label: "Service", icon: "Utensils", permission: "service.run", mobile: true, available: true },
   { href: "/equipe", label: "Équipe", icon: "Users", permission: "staff.view", mobile: true, available: true },
 
   // Phase 2
-  { href: "/planning", label: "Planning", icon: "CalendarDays", permission: "schedule.view", available: true },
   { href: "/conges", label: "Congés", icon: "Palmtree", permission: "timeoff.manage", available: true },
   { href: "/clients", label: "Clients", icon: "Heart", permission: "crm.view", available: true },
   { href: "/finances", label: "Finances", icon: "LineChart", permission: "finance.view", available: true },

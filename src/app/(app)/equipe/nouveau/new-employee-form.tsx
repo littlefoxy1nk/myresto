@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   createEmployee,
@@ -11,7 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast-bus";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ChevronDown } from "lucide-react";
+import { PermissionToggles } from "@/components/permissions/permission-toggles";
+import type { PermissionKey } from "@/lib/permissions";
+
+type RoleOption = { id: string; label: string; permissions: string[] };
 
 const DAYS = [
   { value: "1", label: "Lun" },
@@ -23,6 +27,18 @@ const DAYS = [
   { value: "7", label: "Dim" },
 ];
 
+/// Ce que la personne peut tenir comme poste — pas "direction", qui n'est pas un poste
+/// de service qu'on coche mais une fonction d'encadrement (voir SHIFT_POSITIONS).
+/// Plusieurs cases cochées = polyvalence réelle dans certains établissements ("je peux
+/// être en salle, en cuisine et au bar") — voir isEligibleCandidate (replacement) et
+/// Membership.skills, qui accepte déjà une liste CSV.
+const SKILLS = [
+  { value: "salle", label: "Salle" },
+  { value: "bar", label: "Bar" },
+  { value: "cuisine", label: "Cuisine" },
+  { value: "plonge", label: "Plonge" },
+];
+
 const EMPTY_EMPLOYEE_VALUES: CreateEmployeeValues = {
   firstName: "",
   lastName: "",
@@ -31,13 +47,24 @@ const EMPTY_EMPLOYEE_VALUES: CreateEmployeeValues = {
   roleId: "",
   jobTitle: "",
   availableDays: [],
+  skills: [],
+  permissions: [],
 };
 
 const INITIAL_STATE: CreateEmployeeState = { values: EMPTY_EMPLOYEE_VALUES, attempt: 0 };
 
-export function NewEmployeeForm({ roles }: { roles: { id: string; label: string }[] }) {
+export function NewEmployeeForm({ roles }: { roles: RoleOption[] }) {
   const [state, formAction, pending] = useActionState(createEmployee, INITIAL_STATE);
   const firstErrorFieldRef = useRef<HTMLInputElement>(null);
+  const [roleId, setRoleId] = useState(state.values.roleId);
+  const [permissions, setPermissions] = useState<Set<PermissionKey>>(new Set(state.values.permissions as PermissionKey[]));
+  const [showPermissions, setShowPermissions] = useState(false);
+
+  function selectRole(nextRoleId: string) {
+    setRoleId(nextRoleId);
+    const role = roles.find((r) => r.id === nextRoleId);
+    setPermissions(new Set((role?.permissions ?? []) as PermissionKey[]));
+  }
 
   useEffect(() => {
     if (state.error) firstErrorFieldRef.current?.focus();
@@ -120,7 +147,8 @@ export function NewEmployeeForm({ roles }: { roles: { id: string; label: string 
         <select
           id="roleId"
           name="roleId"
-          defaultValue={v.roleId}
+          value={roleId}
+          onChange={(e) => selectRole(e.target.value)}
           className={cn(
             "w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent",
             errors.roleId ? "border-urgent" : "border-border"
@@ -139,6 +167,60 @@ export function NewEmployeeForm({ roles }: { roles: { id: string; label: string 
       </div>
 
       <Field label="Poste (optionnel)" name="jobTitle" defaultValue={v.jobTitle} placeholder="ex: Cheffe de rang" />
+
+      <div className="space-y-1.5">
+        <button
+          type="button"
+          onClick={() => setShowPermissions((o) => !o)}
+          className="flex w-full items-center justify-between text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          Droits d&apos;accès
+          <ChevronDown size={16} aria-hidden="true" className={cn("transition-transform", showPermissions && "rotate-180")} />
+        </button>
+        <p className="text-xs text-muted-foreground">
+          Pré-remplis selon le rôle choisi — désactivez ce que cette personne ne doit pas voir ou modifier.
+        </p>
+        {showPermissions && (
+          <div className="pt-1">
+            <PermissionToggles
+              checked={permissions}
+              onToggle={(key, next) =>
+                setPermissions((prev) => {
+                  const nextSet = new Set(prev);
+                  if (next) nextSet.add(key);
+                  else nextSet.delete(key);
+                  return nextSet;
+                })
+              }
+            />
+          </div>
+        )}
+        {[...permissions].map((key) => (
+          <input key={key} type="hidden" name="permissions" value={key} />
+        ))}
+      </div>
+
+      <div className="space-y-1.5">
+        <span className="text-sm font-medium">Postes tenus (optionnel)</span>
+        <p className="text-xs text-muted-foreground">Cochez-en plusieurs si la personne est polyvalente.</p>
+        <div className="flex flex-wrap gap-2">
+          {SKILLS.map((skill) => (
+            <label
+              key={skill.value}
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:text-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent has-[:focus-visible]:ring-offset-2"
+            >
+              <input
+                type="checkbox"
+                name="skills"
+                value={skill.value}
+                defaultChecked={v.skills.includes(skill.value)}
+                className="sr-only"
+              />
+              {skill.label}
+            </label>
+          ))}
+        </div>
+      </div>
 
       <div className="space-y-1.5">
         <span className="text-sm font-medium">Disponibilités habituelles (optionnel)</span>

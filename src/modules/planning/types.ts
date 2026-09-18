@@ -9,14 +9,26 @@ import type { FrequentationSignal } from "@/modules/frequentation/types";
 /// jamais redéfini localement.
 export const TARGET_SHIFTS_RULE_TYPE = "target_shifts_per_week";
 
-export const SHIFT_POSITIONS = ["salle", "cuisine", "bar", "direction"] as const;
+export const SHIFT_POSITIONS = ["salle", "cuisine", "bar", "plonge", "direction"] as const;
 export type ShiftPosition = (typeof SHIFT_POSITIONS)[number];
 
 export const SHIFT_POSITION_LABELS: Record<ShiftPosition, string> = {
   salle: "Salle",
   cuisine: "Cuisine",
   bar: "Bar",
+  plonge: "Plonge",
   direction: "Direction",
+};
+
+/// Regroupement en 2 zones pour l'affichage double du planning (voir
+/// PlanningZoneTabs) — "direction" n'appartient à aucune des deux, volontairement :
+/// ce n'est pas un poste de service, il reste visible uniquement dans la vue "Tous".
+export const SHIFT_ZONES = ["salle", "cuisine"] as const;
+export type ShiftZone = (typeof SHIFT_ZONES)[number];
+export const SHIFT_ZONE_LABELS: Record<ShiftZone, string> = { salle: "Salle", cuisine: "Cuisine" };
+export const POSITIONS_BY_ZONE: Record<ShiftZone, ShiftPosition[]> = {
+  salle: ["salle", "bar"],
+  cuisine: ["cuisine", "plonge"],
 };
 
 /// Niveau de lecture "un coup d'œil" demandé en Mission 6 : ok (🟢), warning (🟡, à
@@ -163,4 +175,16 @@ export type WeekPlanningResult = {
   availabilitiesByMember: Record<string, AvailabilityRow[]>;
   absentMembershipIdsByDate: Record<string, string[]>;
   canEdit: boolean;
+  /// Rappels du manager sur la semaine affichée (voir PlanningNote) — visibles par
+  /// tout le monde, y compris la vue simplifiée employé qui n'a ni alertes ni conflits.
+  notes: PlanningNoteItem[];
+};
+
+export type PlanningNoteItem = {
+  id: string;
+  date: string; // "yyyy-MM-dd"
+  dateLabel: string;
+  time: string | null;
+  message: string;
+  createdByName: string;
 };

@@ -3,6 +3,7 @@ import { startOfWeek, addDays, format, parseISO, isValid } from "date-fns";
 import { getCurrentContext } from "@/lib/current-context";
 import { getWeekPlanning } from "@/modules/planning/server/queries";
 import { PlanningApp } from "@/modules/planning/components/planning-app";
+import { WorkerPlanningView } from "@/modules/planning/components/worker-planning-view";
 import { getReplacementRequests } from "@/modules/replacement/server/queries";
 import { AssignReplacementControl } from "@/modules/replacement/components/assign-replacement-control";
 import { Card } from "@/components/ui/card";
@@ -31,6 +32,21 @@ export default async function PlanningPage({
   const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const isCurrentWeek = toDateKey(weekStart) === toDateKey(currentWeekStart);
 
+  const weekNavProps = {
+    prevWeekHref: `/planning?week=${toDateKey(addDays(weekStart, -7))}`,
+    nextWeekHref: `/planning?week=${toDateKey(addDays(weekStart, 7))}`,
+    currentWeekHref: "/planning",
+    isCurrentWeek,
+  };
+
+  if (!data.canEdit) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6">
+        <WorkerPlanningView data={data} {...weekNavProps} />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       {replacementRequests.length > 0 && (
@@ -56,13 +72,7 @@ export default async function PlanningPage({
           </div>
         </section>
       )}
-      <PlanningApp
-        data={data}
-        prevWeekHref={`/planning?week=${toDateKey(addDays(weekStart, -7))}`}
-        nextWeekHref={`/planning?week=${toDateKey(addDays(weekStart, 7))}`}
-        currentWeekHref="/planning"
-        isCurrentWeek={isCurrentWeek}
-      />
+      <PlanningApp data={data} {...weekNavProps} />
     </div>
   );
 }

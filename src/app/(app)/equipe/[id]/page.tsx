@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
+import { prisma } from "@/lib/prisma";
 import { getEmployeeProfile } from "@/modules/staff/server/queries";
 import { RegenerateCodeButton } from "@/modules/staff/components/regenerate-code-button";
 import { EmployeeScheduleGrid } from "@/modules/staff/components/employee-schedule-grid";
 import { EmploymentTypeSelect } from "@/modules/staff/components/employment-type-select";
+import { EditEmployeeButton } from "@/modules/staff/components/edit-employee-dialog";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,14 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const profile = await getEmployeeProfile(id);
   const canManage = ctx.can("staff.manage");
 
+  const roles = canManage
+    ? await prisma.role.findMany({
+        where: { establishmentId: ctx.establishment.id, isSystem: true },
+        include: { permissions: { include: { permission: true } } },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
@@ -47,6 +57,23 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               {profile.jobTitle && profile.jobTitle !== profile.roleLabel ? ` · ${profile.roleLabel}` : ""}
             </p>
           </div>
+          {canManage && (
+            <EditEmployeeButton
+              membershipId={profile.membershipId}
+              initial={{
+                firstName: profile.firstName,
+                lastName: profile.lastName,
+                phone: profile.phone,
+                jobTitle: profile.jobTitle,
+                weeklyHoursTarget: profile.weeklyHoursTarget,
+                skills: profile.skills,
+                roleId: profile.roleId,
+                roleIsSystem: profile.roleIsSystem,
+                currentPermissions: profile.currentPermissions,
+              }}
+              roles={roles.map((r) => ({ id: r.id, label: r.label, permissions: r.permissions.map((rp) => rp.permission.key) }))}
+            />
+          )}
         </div>
       </div>
 

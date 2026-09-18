@@ -216,3 +216,40 @@ export async function setServiceObjective(membershipId: string, count: number | 
 
   revalidatePlanningPaths();
 }
+
+const PlanningNoteSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  time: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional()
+    .or(z.literal("")),
+  message: z.string().trim().min(1, "Le message est requis.").max(200),
+});
+
+/// Rappel factuel du manager sur une date précise (ex: "Jeudi 14h30 : entretien des
+/// fûts") — visible par tout le monde sur le planning, y compris la vue simplifiée des
+/// employés qui ne voit ni les alertes RH ni les conflits. Jamais un shift ni une
+/// tâche assignée : un simple pense-bête daté, voir schema.prisma.
+export async function createPlanningNote(input: z.infer<typeof PlanningNoteSchema>) {
+  const ctx = await requirePermission("schedule.edit");
+  const data = PlanningNoteSchema.parse(input);
+
+  await prisma.planningNote.create({
+    data: {
+      establishmentId: ctx.establishment.id,
+      date: new Date(`${data.date}T00:00:00`),
+      time: data.time || null,
+      message: data.message,
+      createdById: ctx.membership.id,
+    },
+  });
+
+  revalidatePlanningPaths();
+}
+
+export async function deletePlanningNote(id: string) {
+  const ctx = await requirePermission("schedule.edit");
+  await prisma.planningNote.deleteMany({ where: { id, establishmentId: ctx.establishment.id } });
+  revalidatePlanningPaths();
+}

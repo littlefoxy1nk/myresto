@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PlanningAlerts } from "@/modules/planning/components/planning-alerts";
+import { PlanningNotes } from "@/modules/planning/components/planning-notes";
 import { FrequentationSummary } from "@/modules/planning/components/frequentation-summary";
 import { ShiftFormDialog, type ShiftFormValues } from "@/modules/planning/components/shift-form-dialog";
 import { ObjectiveDialog } from "@/modules/planning/components/objective-dialog";
 import { createShift, updateShift, deleteShift, duplicateWeek } from "@/modules/planning/server/actions";
-import { SHIFT_POSITION_LABELS } from "@/modules/planning/types";
+import { SHIFT_POSITION_LABELS, POSITIONS_BY_ZONE } from "@/modules/planning/types";
+import { PlanningZoneTabs, type PlanningZoneFilter } from "@/modules/planning/components/planning-zone-tabs";
 import type { PlanningMember, PlanningShift, ShiftConflictLevel, ShiftPosition, WeekPlanningResult } from "@/modules/planning/types";
 
 function formatHours(h: number) {
@@ -75,6 +77,7 @@ export function PlanningApp({
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [objectiveFor, setObjectiveFor] = useState<PlanningMember | null>(null);
+  const [zone, setZone] = useState<PlanningZoneFilter>("tous");
   const activeDayTabRef = useRef<HTMLButtonElement>(null);
 
   // Le jour sélectionné (aujourd'hui par défaut) doit être visible sans que la
@@ -83,8 +86,16 @@ export function PlanningApp({
     activeDayTabRef.current?.scrollIntoView({ inline: "center", block: "nearest" });
   }, [selectedDay]);
 
+  // Vue Salle/Cuisine (voir PlanningZoneTabs) : filtre les shifts par poste, puis
+  // n'affiche que les personnes qui ont effectivement un shift dans cette zone cette
+  // semaine — pas tout le monde avec une ligne vide, ce qui serait juste du bruit.
+  const visiblePositions = zone === "tous" ? null : POSITIONS_BY_ZONE[zone];
+  const visibleShifts = visiblePositions ? data.shifts.filter((s) => visiblePositions.includes(s.position as ShiftPosition)) : data.shifts;
+  const visibleMembers =
+    zone === "tous" ? data.members : data.members.filter((m) => visibleShifts.some((s) => s.membershipId === m.membershipId));
+
   const shiftsByMemberDay = new Map<string, PlanningShift[]>();
-  for (const s of data.shifts) {
+  for (const s of visibleShifts) {
     const key = `${s.membershipId}|${s.date}`;
     const list = shiftsByMemberDay.get(key) ?? [];
     list.push(s);
@@ -312,13 +323,23 @@ export function PlanningApp({
         </Card>
       )}
 
+      <PlanningNotes notes={data.notes} canEdit={data.canEdit} />
       <PlanningAlerts alerts={data.alerts} />
       <FrequentationSummary days={data.dayFrequentation} />
-      {data.members.length > 0 && <ConflictLegend />}
+      {data.members.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <PlanningZoneTabs value={zone} onChange={setZone} />
+          <ConflictLegend />
+        </div>
+      )}
 
       {data.members.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
           Aucun membre actif dans l&apos;équipe.
+        </p>
+      ) : visibleMembers.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          Personne n&apos;a de shift dans cette zone cette semaine.
         </p>
       ) : (
         <>
@@ -336,7 +357,7 @@ export function PlanningApp({
                 </tr>
               </thead>
               <tbody>
-                {data.members.map((m) => (
+                {visibleMembers.map((m) => (
                   <tr key={m.membershipId} className="border-b border-border last:border-0">
                     <td className="p-3 align-top">
                       <p className="flex items-center gap-1.5 text-sm font-medium">
@@ -379,7 +400,7 @@ export function PlanningApp({
               ))}
             </div>
             <div className="space-y-2">
-              {data.members.map((m) => (
+              {visibleMembers.map((m) => (
                 <div key={m.membershipId} className="rounded-2xl border border-border bg-card p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="flex items-center gap-1.5 text-sm font-medium">

@@ -7,6 +7,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
 import { baseUsername } from "@/modules/staff/username";
+import { resolveAndAssignRole } from "@/modules/staff/server/roles";
+import type { PermissionKey } from "@/lib/permissions";
 
 const CreateEmployeeSchema = z.object({
   firstName: z.string().min(1, "Le prénom est requis."),
@@ -25,6 +27,8 @@ export type CreateEmployeeValues = {
   roleId: string;
   jobTitle: string;
   availableDays: string[];
+  skills: string[];
+  permissions: string[];
 };
 
 export type CreateEmployeeState = {
@@ -49,6 +53,8 @@ function valuesFromFormData(formData: FormData): CreateEmployeeValues {
     roleId: String(formData.get("roleId") ?? ""),
     jobTitle: String(formData.get("jobTitle") ?? ""),
     availableDays: formData.getAll("availableDays").map(String),
+    skills: formData.getAll("skills").map(String),
+    permissions: formData.getAll("permissions").map(String),
   };
 }
 
@@ -134,6 +140,8 @@ export async function createEmployee(
     },
   });
 
+  const validSkills = values.skills.filter((s) => ["salle", "bar", "cuisine", "plonge"].includes(s));
+
   await prisma.membership.create({
     data: {
       userId: user.id,
@@ -141,12 +149,20 @@ export async function createEmployee(
       roleId: role.id,
       jobTitle: data.jobTitle || null,
       hiredAt: new Date(),
+      skills: validSkills.length > 0 ? validSkills.join(",") : null,
     },
   });
 
   const membership = await prisma.membership.findUniqueOrThrow({
     where: { userId_establishmentId: { userId: user.id, establishmentId: ctx.establishment.id } },
   });
+
+  // Droits personnalisés (façon iOS) : si la liste cochée diffère des droits par défaut
+  // du rôle choisi, on bascule sur un rôle personnalisé qui porte exactement ces droits
+  // — voir resolveAndAssignRole. Rien à faire si la liste n'a pas été touchée.
+  if (values.permissions.length > 0) {
+    await resolveAndAssignRole(ctx.establishment.id, membership.id, role.id, values.permissions as PermissionKey[]);
+  }
 
   const days = values.availableDays.map(Number).filter((d) => d >= 1 && d <= 7);
   if (days.length > 0) {
@@ -163,7 +179,7 @@ export async function createEmployee(
   revalidatePath("/equipe");
 
   return {
-    values: { firstName: "", lastName: "", email: "", phone: "", roleId: "", jobTitle: "", availableDays: [] },
+    values: { firstName: "", lastName: "", email: "", phone: "", roleId: "", jobTitle: "", availableDays: [], skills: [], permissions: [] },
     attempt,
     success: { name: `${data.firstName} ${data.lastName}`, username, code },
   };
@@ -252,4 +268,52 @@ export async function setEmployeeUsualAvailabilityBulk(membershipId: string, day
 
   revalidatePath(`/equipe/${membershipId}`);
   revalidatePath("/planning");
+}
+
+const UpdateEmployeeSchema = z.object({
+  firstName: z.string().min(1, "Le prénom est requis."),
+  lastName: z.string().min(1, "Le nom est requis."),
+  phone: z.string().optional(),
+  jobTitle: z.string().optional(),
+  weeklyHoursTarget: z.string().optional(),
+  roleId: z.string().min(1, "Choisissez un rôle."),
+});
+
+/// Seul endroit qui permet de revenir modifier les données d'un employé après sa
+/// création : identité, poste, objectif d'heures, compétences, ET les droits d'accès
+/// (résolus vers un rôle exact — voir resolveAndAssignRole, qui gère roleId à elle
+/// seule). L'horaire habituel se modifie séparément (setEmployeeUsualAvailability).
+export async function updateEmployee(
+  membershipId: string,
+  input: z.infer<typeof UpdateEmployeeSchema>,
+  permissionKeys: PermissionKey[],
+  skills: string[]
+) {
+  const ctx = await requirePermission("staff.manage");
+  const data = UpdateEmployeeSchema.parse(input);
+
+  const membership = await prisma.membership.findFirst({ where: { id: membershipId, establishmentId: ctx.establishment.id } });
+  if (!membership) throw new Error("Employé introuvable.");
+
+  await resolveAndAssignRole(ctx.establishment.id, membershipId, data.roleId, permissionKeys);
+
+  const validSkills = skills.filter((s) => ["salle", "bar", "cuisine", "plonge"].includes(s));
+  const weeklyHoursTarget = data.weeklyHoursTarget ? Number.parseFloat(data.weeklyHoursTarget) : null;
+
+  await prisma.user.update({
+    where: { id: membership.userId },
+    data: { firstName: data.firstName, lastName: data.lastName, phone: data.phone || null },
+  });
+
+  await prisma.membership.update({
+    where: { id: membershipId },
+    data: {
+      jobTitle: data.jobTitle || null,
+      weeklyHoursTarget: weeklyHoursTarget != null && !Number.isNaN(weeklyHoursTarget) ? weeklyHoursTarget : null,
+      skills: validSkills.length > 0 ? validSkills.join(",") : null,
+    },
+  });
+
+  revalidatePath(`/equipe/${membershipId}`);
+  revalidatePath("/equipe");
 }

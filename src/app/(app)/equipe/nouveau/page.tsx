@@ -8,7 +8,8 @@ export default async function NouvelEmployePage() {
   if (!ctx.can("staff.manage")) redirect("/equipe");
 
   const roles = await prisma.role.findMany({
-    where: { establishmentId: ctx.establishment.id },
+    where: { establishmentId: ctx.establishment.id, isSystem: true },
+    include: { permissions: { include: { permission: true } } },
     orderBy: { createdAt: "asc" },
   });
 
@@ -21,7 +22,13 @@ export default async function NouvelEmployePage() {
         </p>
       </div>
 
-      <NewEmployeeForm roles={roles.map((r) => ({ id: r.id, label: r.label }))} />
+      <NewEmployeeForm
+        roles={roles.map((r) => ({
+          id: r.id,
+          label: r.label,
+          permissions: r.permissions.map((rp) => rp.permission.key),
+        }))}
+      />
     </div>
   );
 }

@@ -22,7 +22,13 @@ export type EmployeeProfile = {
   name: string;
   firstName: string;
   lastName: string;
+  roleId: string;
   roleLabel: string;
+  roleIsSystem: boolean;
+  /// Clés des permissions effectives de cette personne (via son rôle, système ou
+  /// personnalisé) — pour pré-remplir les cases à cocher "façon iOS" de l'édition des
+  /// accès (voir PermissionToggles).
+  currentPermissions: string[];
   jobTitle: string | null;
   email: string | null;
   username: string | null;

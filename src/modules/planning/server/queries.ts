@@ -26,6 +26,7 @@ import {
   type PlanningAlert,
   type PlanningDayService,
   type PlanningMember,
+  type PlanningNoteItem,
   type PlanningServiceDefinition,
   type PlanningShift,
   type ServiceObjective,
@@ -67,7 +68,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
   const rangeStart = startOfDay(weekStart);
   const rangeEnd = endOfDay(days[6]);
 
-  const [memberships, shifts, services, timeOffs, reservations, availabilities, targetRules, historicalCoversByWeekday] = await Promise.all([
+  const [memberships, shifts, services, timeOffs, reservations, availabilities, targetRules, historicalCoversByWeekday, planningNotes] = await Promise.all([
     prisma.membership.findMany({
       where: { establishmentId, status: "active" },
       include: { user: true },
@@ -90,7 +91,21 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     prisma.availability.findMany({ where: { establishmentId } }),
     prisma.schedulingRule.findMany({ where: { establishmentId, type: TARGET_SHIFTS_RULE_TYPE } }),
     getHistoricalCoversByWeekday(establishmentId, weekStart),
+    prisma.planningNote.findMany({
+      where: { establishmentId, date: { gte: rangeStart, lte: rangeEnd } },
+      include: { createdBy: { include: { user: true } } },
+      orderBy: [{ date: "asc" }, { time: "asc" }],
+    }),
   ]);
+
+  const notes: PlanningNoteItem[] = planningNotes.map((n) => ({
+    id: n.id,
+    date: toDateKey(n.date),
+    dateLabel: fullDayLabel(n.date),
+    time: n.time,
+    message: n.message,
+    createdByName: `${n.createdBy.user.firstName} ${n.createdBy.user.lastName}`,
+  }));
 
   const members: PlanningMember[] = memberships.map((m) => ({
     membershipId: m.id,
@@ -350,5 +365,6 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     availabilitiesByMember,
     absentMembershipIdsByDate,
     canEdit: ctx.can("schedule.edit"),
+    notes,
   };
 }
