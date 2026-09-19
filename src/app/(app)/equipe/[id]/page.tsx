@@ -7,6 +7,7 @@ import { RegenerateCodeButton } from "@/modules/staff/components/regenerate-code
 import { EmployeeScheduleGrid } from "@/modules/staff/components/employee-schedule-grid";
 import { EmploymentTypeSelect } from "@/modules/staff/components/employment-type-select";
 import { EditEmployeeButton } from "@/modules/staff/components/edit-employee-dialog";
+import { RemoveEmployeeButton } from "@/modules/staff/components/remove-employee-button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,21 +59,26 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
             </p>
           </div>
           {canManage && (
-            <EditEmployeeButton
-              membershipId={profile.membershipId}
-              initial={{
-                firstName: profile.firstName,
-                lastName: profile.lastName,
-                phone: profile.phone,
-                jobTitle: profile.jobTitle,
-                weeklyHoursTarget: profile.weeklyHoursTarget,
-                skills: profile.skills,
-                roleId: profile.roleId,
-                roleIsSystem: profile.roleIsSystem,
-                currentPermissions: profile.currentPermissions,
-              }}
-              roles={roles.map((r) => ({ id: r.id, label: r.label, permissions: r.permissions.map((rp) => rp.permission.key) }))}
-            />
+            <div className="flex shrink-0 items-start gap-2">
+              <EditEmployeeButton
+                membershipId={profile.membershipId}
+                initial={{
+                  firstName: profile.firstName,
+                  lastName: profile.lastName,
+                  phone: profile.phone,
+                  jobTitle: profile.jobTitle,
+                  weeklyHoursTarget: profile.weeklyHoursTarget,
+                  skills: profile.skills,
+                  roleId: profile.roleId,
+                  roleIsSystem: profile.roleIsSystem,
+                  currentPermissions: profile.currentPermissions,
+                }}
+                roles={roles.map((r) => ({ id: r.id, label: r.label, permissions: r.permissions.map((rp) => rp.permission.key) }))}
+              />
+              {profile.membershipId !== ctx.membership.id && (
+                <RemoveEmployeeButton membershipId={profile.membershipId} name={profile.firstName} />
+              )}
+            </div>
           )}
         </div>
       </div>

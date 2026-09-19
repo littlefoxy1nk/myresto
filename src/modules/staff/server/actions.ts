@@ -317,3 +317,52 @@ export async function updateEmployee(
   revalidatePath(`/equipe/${membershipId}`);
   revalidatePath("/equipe");
 }
+
+/// "Supprimer" un employé = le retirer de l'équipe active en coupant tout accès
+/// immédiatement, sans effacer son historique (shifts, congés, documents) qui reste
+/// nécessaire aux rapports RH/finances déjà produits. On ne touche donc jamais à
+/// Membership.delete (cascaderait sur Shift, TimeOffRequest, etc. — voir schema.prisma) :
+/// on passe status à "inactive" (déjà filtré partout où compte l'équipe active, ex.
+/// /equipe et getCurrentContext) ET on vide les identifiants de connexion du User, pour
+/// qu'aucune tentative de connexion ne puisse plus jamais aboutir, même avec l'ancien
+/// mot de passe/code. getCurrentContext() revérifie status="active" à chaque requête,
+/// donc une session déjà ouverte perd l'accès dès la requête suivante.
+export async function removeEmployee(membershipId: string) {
+  const ctx = await requirePermission("staff.manage");
+
+  if (membershipId === ctx.membership.id) {
+    throw new Error("Vous ne pouvez pas vous retirer vous-même de l'équipe.");
+  }
+
+  const membership = await prisma.membership.findFirst({
+    where: { id: membershipId, establishmentId: ctx.establishment.id },
+    include: { role: { include: { permissions: { include: { permission: true } } } } },
+  });
+  if (!membership) throw new Error("Employé introuvable.");
+
+  const managesStaff = membership.role.permissions.some((rp) => rp.permission.key === "staff.manage");
+  if (managesStaff) {
+    const otherManagers = await prisma.membership.count({
+      where: {
+        establishmentId: ctx.establishment.id,
+        status: "active",
+        id: { not: membershipId },
+        role: { permissions: { some: { permission: { key: "staff.manage" } } } },
+      },
+    });
+    if (otherManagers === 0) {
+      throw new Error("Impossible de retirer le dernier compte ayant accès à la gestion de l'équipe.");
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.membership.update({ where: { id: membershipId }, data: { status: "inactive" } }),
+    prisma.user.update({
+      where: { id: membership.userId },
+      data: { passwordHash: null, codeHash: null, failedLoginAttempts: 0, lockedUntil: null },
+    }),
+  ]);
+
+  revalidatePath("/equipe");
+  revalidatePath(`/equipe/${membershipId}`);
+}
