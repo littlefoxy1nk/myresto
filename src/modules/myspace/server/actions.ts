@@ -199,7 +199,9 @@ export async function uploadCertificate(formData: FormData) {
 const ChangeCodeSchema = z
   .object({
     currentCode: z.string().min(1, "Code actuel requis."),
-    newCode: z.string().regex(/^\d{4,8}$/, "Le nouveau code doit contenir entre 4 et 8 chiffres."),
+    newCode: z
+      .string()
+      .regex(/^[A-Za-z0-9]{4,8}$/, "Le nouveau code doit contenir entre 4 et 8 caractères (lettres et chiffres)."),
   });
 
 /// Un employé change son propre code — jamais celui d'un tiers (aucun membershipId en

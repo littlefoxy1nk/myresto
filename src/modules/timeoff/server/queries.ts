@@ -14,7 +14,7 @@ export async function getTimeOffRequests(establishmentId: string): Promise<{ req
   if (!ctx.can("timeoff.manage")) throw new ForbiddenError("timeoff.manage");
 
   const rows = await prisma.timeOffRequest.findMany({
-    where: { establishmentId },
+    where: { establishmentId, membership: { status: "active" } },
     include: { membership: { include: { user: true } }, documents: true },
     orderBy: [{ startDate: "desc" }],
   });

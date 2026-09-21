@@ -85,6 +85,7 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
         status: "approved",
         startDate: { lte: dayEnd },
         endDate: { gte: dayStart },
+        membership: { status: "active" },
       },
       include: { membership: { include: { user: true } } },
     }),

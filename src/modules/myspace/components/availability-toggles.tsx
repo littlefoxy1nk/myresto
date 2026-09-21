@@ -18,10 +18,12 @@ import type { MyAvailabilityService, MyDashboard } from "@/modules/myspace/types
 /// addMyOneOffAvailability), retrait libre à tout moment.
 function OneOffAvailabilitySection({
   services,
+  usualAvailabilityCells,
   currentWeekDates,
   initialOneOff,
 }: {
   services: MyAvailabilityService[];
+  usualAvailabilityCells: { dayOfWeek: number; serviceId: string }[];
   currentWeekDates: string[];
   initialOneOff: { id: string; date: string; serviceId: string }[];
 }) {
@@ -69,11 +71,19 @@ function OneOffAvailabilitySection({
 
   const entryKey = (date: string, serviceId: string) => `${date}:${serviceId}`;
   const entryByKey = new Map(entries.map((e) => [entryKey(e.date, e.serviceId), e]));
+  const usualKey = (dayOfWeek: number, serviceId: string) => `${dayOfWeek}:${serviceId}`;
+  const usualSet = new Set(usualAvailabilityCells.map((c) => usualKey(c.dayOfWeek, c.serviceId)));
 
   return (
     <div className="space-y-2">
       {currentWeekDates.map((date) => {
-        const servicesToday = services.filter((s) => s.daysOfWeek.includes(isoDayOfWeek(date)));
+        const dayOfWeek = isoDayOfWeek(date);
+        // On ne propose jamais d'ajouter un service que la personne fait déjà
+        // habituellement ce jour-là (voir usualAvailabilityCells) — l'ajout ponctuel
+        // n'a de sens que pour du "en plus", jamais pour redéclarer l'horaire habituel.
+        const servicesToday = services.filter(
+          (s) => s.daysOfWeek.includes(dayOfWeek) && !usualSet.has(usualKey(dayOfWeek, s.id))
+        );
         if (servicesToday.length === 0) return null;
         return (
           <div key={date} className="flex flex-wrap items-center gap-2">
@@ -155,7 +165,12 @@ export function AvailabilityToggles({
         <p className="text-xs text-muted-foreground">
           Ajoutez un service où vous pouvez travailler en plus de votre horaire habituel — votre manager en sera averti.
         </p>
-        <OneOffAvailabilitySection services={services} currentWeekDates={currentWeekDates} initialOneOff={oneOffAvailability} />
+        <OneOffAvailabilitySection
+          services={services}
+          usualAvailabilityCells={usualAvailabilityCells}
+          currentWeekDates={currentWeekDates}
+          initialOneOff={oneOffAvailability}
+        />
       </div>
     </div>
   );

@@ -7,11 +7,14 @@ export default async function NouvelEmployePage() {
   const ctx = await getCurrentContext();
   if (!ctx.can("staff.manage")) redirect("/equipe");
 
-  const roles = await prisma.role.findMany({
-    where: { establishmentId: ctx.establishment.id, isSystem: true },
-    include: { permissions: { include: { permission: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const [roles, serviceDefinitions] = await Promise.all([
+    prisma.role.findMany({
+      where: { establishmentId: ctx.establishment.id, isSystem: true },
+      include: { permissions: { include: { permission: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.serviceDefinition.findMany({ where: { establishmentId: ctx.establishment.id } }),
+  ]);
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -28,6 +31,7 @@ export default async function NouvelEmployePage() {
           label: r.label,
           permissions: r.permissions.map((rp) => rp.permission.key),
         }))}
+        services={serviceDefinitions.map((s) => ({ id: s.id, name: s.name, daysOfWeek: s.daysOfWeek.split(",").map(Number) }))}
       />
     </div>
   );

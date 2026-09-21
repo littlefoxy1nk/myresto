@@ -13,19 +13,10 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast-bus";
 import { CheckCircle2, ChevronDown } from "lucide-react";
 import { PermissionToggles } from "@/components/permissions/permission-toggles";
+import { SelectableServiceGrid, type AvailabilityGridService } from "@/components/availability/editable-service-grid";
 import type { PermissionKey } from "@/lib/permissions";
 
 type RoleOption = { id: string; label: string; permissions: string[] };
-
-const DAYS = [
-  { value: "1", label: "Lun" },
-  { value: "2", label: "Mar" },
-  { value: "3", label: "Mer" },
-  { value: "4", label: "Jeu" },
-  { value: "5", label: "Ven" },
-  { value: "6", label: "Sam" },
-  { value: "7", label: "Dim" },
-];
 
 /// Ce que la personne peut tenir comme poste — pas "direction", qui n'est pas un poste
 /// de service qu'on coche mais une fonction d'encadrement (voir SHIFT_POSITIONS).
@@ -46,19 +37,25 @@ const EMPTY_EMPLOYEE_VALUES: CreateEmployeeValues = {
   phone: "",
   roleId: "",
   jobTitle: "",
-  availableDays: [],
+  employmentType: "fixe",
+  usualCells: [],
   skills: [],
   permissions: [],
 };
 
 const INITIAL_STATE: CreateEmployeeState = { values: EMPTY_EMPLOYEE_VALUES, attempt: 0 };
 
-export function NewEmployeeForm({ roles }: { roles: RoleOption[] }) {
+export function NewEmployeeForm({ roles, services }: { roles: RoleOption[]; services: AvailabilityGridService[] }) {
   const [state, formAction, pending] = useActionState(createEmployee, INITIAL_STATE);
   const firstErrorFieldRef = useRef<HTMLInputElement>(null);
   const [roleId, setRoleId] = useState(state.values.roleId);
   const [permissions, setPermissions] = useState<Set<PermissionKey>>(new Set(state.values.permissions as PermissionKey[]));
   const [showPermissions, setShowPermissions] = useState(false);
+  const [employmentType, setEmploymentType] = useState<"fixe" | "flexijob">(state.values.employmentType);
+  const [usualCells, setUsualCells] = useState<Set<string>>(
+    new Set(state.values.usualCells.map((c) => `${c.dayOfWeek}:${c.serviceId}`))
+  );
+  const usualCellsMissing = employmentType === "fixe" && usualCells.size === 0;
 
   function selectRole(nextRoleId: string) {
     setRoleId(nextRoleId);
@@ -223,27 +220,52 @@ export function NewEmployeeForm({ roles }: { roles: RoleOption[] }) {
       </div>
 
       <div className="space-y-1.5">
-        <span className="text-sm font-medium">Disponibilités habituelles (optionnel)</span>
-        <div className="flex flex-wrap gap-2">
-          {DAYS.map((day) => (
+        <span className="text-sm font-medium">Type de contrat</span>
+        <div className="flex gap-2">
+          {(["fixe", "flexijob"] as const).map((type) => (
             <label
-              key={day.value}
+              key={type}
               className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:text-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent has-[:focus-visible]:ring-offset-2"
             >
               <input
-                type="checkbox"
-                name="availableDays"
-                value={day.value}
-                defaultChecked={v.availableDays.includes(day.value)}
+                type="radio"
+                name="employmentType"
+                value={type}
+                checked={employmentType === type}
+                onChange={() => setEmploymentType(type)}
                 className="sr-only"
               />
-              {day.label}
+              {type === "fixe" ? "Fixe" : "Flexijob"}
             </label>
           ))}
         </div>
       </div>
 
-      <Button type="submit" size="lg" className="w-full" disabled={pending}>
+      <div className="space-y-1.5">
+        <span className="text-sm font-medium">
+          Horaire habituel{employmentType === "flexijob" ? " (optionnel)" : ""}
+        </span>
+        <p className="text-xs text-muted-foreground">
+          {employmentType === "flexijob"
+            ? "Un point de départ, modifiable ensuite par la personne elle-même depuis son espace."
+            : "Les jours et services où cette personne travaille habituellement."}
+        </p>
+        {services.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucun service n&apos;est configuré pour cet établissement.</p>
+        ) : (
+          <SelectableServiceGrid services={services} value={usualCells} onChange={setUsualCells} />
+        )}
+        {[...usualCells].map((key) => (
+          <input key={key} type="hidden" name="usualCells" value={key} />
+        ))}
+        {usualCellsMissing && (
+          <p className="text-xs text-urgent">
+            Renseignez au moins un créneau — c&apos;est l&apos;horaire de la personne, requis sauf pour un statut flexijob.
+          </p>
+        )}
+      </div>
+
+      <Button type="submit" size="lg" className="w-full" disabled={pending || usualCellsMissing}>
         {pending ? "Création en cours…" : "Ajouter l'employé"}
       </Button>
     </form>

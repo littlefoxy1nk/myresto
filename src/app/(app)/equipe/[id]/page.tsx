@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText } from "lucide-react";
+import { formatDateRange } from "@/lib/utils";
 
 const TIMEOFF_STATUS_LABEL: Record<string, string> = { pending: "En attente", approved: "Acceptée", rejected: "Refusée" };
 const TIMEOFF_STATUS_VARIANT: Record<string, "watch" | "good" | "neutral"> = {
@@ -19,11 +20,6 @@ const TIMEOFF_STATUS_VARIANT: Record<string, "watch" | "good" | "neutral"> = {
   approved: "good",
   rejected: "neutral",
 };
-
-function formatPeriod(startDate: string, endDate: string) {
-  const format = (d: string) => new Intl.DateTimeFormat("fr-BE", { day: "numeric", month: "short" }).format(new Date(`${d}T00:00:00`));
-  return startDate === endDate ? format(startDate) : `${format(startDate)} – ${format(endDate)}`;
-}
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -158,7 +154,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           <div className="space-y-2">
             {profile.timeOffRequests.map((r) => (
               <Card key={r.id} className="flex flex-wrap items-center gap-2 p-3">
-                <span className="text-sm">{formatPeriod(r.startDate, r.endDate)}</span>
+                <span className="text-sm">{formatDateRange(r.startDate, r.endDate)}</span>
                 {r.kind === "maladie" && <Badge variant="urgent">Maladie</Badge>}
                 <Badge variant={TIMEOFF_STATUS_VARIANT[r.status]}>{TIMEOFF_STATUS_LABEL[r.status]}</Badge>
                 {r.reason && <span className="text-xs text-muted-foreground">· {r.reason}</span>}

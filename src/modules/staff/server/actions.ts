@@ -17,6 +17,7 @@ const CreateEmployeeSchema = z.object({
   phone: z.string().optional(),
   roleId: z.string().min(1, "Choisissez un rôle."),
   jobTitle: z.string().optional(),
+  employmentType: z.enum(["fixe", "flexijob"]).default("fixe"),
 });
 
 export type CreateEmployeeValues = {
@@ -26,7 +27,8 @@ export type CreateEmployeeValues = {
   phone: string;
   roleId: string;
   jobTitle: string;
-  availableDays: string[];
+  employmentType: "fixe" | "flexijob";
+  usualCells: { dayOfWeek: number; serviceId: string }[];
   skills: string[];
   permissions: string[];
 };
@@ -44,7 +46,17 @@ export type CreateEmployeeState = {
 // client de façon silencieuse (pas d'erreur de build). Les valeurs par défaut du
 // formulaire vivent donc dans le composant client (new-employee-form.tsx).
 
+function parseCellKeys(raw: string[]): { dayOfWeek: number; serviceId: string }[] {
+  return raw.flatMap((key) => {
+    const [dayPart, serviceId] = key.split(":");
+    const dayOfWeek = Number(dayPart);
+    if (!serviceId || !(dayOfWeek >= 1 && dayOfWeek <= 7)) return [];
+    return [{ dayOfWeek, serviceId }];
+  });
+}
+
 function valuesFromFormData(formData: FormData): CreateEmployeeValues {
+  const employmentType = formData.get("employmentType") === "flexijob" ? "flexijob" : "fixe";
   return {
     firstName: String(formData.get("firstName") ?? ""),
     lastName: String(formData.get("lastName") ?? ""),
@@ -52,7 +64,8 @@ function valuesFromFormData(formData: FormData): CreateEmployeeValues {
     phone: String(formData.get("phone") ?? ""),
     roleId: String(formData.get("roleId") ?? ""),
     jobTitle: String(formData.get("jobTitle") ?? ""),
-    availableDays: formData.getAll("availableDays").map(String),
+    employmentType,
+    usualCells: parseCellKeys(formData.getAll("usualCells").map(String)),
     skills: formData.getAll("skills").map(String),
     permissions: formData.getAll("permissions").map(String),
   };
@@ -112,6 +125,30 @@ export async function createEmployee(
     };
   }
 
+  // L'horaire habituel N'EST optionnel que pour un statut flexijob (la personne le
+  // déclare elle-même ensuite, voir myspace/server/actions.ts) — pour un statut fixe,
+  // c'est le seul endroit où le manager le renseigne, donc on ne crée jamais une fiche
+  // "fixe" avec un horaire vide (déjà bloqué côté client, revalidé ici).
+  if (data.employmentType === "fixe" && values.usualCells.length === 0) {
+    return {
+      error: "Renseignez l'horaire habituel — requis sauf pour un statut flexijob.",
+      values,
+      attempt,
+    };
+  }
+
+  const validCells =
+    values.usualCells.length > 0
+      ? await (async () => {
+          const serviceIds = [...new Set(values.usualCells.map((c) => c.serviceId))];
+          const services = await prisma.serviceDefinition.findMany({
+            where: { id: { in: serviceIds }, establishmentId: ctx.establishment.id },
+          });
+          const validServiceIds = new Set(services.map((s) => s.id));
+          return values.usualCells.filter((c) => validServiceIds.has(c.serviceId));
+        })()
+      : [];
+
   if (email) {
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -149,6 +186,7 @@ export async function createEmployee(
       roleId: role.id,
       jobTitle: data.jobTitle || null,
       hiredAt: new Date(),
+      employmentType: data.employmentType,
       skills: validSkills.length > 0 ? validSkills.join(",") : null,
     },
   });
@@ -164,14 +202,14 @@ export async function createEmployee(
     await resolveAndAssignRole(ctx.establishment.id, membership.id, role.id, values.permissions as PermissionKey[]);
   }
 
-  const days = values.availableDays.map(Number).filter((d) => d >= 1 && d <= 7);
-  if (days.length > 0) {
+  if (validCells.length > 0) {
     await prisma.availability.createMany({
-      data: days.map((dayOfWeek) => ({
+      data: validCells.map(({ dayOfWeek, serviceId }) => ({
         establishmentId: ctx.establishment.id,
         membershipId: membership.id,
         dayOfWeek,
         kind: "preferred",
+        serviceId,
       })),
     });
   }
@@ -179,7 +217,18 @@ export async function createEmployee(
   revalidatePath("/equipe");
 
   return {
-    values: { firstName: "", lastName: "", email: "", phone: "", roleId: "", jobTitle: "", availableDays: [], skills: [], permissions: [] },
+    values: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      roleId: "",
+      jobTitle: "",
+      employmentType: "fixe",
+      usualCells: [],
+      skills: [],
+      permissions: [],
+    },
     attempt,
     success: { name: `${data.firstName} ${data.lastName}`, username, code },
   };

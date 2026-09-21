@@ -11,7 +11,7 @@ import { NotificationsList } from "@/modules/myspace/components/notifications-li
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, CalendarDays } from "lucide-react";
-import { toDateKey } from "@/lib/utils";
+import { toDateKey, formatDateRange } from "@/lib/utils";
 
 const TIMEOFF_STATUS_LABEL: Record<string, string> = { pending: "En attente", approved: "Acceptée", rejected: "Refusée" };
 const TIMEOFF_STATUS_VARIANT: Record<string, "watch" | "good" | "neutral"> = {
@@ -19,11 +19,6 @@ const TIMEOFF_STATUS_VARIANT: Record<string, "watch" | "good" | "neutral"> = {
   approved: "good",
   rejected: "neutral",
 };
-
-function formatPeriod(startDate: string, endDate: string) {
-  const format = (d: string) => new Intl.DateTimeFormat("fr-BE", { day: "numeric", month: "short" }).format(new Date(`${d}T00:00:00`));
-  return startDate === endDate ? format(startDate) : `${format(startDate)} – ${format(endDate)}`;
-}
 
 export default async function MonEspacePage() {
   const ctx = await getCurrentContext();
@@ -130,7 +125,7 @@ export default async function MonEspacePage() {
           <div className="space-y-2">
             {data.timeOffRequests.map((r) => (
               <Card key={r.id} className="flex flex-wrap items-center gap-2 p-3">
-                <span className="text-sm">{formatPeriod(r.startDate, r.endDate)}</span>
+                <span className="text-sm">{formatDateRange(r.startDate, r.endDate)}</span>
                 {r.kind === "maladie" && <Badge variant="urgent">Maladie</Badge>}
                 <Badge variant={TIMEOFF_STATUS_VARIANT[r.status]}>{TIMEOFF_STATUS_LABEL[r.status]}</Badge>
                 {r.reason && <span className="text-xs text-muted-foreground">· {r.reason}</span>}
@@ -148,11 +143,12 @@ export default async function MonEspacePage() {
       {/* Mes disponibilités */}
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Mes disponibilités</h2>
-        <p className="text-sm text-muted-foreground">
-          {data.employmentType === "flexijob"
-            ? "Déclarez les services où vous travaillez habituellement — votre manager en est informé à chaque changement."
-            : "Votre horaire habituel est déclaré par votre manager. Vous pouvez ajouter une disponibilité en plus pour cette semaine."}
-        </p>
+        {data.employmentType === "flexijob" && (
+          <p className="text-sm text-muted-foreground">
+            Déclarez les services où vous travaillez habituellement — votre manager en est informé à chaque
+            changement.
+          </p>
+        )}
         <AvailabilityToggles
           employmentType={data.employmentType}
           services={data.availabilityServices}
