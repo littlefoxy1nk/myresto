@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast-bus";
 import { setStaffingRequirement, generateWeekSchedule } from "@/modules/planning/server/actions";
-import { SHIFT_POSITION_LABELS, type PlanningServiceDefinition, type ShiftPosition, type StaffingRequirementCell } from "@/modules/planning/types";
+import {
+  SHIFT_POSITION_LABELS,
+  STAFFABLE_POSITIONS,
+  type PlanningServiceDefinition,
+  type ShiftPosition,
+  type StaffingRequirementCell,
+} from "@/modules/planning/types";
 
 const DAYS = [
   { value: 1, label: "Lun" },
@@ -18,8 +24,6 @@ const DAYS = [
   { value: 6, label: "Sam" },
   { value: 7, label: "Dim" },
 ];
-
-const STAFFABLE_POSITIONS: ShiftPosition[] = ["salle", "bar", "cuisine", "plonge"];
 
 function cellKey(dayOfWeek: number, serviceId: string, position: ShiftPosition) {
   return `${dayOfWeek}|${serviceId}|${position}`;

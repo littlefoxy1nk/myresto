@@ -12,6 +12,7 @@ import {
   computeRhAlerts,
   computeServiceObjective,
   computeServiceObjectiveAlerts,
+  computeStaffingGapAlerts,
   computeWeekSummaryParts,
   computeWeeklyLimitAlerts,
   evaluateShift,
@@ -21,8 +22,10 @@ import {
 } from "@/modules/planning/compute";
 import {
   SHIFT_POSITIONS,
+  STAFFABLE_POSITIONS,
   TARGET_SHIFTS_RULE_TYPE,
   type AvailabilityRow,
+  type CoverageRequestItem,
   type ObjectiveExclusion,
   type PlanningAlert,
   type PlanningDayService,
@@ -33,6 +36,7 @@ import {
   type ServiceObjective,
   type ShiftConflictLevel,
   type ShiftPosition,
+  type StaffingGapSlot,
   type StaffingRequirementCell,
   type WeekPlanningResult,
 } from "@/modules/planning/types";
@@ -72,7 +76,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
   const rangeStart = startOfDay(weekStart);
   const rangeEnd = endOfDay(days[6]);
 
-  const [memberships, shifts, services, timeOffs, reservations, availabilities, targetRules, historicalCoversByWeekday, planningNotes, requirementRows] = await Promise.all([
+  const [memberships, shifts, services, timeOffs, reservations, availabilities, targetRules, historicalCoversByWeekday, planningNotes, requirementRows, coverageRequestRows] = await Promise.all([
     prisma.membership.findMany({
       where: { establishmentId, status: "active" },
       include: { user: true },
@@ -108,6 +112,11 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
       orderBy: [{ date: "asc" }, { time: "asc" }],
     }),
     prisma.staffingRequirement.findMany({ where: { establishmentId, requiredCount: { gt: 0 } } }),
+    prisma.coverageRequest.findMany({
+      where: { establishmentId, date: { gte: rangeStart, lte: rangeEnd } },
+      include: { membership: { include: { user: true } }, service: true },
+      orderBy: { date: "asc" },
+    }),
   ]);
 
   const notes: PlanningNoteItem[] = planningNotes.map((n) => ({
@@ -139,6 +148,20 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     serviceId: r.serviceId,
     position: r.position as ShiftPosition,
     requiredCount: r.requiredCount,
+  }));
+
+  const coverageRequests: CoverageRequestItem[] = coverageRequestRows.map((r) => ({
+    id: r.id,
+    membershipId: r.membershipId,
+    memberName: `${r.membership.user.firstName} ${r.membership.user.lastName}`,
+    date: toDateKey(r.date),
+    dateLabel: fullDayLabel(r.date),
+    serviceId: r.serviceId,
+    serviceName: r.service?.name ?? null,
+    startTime: r.startTime,
+    endTime: r.endTime,
+    position: r.position as ShiftPosition,
+    status: r.status as CoverageRequestItem["status"],
   }));
 
   const weekDays = days.map(toDateKey);
@@ -359,11 +382,32 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     }
   }
 
+  // Creux par rapport aux besoins en personnel déclarés (StaffingRequirement) — un
+  // (jour, service, poste) par entrée, jamais déduit de la fréquentation (voir
+  // computePlanningAlerts, qui répond à une question différente). Les shifts déjà en
+  // brouillon ("planned") comptent déjà comme couverture : le manager qui les voit sait
+  // qu'il reste à les publier, ce n'est pas un creux à combler une seconde fois.
+  const staffingGapSlots: StaffingGapSlot[] = [];
+  for (const d of days) {
+    const isoDay = isoWeekday(d);
+    const dateKey = toDateKey(d);
+    const servicesToday = services.filter((s) => s.daysOfWeek.split(",").map(Number).includes(isoDay));
+    for (const service of servicesToday) {
+      for (const position of STAFFABLE_POSITIONS) {
+        const required = requirements.find((r) => r.dayOfWeek === isoDay && r.serviceId === service.id && r.position === position)?.requiredCount ?? 0;
+        if (required <= 0) continue;
+        const assigned = planningShifts.filter((s) => s.date === dateKey && s.serviceId === service.id && s.position === position).length;
+        staffingGapSlots.push({ date: dateKey, dateLabel: dayLabel(d), serviceId: service.id, serviceName: service.name, position, required, assigned });
+      }
+    }
+  }
+
   const alerts: PlanningAlert[] = [
     ...computeRhAlerts(planningShifts, members, dayLabels),
     ...computeWeeklyLimitAlerts(members, shiftsCountByMember),
     ...computeServiceObjectiveAlerts(members, objectivesByMember),
     ...computePlanningAlerts(dayServices),
+    ...computeStaffingGapAlerts(staffingGapSlots),
   ].sort((a, b) => {
     const rank: Record<PlanningAlert["severity"], number> = { urgent: 0, important: 1, watch: 2 };
     return rank[a.severity] - rank[b.severity];
@@ -392,5 +436,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     canEdit: canEditSchedule,
     notes,
     requirements,
+    staffingGaps: staffingGapSlots,
+    coverageRequests,
   };
 }

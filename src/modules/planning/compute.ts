@@ -1,4 +1,5 @@
 import { timeToMinutes } from "@/lib/time";
+import { SHIFT_POSITION_LABELS } from "./types";
 import type {
   AvailabilityRow,
   ObjectiveExclusion,
@@ -11,6 +12,7 @@ import type {
   ShiftConflictLevel,
   ShiftPosition,
   ShiftWarning,
+  StaffingGapSlot,
 } from "./types";
 
 /// Fonctions métier pures du Planning — aucun accès base de données. C'est le même
@@ -258,6 +260,28 @@ export function computePlanningAlerts(dayServices: PlanningDayService[]): Planni
         description: `${ds.serviceName} · ${ds.dateLabel} — ${ds.covers} couvert${ds.covers > 1 ? "s" : ""} prévu${ds.covers > 1 ? "s" : ""}.`,
       });
     }
+  }
+
+  return sortAlerts(alerts);
+}
+
+/// Un creux par rapport aux besoins en personnel déclarés (StaffingRequirement), pas par
+/// rapport à la fréquentation — volontairement distinct de computePlanningAlerts
+/// ci-dessus (qui répond à une question différente : "y a-t-il de la demande sans
+/// personne"). Toujours urgent : un besoin que le manager a lui-même chiffré et qui
+/// n'est pas couvert est un fait, jamais une estimation.
+export function computeStaffingGapAlerts(slots: StaffingGapSlot[]): PlanningAlert[] {
+  const alerts: PlanningAlert[] = [];
+
+  for (const slot of slots) {
+    const missing = slot.required - slot.assigned;
+    if (missing <= 0) continue;
+    alerts.push({
+      id: `staffing-gap-${slot.date}-${slot.serviceId}-${slot.position}`,
+      severity: "urgent",
+      title: `Il manque ${missing} ${SHIFT_POSITION_LABELS[slot.position].toLowerCase()}${missing > 1 ? "s" : ""} — ${slot.serviceName}`,
+      description: `${slot.dateLabel} · ${slot.assigned}/${slot.required} couvert${slot.assigned > 1 ? "s" : ""}`,
+    });
   }
 
   return sortAlerts(alerts);

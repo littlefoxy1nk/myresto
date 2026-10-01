@@ -9,6 +9,7 @@ import {
   checkAvailability,
   occurrenceAvailabilities,
   computeServiceObjective,
+  computeStaffingGapAlerts,
   computeWeekSummaryParts,
   generateScheduleAssignments,
   isGeneratorEligible,
@@ -290,6 +291,29 @@ test("computeWeekSummaryParts never mentions an objective that is already attein
   };
   const parts = computeWeekSummaryParts([], members, { m1: objective });
   assert.deepEqual(parts, []);
+});
+
+test("computeStaffingGapAlerts flags a slot that is short on staff", () => {
+  const alerts = computeStaffingGapAlerts([
+    { date: "2026-09-21", dateLabel: "Lun. 21 sept.", serviceId: "dinner", serviceName: "Dîner", position: "salle", required: 3, assigned: 1 },
+  ]);
+  assert.equal(alerts.length, 1);
+  assert.equal(alerts[0].severity, "urgent");
+  assert.match(alerts[0].title, /manque 2 salles?/);
+});
+
+test("computeStaffingGapAlerts says nothing about a fully covered slot", () => {
+  const alerts = computeStaffingGapAlerts([
+    { date: "2026-09-21", dateLabel: "Lun. 21 sept.", serviceId: "dinner", serviceName: "Dîner", position: "salle", required: 2, assigned: 2 },
+  ]);
+  assert.deepEqual(alerts, []);
+});
+
+test("computeStaffingGapAlerts says nothing when a slot is over-covered", () => {
+  const alerts = computeStaffingGapAlerts([
+    { date: "2026-09-21", dateLabel: "Lun. 21 sept.", serviceId: "dinner", serviceName: "Dîner", position: "salle", required: 1, assigned: 3 },
+  ]);
+  assert.deepEqual(alerts, []);
 });
 
 const genShift = { startTime: "18:00", endTime: "23:00", serviceId: "dinner" };

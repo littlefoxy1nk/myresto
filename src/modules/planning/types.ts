@@ -23,6 +23,11 @@ export const SHIFT_POSITION_LABELS: Record<ShiftPosition, string> = {
 /// Regroupement en 2 zones pour l'affichage double du planning (voir
 /// PlanningZoneTabs) — "direction" n'appartient à aucune des deux, volontairement :
 /// ce n'est pas un poste de service, il reste visible uniquement dans la vue "Tous".
+/// Postes qu'on dimensionne et qu'on peut vraiment assigner à quelqu'un via ses
+/// compétences — jamais "direction", qui n'est pas une compétence qu'on coche (voir
+/// new-employee-form.tsx) ni un poste de service qu'on planifie en masse.
+export const STAFFABLE_POSITIONS = SHIFT_POSITIONS.filter((p): p is Exclude<ShiftPosition, "direction"> => p !== "direction");
+
 export const SHIFT_ZONES = ["salle", "cuisine"] as const;
 export type ShiftZone = (typeof SHIFT_ZONES)[number];
 export const SHIFT_ZONE_LABELS: Record<ShiftZone, string> = { salle: "Salle", cuisine: "Cuisine" };
@@ -186,6 +191,27 @@ export type WeekPlanningResult = {
   /// Besoins en personnel par (jour, service, poste) — seulement les combinaisons avec
   /// au moins une personne requise ; absent côté employé (jamais montré hors édition).
   requirements: StaffingRequirementCell[];
+  /// Un par (jour, service, poste) qui a un besoin déclaré, couvert ou non — sert au
+  /// liseré rouge sur la grille ; computeStaffingGapAlerts n'en garde que les creux.
+  staffingGaps: StaffingGapSlot[];
+  /// Demandes de renfort en cours sur la semaine affichée (voir CoverageRequest) —
+  /// manager : pour savoir qui a déjà été sollicité·e et montrer où ça en est ; employé :
+  /// jamais exposé ici (voir myspace/types.ts pour ses propres demandes à traiter).
+  coverageRequests: CoverageRequestItem[];
+};
+
+export type CoverageRequestItem = {
+  id: string;
+  membershipId: string;
+  memberName: string;
+  date: string;
+  dateLabel: string;
+  serviceId: string | null;
+  serviceName: string | null;
+  startTime: string;
+  endTime: string;
+  position: ShiftPosition;
+  status: "pending" | "accepted" | "declined";
 };
 
 /// Combien de personnes il faut à un (jour, service, poste) donné — voir
@@ -196,6 +222,19 @@ export type StaffingRequirementCell = {
   serviceId: string;
   position: ShiftPosition;
   requiredCount: number;
+};
+
+/// Un (jour, service, poste) confronté à ce qui est réellement couvert — voir
+/// computeStaffingGapAlerts (compute.ts) et le liseré rouge affiché directement sur la
+/// grille (planning-app.tsx) quand assigned < required.
+export type StaffingGapSlot = {
+  date: string;
+  dateLabel: string;
+  serviceId: string;
+  serviceName: string;
+  position: ShiftPosition;
+  required: number;
+  assigned: number;
 };
 
 export type PlanningNoteItem = {

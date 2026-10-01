@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { addDays, format } from "date-fns";
-import { ChevronLeft, ChevronRight, Copy, Megaphone, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Megaphone, Plus, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast-bus";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { StaffingRequirementsPanel } from "@/modules/planning/components/staffin
 import { FrequentationSummary } from "@/modules/planning/components/frequentation-summary";
 import { ShiftFormDialog, type ShiftFormValues } from "@/modules/planning/components/shift-form-dialog";
 import { ObjectiveDialog } from "@/modules/planning/components/objective-dialog";
+import { RequestCoverageDialog } from "@/modules/planning/components/request-coverage-dialog";
 import { createShift, updateShift, deleteShift, duplicateWeek, publishWeekSchedule } from "@/modules/planning/server/actions";
 import { SHIFT_POSITION_LABELS, POSITIONS_BY_ZONE } from "@/modules/planning/types";
 import { PlanningZoneTabs, type PlanningZoneFilter } from "@/modules/planning/components/planning-zone-tabs";
@@ -87,6 +88,15 @@ export function PlanningApp({
   const [publishing, setPublishing] = useState(false);
   const draftCount = data.shifts.filter((s) => s.status === "planned").length;
   const [objectiveFor, setObjectiveFor] = useState<PlanningMember | null>(null);
+  const [coverageRequestFor, setCoverageRequestFor] = useState<{
+    date: string;
+    dateLabel: string;
+    serviceId: string | null;
+    serviceName: string | null;
+    startTime: string;
+    endTime: string;
+    initialPosition: ShiftPosition;
+  } | null>(null);
   const [zone, setZone] = useState<PlanningZoneFilter>("tous");
   const activeDayTabRef = useRef<HTMLButtonElement>(null);
 
@@ -122,6 +132,23 @@ export function PlanningApp({
     ...data.services.map((s) => ({ id: s.id, name: s.name, time: `${s.startTime}–${s.endTime}`, daysOfWeek: s.daysOfWeek })),
     ...(hasUnassignedServiceShifts ? [{ id: "none", name: "Sans service", time: null, daysOfWeek: null }] : []),
   ];
+
+  // Creux de personnel (voir computeStaffingGapAlerts) et demandes de renfort en cours,
+  // indexés par (jour, service) pour un lookup direct depuis chaque cellule de la grille.
+  const gapsByDateService = new Map<string, typeof data.staffingGaps>();
+  for (const g of data.staffingGaps) {
+    const key = `${g.date}|${g.serviceId}`;
+    const list = gapsByDateService.get(key) ?? [];
+    list.push(g);
+    gapsByDateService.set(key, list);
+  }
+  const coverageRequestsByDateService = new Map<string, typeof data.coverageRequests>();
+  for (const r of data.coverageRequests) {
+    const key = `${r.date}|${r.serviceId ?? "none"}`;
+    const list = coverageRequestsByDateService.get(key) ?? [];
+    list.push(r);
+    coverageRequestsByDateService.set(key, list);
+  }
 
   async function guarded(action: () => Promise<unknown>, successMessage?: string) {
     try {
@@ -241,8 +268,21 @@ export function PlanningApp({
       return <div className="flex min-h-[3rem] items-center justify-center text-muted-foreground">—</div>;
     }
     const shifts = shiftsByDateService.get(`${date}|${serviceId}`) ?? [];
+    const gaps = (gapsByDateService.get(`${date}|${serviceId}`) ?? []).filter((g) => g.assigned < g.required);
+    const pendingRequests = (coverageRequestsByDateService.get(`${date}|${serviceId}`) ?? []).filter((r) => r.status === "pending");
+    const service = serviceRows.find((sr) => sr.id === serviceId);
     return (
       <div className="flex min-h-[3rem] flex-col gap-1">
+        {gaps.map((g) => (
+          <div key={g.position} className="rounded-lg border border-urgent bg-urgent-soft px-2 py-1 text-[11px] font-medium text-urgent">
+            Manque {g.required - g.assigned} {SHIFT_POSITION_LABELS[g.position as keyof typeof SHIFT_POSITION_LABELS]?.toLowerCase() ?? g.position}
+          </div>
+        ))}
+        {pendingRequests.map((r) => (
+          <div key={r.id} className="truncate rounded-lg border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground">
+            En attente : {r.memberName.split(" ")[0]}
+          </div>
+        ))}
         {shifts.map((s) => {
           const member = memberById.get(s.membershipId);
           const isDraft = s.status === "planned";
@@ -292,15 +332,38 @@ export function PlanningApp({
             </div>
           );
         })}
-        {shifts.length === 0 && !data.canEdit && <span className="m-auto text-muted-foreground">—</span>}
+        {shifts.length === 0 && !data.canEdit && pendingRequests.length === 0 && <span className="m-auto text-muted-foreground">—</span>}
         {data.canEdit && (
-          <button
-            onClick={() => setDialog({ mode: "create", membershipId: "", date, serviceId: serviceId === "none" ? null : serviceId })}
-            aria-label="Ajouter un shift"
-            className="flex items-center justify-center rounded-lg border border-dashed border-border py-1.5 text-muted-foreground outline-none transition-colors hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <Plus size={13} aria-hidden="true" />
-          </button>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setDialog({ mode: "create", membershipId: "", date, serviceId: serviceId === "none" ? null : serviceId })}
+              aria-label="Ajouter un shift"
+              title="Ajouter directement"
+              className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border py-1.5 text-muted-foreground outline-none transition-colors hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <Plus size={13} aria-hidden="true" />
+            </button>
+            {service && service.id !== "none" && (
+              <button
+                onClick={() =>
+                  setCoverageRequestFor({
+                    date,
+                    dateLabel: data.dayLabels[date] ?? date,
+                    serviceId: service.id,
+                    serviceName: service.name,
+                    startTime: service.time?.split("–")[0] ?? "18:00",
+                    endTime: service.time?.split("–")[1] ?? "23:00",
+                    initialPosition: (gaps[0]?.position as ShiftPosition) ?? "salle",
+                  })
+                }
+                aria-label="Demander un renfort"
+                title="Demander un renfort à quelqu'un"
+                className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border py-1.5 text-muted-foreground outline-none transition-colors hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <UserPlus size={13} aria-hidden="true" />
+              </button>
+            )}
+          </div>
         )}
       </div>
     );
@@ -531,6 +594,21 @@ export function PlanningApp({
           membershipId={objectiveFor.membershipId}
           memberName={`${objectiveFor.firstName} ${objectiveFor.lastName}`}
           currentTarget={data.objectivesByMember[objectiveFor.membershipId]?.target ?? null}
+        />
+      )}
+      {coverageRequestFor && (
+        <RequestCoverageDialog
+          open
+          onOpenChange={(o) => !o && setCoverageRequestFor(null)}
+          members={data.members}
+          allShifts={data.shifts}
+          date={coverageRequestFor.date}
+          dateLabel={coverageRequestFor.dateLabel}
+          serviceId={coverageRequestFor.serviceId}
+          serviceName={coverageRequestFor.serviceName}
+          startTime={coverageRequestFor.startTime}
+          endTime={coverageRequestFor.endTime}
+          initialPosition={coverageRequestFor.initialPosition}
         />
       )}
     </div>

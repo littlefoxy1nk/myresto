@@ -96,4 +96,17 @@ export type MyDashboard = {
   /// calculées côté serveur — pour proposer les bons jours à l'ajout ponctuel sans
   /// recalculer "aujourd'hui" côté client (fuseau horaire, horloge).
   currentWeekDates: string[];
+  /// Demandes de renfort du manager en attente de réponse — voir CoverageRequest. Jamais
+  /// un shift tant que la personne n'a pas répondu oui (voir respondToCoverageRequest).
+  coverageRequests: MyCoverageRequest[];
+};
+
+export type MyCoverageRequest = {
+  id: string;
+  date: string;
+  dateLabel: string;
+  serviceName: string | null;
+  startTime: string;
+  endTime: string;
+  position: string;
 };

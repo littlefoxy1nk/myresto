@@ -75,6 +75,7 @@ model Establishment {
   replacementRequests ReplacementRequest[]
   planningNotes   PlanningNote[]
   staffingRequirements StaffingRequirement[]
+  coverageRequests CoverageRequest[]
 }
 
 /// Deux moyens de connexion indépendants, chacun optionnel — mais un utilisateur doit
@@ -142,6 +143,8 @@ model Membership {
   replacementsResolvedFor ReplacementRequest[] @relation("ReplacementResolvedFor")
   replacementVolunteers   ReplacementVolunteer[]
   planningNotesCreated    PlanningNote[]
+  coverageRequestsReceived CoverageRequest[] @relation("CoverageRequestTarget")
+  coverageRequestsMade     CoverageRequest[] @relation("CoverageRequestedBy")
 
   @@unique([userId, establishmentId])
 }
@@ -242,6 +245,32 @@ model ServiceDefinition {
   reservations    Reservation[]
   availabilities  Availability[]
   staffingRequirements StaffingRequirement[]
+  coverageRequests CoverageRequest[]
+}
+
+/// Demande ponctuelle du manager à UNE personne précise qui n'est PAS planifiée ce
+/// jour-là ("tu peux faire jeudi soir ?") — jamais un remplacement (qui part d'un shift
+/// déjà existant que son titulaire ne peut plus assurer, voir ReplacementRequest) : ici
+/// il n'y a encore aucun shift, juste un creux constaté (voir computeStaffingGapAlerts,
+/// planning/compute.ts). Un "oui" crée le shift à ce moment-là seulement ; un "non" n'en
+/// crée aucun — jamais assigné d'office.
+model CoverageRequest {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  membershipId    String
+  membership      Membership    @relation("CoverageRequestTarget", fields: [membershipId], references: [id], onDelete: Cascade)
+  requestedById   String
+  requestedBy     Membership    @relation("CoverageRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+  date            DateTime
+  serviceId       String?
+  service         ServiceDefinition? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  startTime       String
+  endTime         String
+  position        String
+  status          String        @default("pending") // pending | accepted | declined
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }
 
 /// Combien de personnes il faut à un (jour, service, poste) donné — la cible que le

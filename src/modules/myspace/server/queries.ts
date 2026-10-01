@@ -4,7 +4,7 @@ import { getCurrentContext } from "@/lib/current-context";
 import { toDateKey } from "@/lib/utils";
 import { TARGET_SHIFTS_RULE_TYPE } from "@/modules/planning/types";
 import { getMyReplacementOpportunities } from "@/modules/replacement/server/queries";
-import type { MyAvailabilityService, MyDashboard, MyShift, MyTimeOffRequest, MyNotification } from "@/modules/myspace/types";
+import type { MyAvailabilityService, MyCoverageRequest, MyDashboard, MyShift, MyTimeOffRequest, MyNotification } from "@/modules/myspace/types";
 
 function fullDayLabel(d: Date): string {
   const label = new Intl.DateTimeFormat("fr-BE", { weekday: "long", day: "numeric", month: "long" }).format(d);
@@ -24,7 +24,7 @@ export async function getMyDashboard(): Promise<MyDashboard> {
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
 
-  const [shifts, rule, timeOffRows, notificationRows, serviceDefinitions, usualAvailabilityRows, oneOffRows, openReplacementRequests, replacementOpportunities] =
+  const [shifts, rule, timeOffRows, notificationRows, serviceDefinitions, usualAvailabilityRows, oneOffRows, openReplacementRequests, replacementOpportunities, coverageRequestRows] =
     await Promise.all([
       prisma.shift.findMany({
         // "planned" = brouillon pas encore publié (voir publishWeekSchedule) — jamais
@@ -59,6 +59,11 @@ export async function getMyDashboard(): Promise<MyDashboard> {
         select: { shiftId: true },
       }),
       getMyReplacementOpportunities(),
+      prisma.coverageRequest.findMany({
+        where: { membershipId, status: "pending" },
+        include: { service: true },
+        orderBy: { date: "asc" },
+      }),
     ]);
 
   const openReplacementShiftIds = new Set(openReplacementRequests.map((r) => r.shiftId));
@@ -135,6 +140,17 @@ export async function getMyDashboard(): Promise<MyDashboard> {
     usualAvailabilityCells: usualAvailabilityRows.map((r) => ({ dayOfWeek: r.dayOfWeek, serviceId: r.serviceId! })),
     oneOffAvailability: oneOffRows.map((r) => ({ id: r.id, date: toDateKey(r.date!), serviceId: r.serviceId! })),
     currentWeekDates: Array.from({ length: 7 }, (_, i) => toDateKey(addDays(weekStart, i))),
+    coverageRequests: coverageRequestRows.map(
+      (r): MyCoverageRequest => ({
+        id: r.id,
+        date: toDateKey(r.date),
+        dateLabel: fullDayLabel(r.date),
+        serviceName: r.service?.name ?? null,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        position: r.position,
+      })
+    ),
   };
 }
 

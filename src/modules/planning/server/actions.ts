@@ -4,12 +4,12 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { addDays, differenceInCalendarDays, endOfDay, startOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/current-context";
+import { getCurrentContext, requirePermission } from "@/lib/current-context";
 import { toDateKey } from "@/lib/utils";
 import { isoWeekday } from "@/lib/time";
 import { notifyMember } from "@/modules/myspace/server/notify";
 import { generateScheduleAssignments, isGeneratorEligible, occurrenceAvailabilities, type GeneratorMember, type GeneratorSlot } from "@/modules/planning/compute";
-import { SHIFT_POSITIONS, TARGET_SHIFTS_RULE_TYPE, type AvailabilityRow, type ShiftPosition } from "@/modules/planning/types";
+import { SHIFT_POSITIONS, STAFFABLE_POSITIONS, TARGET_SHIFTS_RULE_TYPE, type AvailabilityRow, type ShiftPosition } from "@/modules/planning/types";
 
 function formatShiftDayLabel(date: Date): string {
   const label = new Intl.DateTimeFormat("fr-BE", { weekday: "long", day: "numeric", month: "long" }).format(date);
@@ -256,9 +256,6 @@ export async function deletePlanningNote(id: string) {
   revalidatePlanningPaths();
 }
 
-/// Postes qu'on dimensionne réellement — jamais "direction", qui n'est pas un poste de
-/// service qu'une personne coche dans ses compétences (voir SHIFT_ZONES).
-const STAFFABLE_POSITIONS = SHIFT_POSITIONS.filter((p) => p !== "direction") as Exclude<ShiftPosition, "direction">[];
 
 const StaffingRequirementSchema = z.object({
   dayOfWeek: z.number().int().min(1).max(7),
@@ -486,4 +483,109 @@ export async function publishWeekSchedule(weekStart: string) {
 
   revalidatePlanningPaths();
   return draftShifts.length;
+}
+
+const CoverageRequestSchema = z.object({
+  membershipId: z.string().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  serviceId: z.string().min(1).nullable(),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  position: z.enum(STAFFABLE_POSITIONS as [ShiftPosition, ...ShiftPosition[]]),
+});
+
+/// Demande ciblée à UNE personne qui n'est pas planifiée ce créneau-là ("tu peux faire
+/// jeudi soir ?") — jamais une assignation directe : ça crée une CoverageRequest, pas un
+/// Shift. La personne décide elle-même (voir respondToCoverageRequest) ; rien n'apparaît
+/// sur son planning tant qu'elle n'a pas dit oui.
+export async function requestCoverage(input: z.infer<typeof CoverageRequestSchema>) {
+  const ctx = await requirePermission("schedule.edit");
+  const data = CoverageRequestSchema.parse(input);
+
+  const membership = await prisma.membership.findFirst({
+    where: { id: data.membershipId, establishmentId: ctx.establishment.id, status: "active" },
+  });
+  if (!membership) throw new Error("Employé introuvable.");
+
+  if (data.serviceId) {
+    const service = await prisma.serviceDefinition.findFirst({ where: { id: data.serviceId, establishmentId: ctx.establishment.id } });
+    if (!service) throw new Error("Service introuvable.");
+  }
+
+  const date = new Date(`${data.date}T00:00:00`);
+  const existingPending = await prisma.coverageRequest.findFirst({
+    where: { establishmentId: ctx.establishment.id, membershipId: data.membershipId, date, startTime: data.startTime, endTime: data.endTime, status: "pending" },
+  });
+  if (existingPending) throw new Error("Une demande est déjà en attente pour cette personne sur ce créneau.");
+
+  await prisma.coverageRequest.create({
+    data: {
+      establishmentId: ctx.establishment.id,
+      membershipId: data.membershipId,
+      requestedById: ctx.membership.id,
+      date,
+      serviceId: data.serviceId,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      position: data.position,
+    },
+  });
+
+  await notifyMember({
+    establishmentId: ctx.establishment.id,
+    membershipId: data.membershipId,
+    type: "coverage_requested",
+    severity: "important",
+    title: "Le patron vous demande un renfort",
+    body: `${formatShiftDayLabel(date)} · ${data.startTime}–${data.endTime}`,
+    linkHref: "/mon-espace",
+  });
+
+  revalidatePlanningPaths();
+  revalidatePath("/mon-espace");
+}
+
+/// La personne sollicitée répond — jamais pour un tiers (le membershipId vient du
+/// contexte, pas d'un paramètre). "Oui" crée le shift à ce moment précis seulement ;
+/// "non" ne crée rien. Le manager qui a demandé est notifié dans les deux cas : un
+/// silence serait pire qu'un refus.
+export async function respondToCoverageRequest(requestId: string, accept: boolean) {
+  const ctx = await getCurrentContext();
+
+  const request = await prisma.coverageRequest.findFirst({
+    where: { id: requestId, establishmentId: ctx.establishment.id, membershipId: ctx.membership.id, status: "pending" },
+  });
+  if (!request) throw new Error("Demande introuvable.");
+
+  if (accept) {
+    await prisma.shift.create({
+      data: {
+        establishmentId: ctx.establishment.id,
+        membershipId: ctx.membership.id,
+        serviceId: request.serviceId,
+        date: request.date,
+        startTime: request.startTime,
+        endTime: request.endTime,
+        position: request.position,
+        status: "published",
+        source: "manual",
+      },
+    });
+  }
+
+  await prisma.coverageRequest.update({ where: { id: requestId }, data: { status: accept ? "accepted" : "declined" } });
+
+  const memberName = `${ctx.user.firstName} ${ctx.user.lastName}`;
+  await notifyMember({
+    establishmentId: ctx.establishment.id,
+    membershipId: request.requestedById,
+    type: accept ? "coverage_accepted" : "coverage_declined",
+    severity: accept ? "watch" : "important",
+    title: accept ? `${memberName} peut faire le renfort demandé` : `${memberName} ne peut pas faire le renfort demandé`,
+    body: `${formatShiftDayLabel(request.date)} · ${request.startTime}–${request.endTime}`,
+    linkHref: "/planning",
+  });
+
+  revalidatePlanningPaths();
+  revalidatePath("/mon-espace");
 }

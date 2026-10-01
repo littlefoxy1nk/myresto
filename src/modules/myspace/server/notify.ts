@@ -7,7 +7,10 @@ export type NotificationType =
   | "leave_rejected"
   | "leave_requested"
   | "replacement_needed"
-  | "availability_changed";
+  | "availability_changed"
+  | "coverage_requested"
+  | "coverage_accepted"
+  | "coverage_declined";
 export type NotificationSeverity = "urgent" | "important" | "watch";
 
 /// Point d'entrée unique pour créer une notification personnelle — utilisé par

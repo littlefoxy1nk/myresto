@@ -5,6 +5,7 @@ import { DeclareSickLeaveButton } from "@/modules/myspace/components/declare-sic
 import { CertificateButton } from "@/modules/myspace/components/certificate-button";
 import { RequestReplacementButton } from "@/modules/myspace/components/request-replacement-button";
 import { ReplacementOpportunities } from "@/modules/myspace/components/replacement-opportunities";
+import { CoverageRequestsList } from "@/modules/myspace/components/coverage-requests-list";
 import { ChangeCodeButton } from "@/modules/myspace/components/change-code-button";
 import { AvailabilityToggles } from "@/modules/myspace/components/availability-toggles";
 import { NotificationsList } from "@/modules/myspace/components/notifications-list";
@@ -106,6 +107,9 @@ export default async function MonEspacePage() {
           </div>
         )}
       </section>
+
+      {/* Demandes de renfort du patron */}
+      <CoverageRequestsList requests={data.coverageRequests} />
 
       {/* Remplacements à couvrir */}
       <ReplacementOpportunities opportunities={data.replacementOpportunities} />
