@@ -27,7 +27,9 @@ export async function getMyDashboard(): Promise<MyDashboard> {
   const [shifts, rule, timeOffRows, notificationRows, serviceDefinitions, usualAvailabilityRows, oneOffRows, openReplacementRequests, replacementOpportunities] =
     await Promise.all([
       prisma.shift.findMany({
-        where: { membershipId, date: { gte: weekStart, lte: weekEnd }, status: { not: "cancelled" } },
+        // "planned" = brouillon pas encore publié (voir publishWeekSchedule) — jamais
+        // visible par la personne elle-même avant que le manager l'ait relu.
+        where: { membershipId, date: { gte: weekStart, lte: weekEnd }, status: { notIn: ["cancelled", "planned"] } },
         include: { service: true },
         orderBy: [{ date: "asc" }, { startTime: "asc" }],
       }),

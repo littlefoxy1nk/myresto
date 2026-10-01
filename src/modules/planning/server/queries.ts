@@ -20,6 +20,7 @@ import {
   occurrenceAvailabilities,
 } from "@/modules/planning/compute";
 import {
+  SHIFT_POSITIONS,
   TARGET_SHIFTS_RULE_TYPE,
   type AvailabilityRow,
   type ObjectiveExclusion,
@@ -31,6 +32,8 @@ import {
   type PlanningShift,
   type ServiceObjective,
   type ShiftConflictLevel,
+  type ShiftPosition,
+  type StaffingRequirementCell,
   type WeekPlanningResult,
 } from "@/modules/planning/types";
 
@@ -63,19 +66,27 @@ const OBJECTIVE_TO_CONFLICT_LEVEL: Record<ServiceObjective["status"], ShiftConfl
 export async function getWeekPlanning(establishmentId: string, weekStart: Date): Promise<WeekPlanningResult> {
   const ctx = await getCurrentContext();
   if (!ctx.can("schedule.view")) throw new ForbiddenError("schedule.view");
+  const canEditSchedule = ctx.can("schedule.edit");
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const rangeStart = startOfDay(weekStart);
   const rangeEnd = endOfDay(days[6]);
 
-  const [memberships, shifts, services, timeOffs, reservations, availabilities, targetRules, historicalCoversByWeekday, planningNotes] = await Promise.all([
+  const [memberships, shifts, services, timeOffs, reservations, availabilities, targetRules, historicalCoversByWeekday, planningNotes, requirementRows] = await Promise.all([
     prisma.membership.findMany({
       where: { establishmentId, status: "active" },
       include: { user: true },
       orderBy: { createdAt: "asc" },
     }),
     prisma.shift.findMany({
-      where: { establishmentId, date: { gte: rangeStart, lte: rangeEnd }, status: { not: "cancelled" } },
+      where: {
+        establishmentId,
+        date: { gte: rangeStart, lte: rangeEnd },
+        // Un shift généré ou créé en brouillon ("planned") reste invisible pour qui n'a
+        // pas schedule.edit, tant qu'il n'a pas été publié (voir publishWeekSchedule) —
+        // personne ne doit découvrir son horaire avant que le manager l'ait relu.
+        status: canEditSchedule ? { not: "cancelled" } : { notIn: ["cancelled", "planned"] },
+      },
       include: { service: true },
       orderBy: { startTime: "asc" },
     }),
@@ -96,6 +107,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
       include: { createdBy: { include: { user: true } } },
       orderBy: [{ date: "asc" }, { time: "asc" }],
     }),
+    prisma.staffingRequirement.findMany({ where: { establishmentId, requiredCount: { gt: 0 } } }),
   ]);
 
   const notes: PlanningNoteItem[] = planningNotes.map((n) => ({
@@ -107,6 +119,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     createdByName: `${n.createdBy.user.firstName} ${n.createdBy.user.lastName}`,
   }));
 
+  const VALID_SKILL_POSITIONS = new Set<string>(SHIFT_POSITIONS);
   const members: PlanningMember[] = memberships.map((m) => ({
     membershipId: m.id,
     firstName: m.user.firstName,
@@ -114,6 +127,18 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     jobTitle: m.jobTitle,
     weeklyHoursTarget: m.weeklyHoursTarget,
     maxShiftsPerWeek: m.maxShiftsPerWeek,
+    employmentType: m.employmentType as PlanningMember["employmentType"],
+    positions: (m.skills ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s): s is ShiftPosition => VALID_SKILL_POSITIONS.has(s)),
+  }));
+
+  const requirements: StaffingRequirementCell[] = requirementRows.map((r) => ({
+    dayOfWeek: r.dayOfWeek,
+    serviceId: r.serviceId,
+    position: r.position as ShiftPosition,
+    requiredCount: r.requiredCount,
   }));
 
   const weekDays = days.map(toDateKey);
@@ -364,7 +389,8 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     memberWeekStatus,
     availabilitiesByMember,
     absentMembershipIdsByDate,
-    canEdit: ctx.can("schedule.edit"),
+    canEdit: canEditSchedule,
     notes,
+    requirements,
   };
 }

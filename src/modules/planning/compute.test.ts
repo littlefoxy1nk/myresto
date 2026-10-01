@@ -10,6 +10,9 @@ import {
   occurrenceAvailabilities,
   computeServiceObjective,
   computeWeekSummaryParts,
+  generateScheduleAssignments,
+  type GeneratorMember,
+  type GeneratorSlot,
 } from "./compute";
 import type { AvailabilityRow, PlanningAlert, PlanningMember, ServiceObjective } from "./types";
 
@@ -216,6 +219,8 @@ function makeMember(overrides: Partial<PlanningMember> = {}): PlanningMember {
     jobTitle: null,
     weeklyHoursTarget: null,
     maxShiftsPerWeek: null,
+    employmentType: "fixe",
+    positions: [],
     ...overrides,
   };
 }
@@ -284,4 +289,121 @@ test("computeWeekSummaryParts never mentions an objective that is already attein
   };
   const parts = computeWeekSummaryParts([], members, { m1: objective });
   assert.deepEqual(parts, []);
+});
+
+function makeGenMember(overrides: Partial<GeneratorMember> = {}): GeneratorMember {
+  return { membershipId: "m1", employmentType: "fixe", positions: ["salle"], weeklyTarget: 1, ...overrides };
+}
+
+function makeSlot(overrides: Partial<GeneratorSlot> = {}): GeneratorSlot {
+  return {
+    date: "2026-09-21",
+    dayOfWeek: 1,
+    serviceId: "dinner",
+    startTime: "18:00",
+    endTime: "23:00",
+    position: "salle",
+    required: 1,
+    alreadyFilled: 0,
+    ...overrides,
+  };
+}
+
+const alwaysEligible = () => true;
+
+test("generateScheduleAssignments fills an empty slot with the only eligible member", () => {
+  const members = [makeGenMember({ membershipId: "m1" })];
+  const slots = [makeSlot()];
+  const assignments = generateScheduleAssignments({ members, slots, isEligible: alwaysEligible, existingShiftsByMember: {}, existingCountByMember: {} });
+  assert.deepEqual(assignments.map((a) => a.membershipId), ["m1"]);
+});
+
+test("generateScheduleAssignments never assigns someone without the slot's position", () => {
+  const members = [makeGenMember({ membershipId: "m1", positions: ["cuisine"] })];
+  const slots = [makeSlot({ position: "salle" })];
+  const assignments = generateScheduleAssignments({ members, slots, isEligible: alwaysEligible, existingShiftsByMember: {}, existingCountByMember: {} });
+  assert.deepEqual(assignments, []);
+});
+
+test("generateScheduleAssignments never assigns someone isEligible rejects", () => {
+  const members = [makeGenMember({ membershipId: "m1" })];
+  const slots = [makeSlot()];
+  const assignments = generateScheduleAssignments({ members, slots, isEligible: () => false, existingShiftsByMember: {}, existingCountByMember: {} });
+  assert.deepEqual(assignments, []);
+});
+
+test("generateScheduleAssignments prefers a flexijob over a fixe employee on the same slot", () => {
+  const members = [
+    makeGenMember({ membershipId: "fixe-1", employmentType: "fixe" }),
+    makeGenMember({ membershipId: "flexi-1", employmentType: "flexijob" }),
+  ];
+  const slots = [makeSlot({ required: 1 })];
+  const assignments = generateScheduleAssignments({ members, slots, isEligible: alwaysEligible, existingShiftsByMember: {}, existingCountByMember: {} });
+  assert.deepEqual(assignments.map((a) => a.membershipId), ["flexi-1"]);
+});
+
+test("generateScheduleAssignments picks the fixe employee furthest below their target first", () => {
+  const members = [
+    makeGenMember({ membershipId: "near-target", weeklyTarget: 4 }),
+    makeGenMember({ membershipId: "far-from-target", weeklyTarget: 4 }),
+  ];
+  const slots = [makeSlot({ required: 1 })];
+  const assignments = generateScheduleAssignments({
+    members,
+    slots,
+    isEligible: alwaysEligible,
+    existingShiftsByMember: {},
+    existingCountByMember: { "near-target": 3, "far-from-target": 0 },
+  });
+  assert.deepEqual(assignments.map((a) => a.membershipId), ["far-from-target"]);
+});
+
+test("generateScheduleAssignments respects alreadyFilled and tops up only what's missing", () => {
+  const members = [makeGenMember({ membershipId: "m1" }), makeGenMember({ membershipId: "m2" })];
+  const slots = [makeSlot({ required: 2, alreadyFilled: 1 })];
+  const assignments = generateScheduleAssignments({ members, slots, isEligible: alwaysEligible, existingShiftsByMember: {}, existingCountByMember: {} });
+  assert.equal(assignments.length, 1);
+});
+
+test("generateScheduleAssignments never double-books someone already busy at an overlapping time", () => {
+  const members = [makeGenMember({ membershipId: "m1" })];
+  const slots = [makeSlot()];
+  const assignments = generateScheduleAssignments({
+    members,
+    slots,
+    isEligible: alwaysEligible,
+    existingShiftsByMember: { m1: [{ date: "2026-09-21", startTime: "17:00", endTime: "22:00" }] },
+    existingCountByMember: {},
+  });
+  assert.deepEqual(assignments, []);
+});
+
+test("generateScheduleAssignments rebalances by swapping an over-target fixe for an under-target one", () => {
+  // Les deux sont à égalité (0/target) au moment du remplissage initial, donc le tri par
+  // ratio (stable) garde l'ordre d'origine et place "a" — qui atteint pile son objectif
+  // de 1. "b" (objectif 2) reste à 0, sous son objectif : le rééquilibrage doit lui céder
+  // ce créneau, puisque "a" (ratio 1.0) est désormais plus avancé que "b" (ratio 0).
+  const members = [makeGenMember({ membershipId: "a", weeklyTarget: 1 }), makeGenMember({ membershipId: "b", weeklyTarget: 2 })];
+  const slots = [makeSlot({ required: 1 })];
+  const assignments = generateScheduleAssignments({ members, slots, isEligible: alwaysEligible, existingShiftsByMember: {}, existingCountByMember: {} });
+  assert.deepEqual(assignments.map((a) => a.membershipId), ["b"]);
+});
+
+test("generateScheduleAssignments never swaps a flexijob assignment out during rebalancing", () => {
+  const members = [
+    makeGenMember({ membershipId: "flexi-1", employmentType: "flexijob" }),
+    makeGenMember({ membershipId: "under", weeklyTarget: 2 }),
+  ];
+  const slot = makeSlot();
+  const assignments = generateScheduleAssignments({
+    members,
+    slots: [slot],
+    isEligible: alwaysEligible,
+    existingShiftsByMember: {},
+    existingCountByMember: {},
+  });
+  // Un seul créneau, le flexijob le prend en priorité dès le remplissage — rien à
+  // rééquilibrer puisque "under" n'a jamais été assigné ici, mais on vérifie que la
+  // passe de rééquilibrage ne touche pas à cette affectation pour autant.
+  assert.deepEqual(assignments.map((a) => a.membershipId), ["flexi-1"]);
 });

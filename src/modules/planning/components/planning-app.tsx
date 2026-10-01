@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { addDays, format } from "date-fns";
-import { ChevronLeft, ChevronRight, Copy, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Megaphone, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast-bus";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,11 @@ import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PlanningAlerts } from "@/modules/planning/components/planning-alerts";
 import { PlanningNotes } from "@/modules/planning/components/planning-notes";
+import { StaffingRequirementsPanel } from "@/modules/planning/components/staffing-requirements-panel";
 import { FrequentationSummary } from "@/modules/planning/components/frequentation-summary";
 import { ShiftFormDialog, type ShiftFormValues } from "@/modules/planning/components/shift-form-dialog";
 import { ObjectiveDialog } from "@/modules/planning/components/objective-dialog";
-import { createShift, updateShift, deleteShift, duplicateWeek } from "@/modules/planning/server/actions";
+import { createShift, updateShift, deleteShift, duplicateWeek, publishWeekSchedule } from "@/modules/planning/server/actions";
 import { SHIFT_POSITION_LABELS, POSITIONS_BY_ZONE } from "@/modules/planning/types";
 import { PlanningZoneTabs, type PlanningZoneFilter } from "@/modules/planning/components/planning-zone-tabs";
 import type { PlanningMember, PlanningShift, ShiftConflictLevel, ShiftPosition, WeekPlanningResult } from "@/modules/planning/types";
@@ -76,6 +77,9 @@ export function PlanningApp({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const draftCount = data.shifts.filter((s) => s.status === "planned").length;
   const [objectiveFor, setObjectiveFor] = useState<PlanningMember | null>(null);
   const [zone, setZone] = useState<PlanningZoneFilter>("tous");
   const activeDayTabRef = useRef<HTMLButtonElement>(null);
@@ -132,6 +136,18 @@ export function PlanningApp({
       toast(err instanceof Error ? err.message : "Une erreur est survenue.", "error");
     } finally {
       setDuplicating(false);
+    }
+  }
+
+  async function handlePublish() {
+    setPublishing(true);
+    try {
+      const count = await publishWeekSchedule(data.weekStart);
+      toast(`${count} shift${count > 1 ? "s" : ""} publié${count > 1 ? "s" : ""} — visible par l'équipe.`);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Une erreur est survenue.", "error");
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -204,8 +220,10 @@ export function PlanningApp({
     return (
       <div className="flex min-h-[3rem] flex-col gap-1">
         {shifts.map((s) => {
+          const isDraft = s.status === "planned";
           const chipClass = cn(
             "rounded-lg border px-2 py-1 text-left text-[11px] leading-tight",
+            isDraft && "border-dashed",
             s.conflictLevel === "conflict"
               ? "border-urgent bg-urgent-soft text-urgent"
               : s.conflictLevel === "warning"
@@ -233,6 +251,7 @@ export function PlanningApp({
                   {warningSummary}
                 </div>
               )}
+              {isDraft && <div className="mt-0.5 font-medium text-muted-foreground">Brouillon</div>}
             </>
           );
           return data.canEdit ? (
@@ -310,6 +329,12 @@ export function PlanningApp({
               Dupliquer
             </Button>
           )}
+          {data.canEdit && draftCount > 0 && (
+            <Button size="sm" onClick={() => setConfirmPublish(true)} disabled={publishing}>
+              <Megaphone size={14} aria-hidden="true" />
+              Publier ({draftCount})
+            </Button>
+          )}
         </div>
       </div>
 
@@ -323,6 +348,9 @@ export function PlanningApp({
         </Card>
       )}
 
+      {data.canEdit && (
+        <StaffingRequirementsPanel requirements={data.requirements} services={data.services} weekStart={data.weekStart} />
+      )}
       <PlanningNotes notes={data.notes} canEdit={data.canEdit} />
       <PlanningAlerts alerts={data.alerts} />
       <FrequentationSummary days={data.dayFrequentation} />
@@ -455,6 +483,15 @@ export function PlanningApp({
         confirmLabel="Dupliquer"
         destructive={false}
         onConfirm={handleDuplicate}
+      />
+      <ConfirmDialog
+        open={confirmPublish}
+        onOpenChange={setConfirmPublish}
+        title={`Publier ${draftCount} brouillon${draftCount > 1 ? "s" : ""} ?`}
+        description="Ces shifts deviennent visibles par l'équipe et chaque personne concernée reçoit une notification."
+        confirmLabel="Publier"
+        destructive={false}
+        onConfirm={handlePublish}
       />
       {objectiveFor && (
         <ObjectiveDialog

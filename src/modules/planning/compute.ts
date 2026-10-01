@@ -9,6 +9,7 @@ import type {
   ServiceObjective,
   ServiceObjectiveStatus,
   ShiftConflictLevel,
+  ShiftPosition,
   ShiftWarning,
 } from "./types";
 
@@ -371,4 +372,194 @@ export function computeWeekSummaryParts(
   }
 
   return parts;
+}
+
+// =========================================================================
+// GÉNÉRATEUR D'HORAIRE — propose des affectations à partir des besoins en personnel
+// déclarés (StaffingRequirement), des disponibilités et des objectifs de services.
+// Aucune IA, aucun scoring opaque : un algorithme déterministe en deux passes, que l'on
+// peut expliquer entièrement. Ne décide jamais seul(e) — le résultat atterrit en shifts
+// "planned" (brouillon, voir planning/server/actions.ts), à relire avant publication.
+// =========================================================================
+
+export type GeneratorMember = {
+  membershipId: string;
+  employmentType: "fixe" | "flexijob";
+  positions: ShiftPosition[];
+  /// Objectif de services hebdomadaire (SchedulingRule) — 1 par défaut pour un poste
+  /// fixe sans objectif défini, pour que le ratio assignedCount/target reste calculable
+  /// sans jamais diviser par zéro. Non utilisé pour un flexijob (voir plus bas : traité
+  /// comme "extra", prioritaire sur les créneaux où il est disponible, jamais comparé à
+  /// un objectif — cohérent avec le fait qu'il gère déjà librement son propre horaire).
+  weeklyTarget: number;
+};
+
+export type GeneratorSlot = {
+  date: string; // "yyyy-MM-dd"
+  dayOfWeek: number;
+  serviceId: string;
+  startTime: string;
+  endTime: string;
+  position: ShiftPosition;
+  required: number;
+  /// Nombre de shifts déjà placés à la main sur exactement ce (date, service, poste) —
+  /// jamais recréés ni comptés en double, voir le principe "respecte l'existant".
+  alreadyFilled: number;
+};
+
+export type GeneratedAssignment = {
+  date: string;
+  serviceId: string;
+  position: ShiftPosition;
+  startTime: string;
+  endTime: string;
+  membershipId: string;
+};
+
+/// Propose un horaire à partir des créneaux à pourvoir, en deux passes :
+///
+/// 1) Remplissage : les créneaux sont traités du plus tendu au plus large (le moins
+///    d'options disponibles par rapport au besoin restant), pour que le personnel
+///    polyvalent (éligible à plusieurs postes) soit utilisé là où il est vraiment
+///    nécessaire plutôt que "consommé" par le premier créneau traité. À l'intérieur d'un
+///    créneau : les flexijobs disponibles en premier (ils gèrent déjà librement leur
+///    horaire, autant les utiliser pour soulager les postes fixes), puis les postes
+///    fixes les plus loin de leur objectif hebdomadaire, les fixes déjà à l'objectif en
+///    tout dernier recours.
+///
+/// 2) Rééquilibrage : le remplissage avance créneau par créneau sans revenir en
+///    arrière, ce qui peut laisser quelqu'un sous son objectif en fin de semaine alors
+///    qu'un·e collègue dépasse le sien sur un créneau où les deux étaient éligibles.
+///    Cette passe cherche ce genre d'échanges (jamais sur un flexijob, jamais sur un
+///    shift déjà présent avant la génération) et les applique tant qu'il en reste —
+///    chaque créneau n'est cependant jamais échangé plus d'une fois, pour ne jamais
+///    faire d'aller-retour sans fin entre deux personnes chacune sous leur propre
+///    objectif.
+///
+/// `isEligible` encapsule tout ce qui dépend des données déjà chargées par l'appelant
+/// (disponibilités de l'occurrence, congé approuvé ce jour-là) — cette fonction reste
+/// pure et ignore tout du stockage. `existingShiftsByMember` sert à ne jamais
+/// double-réserver quelqu'un sur un autre service qui chevauche le même jour, qu'il ait
+/// été placé à la main ou par un générateur précédent.
+export function generateScheduleAssignments(params: {
+  members: GeneratorMember[];
+  slots: GeneratorSlot[];
+  isEligible: (membershipId: string, slot: GeneratorSlot) => boolean;
+  existingShiftsByMember: Record<string, { date: string; startTime: string; endTime: string }[]>;
+  existingCountByMember: Record<string, number>;
+}): GeneratedAssignment[] {
+  const { members, slots, isEligible, existingShiftsByMember, existingCountByMember } = params;
+
+  const targetByMember = new Map(members.map((m) => [m.membershipId, m.weeklyTarget || 1]));
+  const assignedCount: Record<string, number> = {};
+  for (const m of members) assignedCount[m.membershipId] = existingCountByMember[m.membershipId] ?? 0;
+
+  const busyByMember = new Map<string, { date: string; startTime: string; endTime: string }[]>();
+  for (const m of members) busyByMember.set(m.membershipId, [...(existingShiftsByMember[m.membershipId] ?? [])]);
+
+  const isBusy = (membershipId: string, slot: GeneratorSlot) =>
+    (busyByMember.get(membershipId) ?? []).some((b) => b.date === slot.date && shiftsOverlap(b, slot));
+
+  const eligiblePool = (slot: GeneratorSlot) =>
+    members.filter((m) => m.positions.includes(slot.position) && isEligible(m.membershipId, slot) && !isBusy(m.membershipId, slot));
+
+  const pending = slots
+    .map((slot) => ({ slot, remaining: Math.max(slot.required - slot.alreadyFilled, 0) }))
+    .filter((s) => s.remaining > 0)
+    .sort((a, b) => {
+      const slackA = eligiblePool(a.slot).length - a.remaining;
+      const slackB = eligiblePool(b.slot).length - b.remaining;
+      return slackA - slackB;
+    });
+
+  const assignments: GeneratedAssignment[] = [];
+
+  function assign(membershipId: string, slot: GeneratorSlot) {
+    assignments.push({ date: slot.date, serviceId: slot.serviceId, position: slot.position, startTime: slot.startTime, endTime: slot.endTime, membershipId });
+    assignedCount[membershipId] += 1;
+    busyByMember.get(membershipId)!.push({ date: slot.date, startTime: slot.startTime, endTime: slot.endTime });
+  }
+
+  // --- Passe 1 : remplissage, créneaux les plus tendus en premier ---
+  for (const { slot, remaining } of pending) {
+    const pool = eligiblePool(slot);
+    const extraPool = pool.filter((m) => m.employmentType === "flexijob");
+    const fixedPool = pool
+      .filter((m) => m.employmentType === "fixe")
+      .sort((a, b) => assignedCount[a.membershipId] / targetByMember.get(a.membershipId)! - assignedCount[b.membershipId] / targetByMember.get(b.membershipId)!);
+
+    const picked: string[] = [];
+    for (const m of extraPool) {
+      if (picked.length >= remaining) break;
+      picked.push(m.membershipId);
+    }
+    for (const m of fixedPool) {
+      if (picked.length >= remaining) break;
+      if (assignedCount[m.membershipId] < targetByMember.get(m.membershipId)!) picked.push(m.membershipId);
+    }
+    for (const m of fixedPool) {
+      if (picked.length >= remaining) break;
+      if (!picked.includes(m.membershipId)) picked.push(m.membershipId);
+    }
+
+    for (const id of picked) assign(id, slot);
+  }
+
+  // --- Passe 2 : rééquilibrage par échanges (jamais sur un flexijob ni sur l'existant) ---
+  // Un créneau déjà échangé une fois n'est plus jamais rejoué : sans ça, deux personnes
+  // chacune sous leur propre objectif peuvent se céder le même créneau indéfiniment (A
+  // le prend à B parce que B est "moins sous objectif" que A à cet instant, puis B le
+  // reprend à A pour la même raison inversée) — un cycle sans fin, jamais une
+  // amélioration réelle. Figer chaque créneau après un seul échange garantit que la
+  // passe se termine d'elle-même, bien avant la limite de sécurité à 300 tours.
+  const swappedSlotKeys = new Set<string>();
+  let improved = true;
+  let iterations = 0;
+  while (improved && iterations < 300) {
+    improved = false;
+    iterations += 1;
+
+    const underTarget = members
+      .filter((m) => m.employmentType === "fixe" && assignedCount[m.membershipId] < targetByMember.get(m.membershipId)!)
+      .sort((a, b) => assignedCount[a.membershipId] / targetByMember.get(a.membershipId)! - assignedCount[b.membershipId] / targetByMember.get(b.membershipId)!);
+
+    search: for (const under of underTarget) {
+      for (const slot of slots) {
+        const slotKey = `${slot.date}|${slot.serviceId}|${slot.position}`;
+        if (swappedSlotKeys.has(slotKey)) continue;
+        if (!under.positions.includes(slot.position)) continue;
+        if (!isEligible(under.membershipId, slot)) continue;
+        if (isBusy(under.membershipId, slot)) continue;
+
+        const assignmentIndex = assignments.findIndex(
+          (a) => a.date === slot.date && a.serviceId === slot.serviceId && a.position === slot.position
+        );
+        if (assignmentIndex === -1) continue; // pas une affectation créée par cette génération
+        const current = assignments[assignmentIndex];
+        if (current.membershipId === under.membershipId) continue;
+
+        const swapOut = members.find((m) => m.membershipId === current.membershipId);
+        if (!swapOut || swapOut.employmentType !== "fixe") continue;
+
+        const swapOutRatio = assignedCount[swapOut.membershipId] / targetByMember.get(swapOut.membershipId)!;
+        const underRatio = assignedCount[under.membershipId] / targetByMember.get(under.membershipId)!;
+        if (swapOutRatio <= underRatio) continue;
+
+        assignments[assignmentIndex] = { ...current, membershipId: under.membershipId };
+        assignedCount[swapOut.membershipId] -= 1;
+        assignedCount[under.membershipId] += 1;
+        swappedSlotKeys.add(slotKey);
+
+        const swapOutBusy = busyByMember.get(swapOut.membershipId)!;
+        const busyIdx = swapOutBusy.findIndex((b) => b.date === slot.date && b.startTime === slot.startTime && b.endTime === slot.endTime);
+        if (busyIdx !== -1) swapOutBusy.splice(busyIdx, 1);
+        busyByMember.get(under.membershipId)!.push({ date: slot.date, startTime: slot.startTime, endTime: slot.endTime });
+
+        improved = true;
+        break search;
+      }
+    }
+  }
+
+  return assignments;
 }

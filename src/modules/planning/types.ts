@@ -62,6 +62,11 @@ export type PlanningMember = {
   jobTitle: string | null;
   weeklyHoursTarget: number | null;
   maxShiftsPerWeek: number | null;
+  employmentType: "fixe" | "flexijob";
+  /// Postes tenus (voir Membership.skills) — jamais "direction", qui n'est pas une
+  /// compétence qu'on coche (voir new-employee-form.tsx). C'est ce qui détermine
+  /// l'éligibilité d'une personne à un créneau pour le générateur d'horaire.
+  positions: ShiftPosition[];
 };
 
 export type ShiftWarning = { level: "warning" | "conflict"; message: string };
@@ -178,6 +183,19 @@ export type WeekPlanningResult = {
   /// Rappels du manager sur la semaine affichée (voir PlanningNote) — visibles par
   /// tout le monde, y compris la vue simplifiée employé qui n'a ni alertes ni conflits.
   notes: PlanningNoteItem[];
+  /// Besoins en personnel par (jour, service, poste) — seulement les combinaisons avec
+  /// au moins une personne requise ; absent côté employé (jamais montré hors édition).
+  requirements: StaffingRequirementCell[];
+};
+
+/// Combien de personnes il faut à un (jour, service, poste) donné — voir
+/// StaffingRequirement dans schema.prisma. C'est la cible que le générateur d'horaire
+/// essaie d'atteindre ; une absence d'entrée pour une combinaison vaut 0.
+export type StaffingRequirementCell = {
+  dayOfWeek: number;
+  serviceId: string;
+  position: ShiftPosition;
+  requiredCount: number;
 };
 
 export type PlanningNoteItem = {

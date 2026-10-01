@@ -74,6 +74,7 @@ model Establishment {
   notifications   Notification[]
   replacementRequests ReplacementRequest[]
   planningNotes   PlanningNote[]
+  staffingRequirements StaffingRequirement[]
 }
 
 /// Deux moyens de connexion indépendants, chacun optionnel — mais un utilisateur doit
@@ -240,6 +241,27 @@ model ServiceDefinition {
   shifts          Shift[]
   reservations    Reservation[]
   availabilities  Availability[]
+  staffingRequirements StaffingRequirement[]
+}
+
+/// Combien de personnes il faut à un (jour, service, poste) donné — la cible que le
+/// générateur d'horaire (voir planning/compute.ts, generateScheduleAssignments) essaie
+/// d'atteindre. Jamais "direction", qui n'est pas un poste de service qu'on dimensionne
+/// (voir le commentaire sur SHIFT_ZONES dans planning/types.ts) — validé côté
+/// application, pas en base. Une entrée absente = 0 personne requise.
+model StaffingRequirement {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  dayOfWeek       Int           // 1..7, 1=lundi
+  serviceId       String
+  service         ServiceDefinition @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  position        String        // salle | cuisine | bar | plonge
+  requiredCount   Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([establishmentId, dayOfWeek, serviceId, position])
 }
 
 model Shift {

@@ -6,8 +6,10 @@ import { addDays, differenceInCalendarDays, endOfDay, startOfDay } from "date-fn
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
 import { toDateKey } from "@/lib/utils";
+import { isoWeekday } from "@/lib/time";
 import { notifyMember } from "@/modules/myspace/server/notify";
-import { SHIFT_POSITIONS, TARGET_SHIFTS_RULE_TYPE } from "@/modules/planning/types";
+import { checkAvailability, generateScheduleAssignments, occurrenceAvailabilities, type GeneratorMember, type GeneratorSlot } from "@/modules/planning/compute";
+import { SHIFT_POSITIONS, TARGET_SHIFTS_RULE_TYPE, type AvailabilityRow, type ShiftPosition } from "@/modules/planning/types";
 
 function formatShiftDayLabel(date: Date): string {
   const label = new Intl.DateTimeFormat("fr-BE", { weekday: "long", day: "numeric", month: "long" }).format(date);
@@ -252,4 +254,236 @@ export async function deletePlanningNote(id: string) {
   const ctx = await requirePermission("schedule.edit");
   await prisma.planningNote.deleteMany({ where: { id, establishmentId: ctx.establishment.id } });
   revalidatePlanningPaths();
+}
+
+/// Postes qu'on dimensionne réellement — jamais "direction", qui n'est pas un poste de
+/// service qu'une personne coche dans ses compétences (voir SHIFT_ZONES).
+const STAFFABLE_POSITIONS = SHIFT_POSITIONS.filter((p) => p !== "direction") as Exclude<ShiftPosition, "direction">[];
+
+const StaffingRequirementSchema = z.object({
+  dayOfWeek: z.number().int().min(1).max(7),
+  serviceId: z.string().min(1),
+  position: z.enum(STAFFABLE_POSITIONS as [ShiftPosition, ...ShiftPosition[]]),
+  requiredCount: z.number().int().min(0).max(20),
+});
+
+/// Combien de monde il faut à un (jour, service, poste) donné — la cible que le
+/// générateur essaie d'atteindre (voir generateWeekSchedule). Une valeur à 0 supprime le
+/// besoin plutôt que de laisser une ligne à 0 traîner en base.
+export async function setStaffingRequirement(input: z.infer<typeof StaffingRequirementSchema>) {
+  const ctx = await requirePermission("schedule.edit");
+  const data = StaffingRequirementSchema.parse(input);
+
+  const service = await prisma.serviceDefinition.findFirst({ where: { id: data.serviceId, establishmentId: ctx.establishment.id } });
+  if (!service) throw new Error("Service introuvable.");
+
+  if (data.requiredCount === 0) {
+    await prisma.staffingRequirement.deleteMany({
+      where: { establishmentId: ctx.establishment.id, dayOfWeek: data.dayOfWeek, serviceId: data.serviceId, position: data.position },
+    });
+  } else {
+    await prisma.staffingRequirement.upsert({
+      where: {
+        establishmentId_dayOfWeek_serviceId_position: {
+          establishmentId: ctx.establishment.id,
+          dayOfWeek: data.dayOfWeek,
+          serviceId: data.serviceId,
+          position: data.position,
+        },
+      },
+      update: { requiredCount: data.requiredCount },
+      create: {
+        establishmentId: ctx.establishment.id,
+        dayOfWeek: data.dayOfWeek,
+        serviceId: data.serviceId,
+        position: data.position,
+        requiredCount: data.requiredCount,
+      },
+    });
+  }
+
+  revalidatePlanningPaths();
+}
+
+/// Propose un horaire pour la semaine donnée à partir des besoins en personnel
+/// déclarés (StaffingRequirement) — voir generateScheduleAssignments (compute.ts) pour
+/// l'algorithme. Ne touche jamais aux créneaux déjà pourvus à la main : ne remplit que
+/// ce qui manque, sans jamais recréer ni déplacer un shift existant. Les shifts créés
+/// arrivent en statut "planned" (brouillon) : invisibles de l'équipe (voir
+/// getWeekPlanning/getMyDashboard, qui excluent "planned" pour qui n'a pas
+/// schedule.edit) tant que publishWeekSchedule n'a pas été appelée.
+export async function generateWeekSchedule(weekStart: string) {
+  const ctx = await requirePermission("schedule.edit");
+  const establishmentId = ctx.establishment.id;
+  const start = new Date(`${weekStart}T00:00:00`);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const rangeStart = startOfDay(start);
+  const rangeEnd = endOfDay(days[6]);
+
+  const [memberships, services, requirements, existingShifts, availabilities, timeOffs, targetRules] = await Promise.all([
+    prisma.membership.findMany({ where: { establishmentId, status: "active" } }),
+    prisma.serviceDefinition.findMany({ where: { establishmentId } }),
+    prisma.staffingRequirement.findMany({ where: { establishmentId, requiredCount: { gt: 0 } } }),
+    prisma.shift.findMany({ where: { establishmentId, date: { gte: rangeStart, lte: rangeEnd }, status: { not: "cancelled" } } }),
+    prisma.availability.findMany({ where: { establishmentId } }),
+    prisma.timeOffRequest.findMany({
+      where: { establishmentId, status: "approved", startDate: { lte: rangeEnd }, endDate: { gte: rangeStart } },
+    }),
+    prisma.schedulingRule.findMany({ where: { establishmentId, type: TARGET_SHIFTS_RULE_TYPE } }),
+  ]);
+
+  const targetByMembership = new Map<string, number>();
+  for (const rule of targetRules) {
+    if (!rule.membershipId) continue;
+    try {
+      const params = JSON.parse(rule.params) as { count?: number };
+      if (typeof params.count === "number" && params.count > 0) targetByMembership.set(rule.membershipId, params.count);
+    } catch {
+      // ignore une règle mal formée — pas d'objectif pour cette personne
+    }
+  }
+
+  const VALID_POSITIONS = new Set<string>(STAFFABLE_POSITIONS);
+  const generatorMembers: GeneratorMember[] = memberships.map((m) => ({
+    membershipId: m.id,
+    employmentType: m.employmentType === "flexijob" ? "flexijob" : "fixe",
+    positions: (m.skills ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s): s is ShiftPosition => VALID_POSITIONS.has(s)),
+    weeklyTarget: targetByMembership.get(m.id) ?? 1,
+  }));
+
+  const availabilitiesByMember = new Map<string, AvailabilityRow[]>();
+  for (const a of availabilities) {
+    const list = availabilitiesByMember.get(a.membershipId) ?? [];
+    list.push({
+      dayOfWeek: a.dayOfWeek,
+      kind: a.kind as AvailabilityRow["kind"],
+      startTime: a.startTime,
+      endTime: a.endTime,
+      serviceId: a.serviceId,
+      date: a.date ? toDateKey(a.date) : null,
+    });
+    availabilitiesByMember.set(a.membershipId, list);
+  }
+
+  const absentOn = new Map<string, Set<string>>();
+  for (const d of days) {
+    const dateKey = toDateKey(d);
+    const dStart = startOfDay(d);
+    const dEnd = endOfDay(d);
+    const set = new Set<string>();
+    for (const t of timeOffs) {
+      if (t.startDate <= dEnd && t.endDate >= dStart) set.add(t.membershipId);
+    }
+    absentOn.set(dateKey, set);
+  }
+
+  const requirementByKey = new Map<string, number>();
+  for (const r of requirements) requirementByKey.set(`${r.dayOfWeek}|${r.serviceId}|${r.position}`, r.requiredCount);
+
+  const existingCountBySlot = new Map<string, number>();
+  const existingShiftsByMember: Record<string, { date: string; startTime: string; endTime: string }[]> = {};
+  const existingCountByMember: Record<string, number> = {};
+  for (const s of existingShifts) {
+    const dateKey = toDateKey(s.date);
+    const slotKey = `${dateKey}|${s.serviceId ?? ""}|${s.position}`;
+    existingCountBySlot.set(slotKey, (existingCountBySlot.get(slotKey) ?? 0) + 1);
+    (existingShiftsByMember[s.membershipId] ??= []).push({ date: dateKey, startTime: s.startTime, endTime: s.endTime });
+    existingCountByMember[s.membershipId] = (existingCountByMember[s.membershipId] ?? 0) + 1;
+  }
+
+  const slots: GeneratorSlot[] = [];
+  for (const d of days) {
+    const dayOfWeek = isoWeekday(d);
+    const dateKey = toDateKey(d);
+    const servicesToday = services.filter((s) => s.daysOfWeek.split(",").map(Number).includes(dayOfWeek));
+    for (const service of servicesToday) {
+      for (const position of STAFFABLE_POSITIONS) {
+        const required = requirementByKey.get(`${dayOfWeek}|${service.id}|${position}`) ?? 0;
+        if (required <= 0) continue;
+        const alreadyFilled = existingCountBySlot.get(`${dateKey}|${service.id}|${position}`) ?? 0;
+        slots.push({
+          date: dateKey,
+          dayOfWeek,
+          serviceId: service.id,
+          startTime: service.startTime,
+          endTime: service.endTime,
+          position,
+          required,
+          alreadyFilled,
+        });
+      }
+    }
+  }
+
+  const isEligible = (membershipId: string, slot: GeneratorSlot) => {
+    if (absentOn.get(slot.date)?.has(membershipId)) return false;
+    const rows = occurrenceAvailabilities(availabilitiesByMember.get(membershipId) ?? [], slot.dayOfWeek, slot.date);
+    return checkAvailability({ startTime: slot.startTime, endTime: slot.endTime, serviceId: slot.serviceId }, rows).status === "ok";
+  };
+
+  const assignments = generateScheduleAssignments({
+    members: generatorMembers,
+    slots,
+    isEligible,
+    existingShiftsByMember,
+    existingCountByMember,
+  });
+
+  if (assignments.length > 0) {
+    await prisma.shift.createMany({
+      data: assignments.map((a) => ({
+        establishmentId,
+        membershipId: a.membershipId,
+        serviceId: a.serviceId,
+        date: new Date(`${a.date}T00:00:00`),
+        startTime: a.startTime,
+        endTime: a.endTime,
+        position: a.position,
+        status: "planned",
+        source: "auto_generated",
+      })),
+    });
+    revalidatePlanningPaths();
+  }
+
+  return { created: assignments.length };
+}
+
+/// Rend visible à l'équipe tout ce qui a été généré (ou créé manuellement en brouillon)
+/// sur la semaine donnée — jusque-là invisible pour qui n'a pas schedule.edit (voir
+/// getWeekPlanning/getMyDashboard). Notifie chaque personne concernée, comme pour un
+/// shift créé à la main.
+export async function publishWeekSchedule(weekStart: string) {
+  const ctx = await requirePermission("schedule.edit");
+  const start = new Date(`${weekStart}T00:00:00`);
+  const rangeStart = startOfDay(start);
+  const rangeEnd = endOfDay(addDays(start, 6));
+
+  const draftShifts = await prisma.shift.findMany({
+    where: { establishmentId: ctx.establishment.id, date: { gte: rangeStart, lte: rangeEnd }, status: "planned" },
+  });
+  if (draftShifts.length === 0) throw new Error("Aucun brouillon à publier sur cette semaine.");
+
+  await prisma.shift.updateMany({
+    where: { id: { in: draftShifts.map((s) => s.id) } },
+    data: { status: "published" },
+  });
+
+  for (const s of draftShifts) {
+    await notifyMember({
+      establishmentId: ctx.establishment.id,
+      membershipId: s.membershipId,
+      type: "shift_changed",
+      severity: "urgent",
+      title: "Un nouveau service vous a été attribué",
+      body: `${formatShiftDayLabel(s.date)} · ${s.startTime}–${s.endTime}`,
+      linkHref: "/mon-espace",
+    });
+  }
+
+  revalidatePlanningPaths();
+  return draftShifts.length;
 }
