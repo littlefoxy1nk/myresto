@@ -11,6 +11,12 @@ import { PlanningZoneTabs, type PlanningZoneFilter } from "@/modules/planning/co
 import { SHIFT_POSITION_LABELS, POSITIONS_BY_ZONE } from "@/modules/planning/types";
 import type { PlanningShift, ShiftPosition, WeekPlanningResult } from "@/modules/planning/types";
 
+function isoDayOfWeek(dateKey: string): number {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const day = new Date(y, m - 1, d).getDay();
+  return day === 0 ? 7 : day;
+}
+
 /// Vue employé du planning — jamais les alertes RH, les conflits ou le statut des
 /// congés d'un tiers (voir la décision produit) : uniquement l'horaire et les notes du
 /// manager (PlanningNotes). Volontairement un composant séparé de PlanningApp plutôt
@@ -41,32 +47,41 @@ export function WorkerPlanningView({
 
   const visiblePositions = zone === "tous" ? null : POSITIONS_BY_ZONE[zone];
   const visibleShifts = visiblePositions ? data.shifts.filter((s) => visiblePositions.includes(s.position as ShiftPosition)) : data.shifts;
-  const visibleMembers =
-    zone === "tous" ? data.members : data.members.filter((m) => visibleShifts.some((s) => s.membershipId === m.membershipId));
+  const memberById = new Map(data.members.map((m) => [m.membershipId, m]));
 
-  const shiftsByMemberDay = new Map<string, PlanningShift[]>();
+  // Même principe que la vue manager (planning-app.tsx) : par service (lignes) × jour
+  // (colonnes), pour voir directement qui travaille sans parcourir une ligne par
+  // personne qui ne travaille peut-être pas ce jour-là.
+  const shiftsByDateService = new Map<string, PlanningShift[]>();
   for (const s of visibleShifts) {
-    const key = `${s.membershipId}|${s.date}`;
-    const list = shiftsByMemberDay.get(key) ?? [];
+    const key = `${s.date}|${s.serviceId ?? "none"}`;
+    const list = shiftsByDateService.get(key) ?? [];
     list.push(s);
-    shiftsByMemberDay.set(key, list);
+    shiftsByDateService.set(key, list);
   }
+  const hasUnassignedServiceShifts = visibleShifts.some((s) => s.serviceId == null);
+  const serviceRows: { id: string; name: string; time: string | null; daysOfWeek: number[] | null }[] = [
+    ...data.services.map((s) => ({ id: s.id, name: s.name, time: `${s.startTime}–${s.endTime}`, daysOfWeek: s.daysOfWeek })),
+    ...(hasUnassignedServiceShifts ? [{ id: "none", name: "Sans service", time: null, daysOfWeek: null }] : []),
+  ];
 
-  function renderShifts(membershipId: string, date: string) {
-    const shifts = shiftsByMemberDay.get(`${membershipId}|${date}`) ?? [];
-    if (shifts.length === 0) return <div className="min-h-[2.5rem]" />;
+  function renderServiceSlot(serviceId: string, date: string, active: boolean) {
+    if (!active) return <div className="flex min-h-[2.5rem] items-center justify-center text-muted-foreground">—</div>;
+    const shifts = shiftsByDateService.get(`${date}|${serviceId}`) ?? [];
+    if (shifts.length === 0) return <div className="flex min-h-[2.5rem] items-center justify-center text-muted-foreground">—</div>;
     return (
       <div className="flex flex-col gap-1">
-        {shifts.map((s) => (
-          <div key={s.id} className="rounded-lg border border-border bg-muted px-2 py-1 text-left text-[11px] leading-tight">
-            <div className="font-medium">
-              {s.startTime}–{s.endTime}
+        {shifts.map((s) => {
+          const member = memberById.get(s.membershipId);
+          return (
+            <div key={s.id} className="rounded-lg border border-border bg-muted px-2 py-1 text-left text-[11px] leading-tight">
+              <div className="truncate font-medium">{member ? member.firstName : "?"}</div>
+              <div className="truncate text-muted-foreground">
+                {s.startTime}–{s.endTime} · {SHIFT_POSITION_LABELS[s.position as keyof typeof SHIFT_POSITION_LABELS] ?? s.position}
+              </div>
             </div>
-            <div className="truncate text-muted-foreground">
-              {SHIFT_POSITION_LABELS[s.position as keyof typeof SHIFT_POSITION_LABELS] ?? s.position}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   }
@@ -98,22 +113,18 @@ export function WorkerPlanningView({
 
       {data.members.length > 0 && <PlanningZoneTabs value={zone} onChange={setZone} />}
 
-      {data.members.length === 0 ? (
+      {serviceRows.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Aucun membre actif dans l&apos;équipe.
-        </p>
-      ) : visibleMembers.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Personne n&apos;a de shift dans cette zone cette semaine.
+          Aucun service n&apos;est configuré pour cet établissement.
         </p>
       ) : (
         <>
-          {/* Vue semaine — desktop */}
+          {/* Vue semaine — desktop : par service (lignes) × jour (colonnes). */}
           <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card md:block">
             <table className="w-full min-w-[900px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="w-44 shrink-0 p-3 text-left text-xs font-medium text-muted-foreground">Équipe</th>
+                  <th className="w-36 shrink-0 p-3 text-left text-xs font-medium text-muted-foreground">Service</th>
                   {data.weekDays.map((date) => (
                     <th key={date} className="p-3 text-left text-xs font-medium text-muted-foreground">
                       {data.dayLabels[date]}
@@ -122,14 +133,15 @@ export function WorkerPlanningView({
                 </tr>
               </thead>
               <tbody>
-                {visibleMembers.map((m) => (
-                  <tr key={m.membershipId} className="border-b border-border last:border-0">
-                    <td className="p-3 align-top text-sm font-medium">
-                      {m.firstName} {m.lastName}
+                {serviceRows.map((service) => (
+                  <tr key={service.id} className="border-b border-border last:border-0">
+                    <td className="p-3 align-top">
+                      <p className="text-sm font-medium">{service.name}</p>
+                      {service.time && <p className="font-mono text-xs text-muted-foreground">{service.time}</p>}
                     </td>
                     {data.weekDays.map((date) => (
                       <td key={date} className="p-1.5 align-top">
-                        {renderShifts(m.membershipId, date)}
+                        {renderServiceSlot(service.id, date, service.daysOfWeek === null || service.daysOfWeek.includes(isoDayOfWeek(date)))}
                       </td>
                     ))}
                   </tr>
@@ -156,14 +168,17 @@ export function WorkerPlanningView({
               ))}
             </div>
             <div className="space-y-2">
-              {visibleMembers.map((m) => (
-                <div key={m.membershipId} className="rounded-2xl border border-border bg-card p-3">
-                  <p className="text-sm font-medium">
-                    {m.firstName} {m.lastName}
-                  </p>
-                  <div className="mt-2">{renderShifts(m.membershipId, selectedDay)}</div>
-                </div>
-              ))}
+              {serviceRows.map((service) => {
+                const active = service.daysOfWeek === null || service.daysOfWeek.includes(isoDayOfWeek(selectedDay));
+                if (!active) return null;
+                return (
+                  <div key={service.id} className="rounded-2xl border border-border bg-card p-3">
+                    <p className="text-sm font-medium">{service.name}</p>
+                    {service.time && <p className="font-mono text-xs text-muted-foreground">{service.time}</p>}
+                    <div className="mt-2">{renderServiceSlot(service.id, selectedDay, true)}</div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </>

@@ -25,6 +25,12 @@ function formatHours(h: number) {
   return `${rounded}h`;
 }
 
+function isoDayOfWeek(dateKey: string): number {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const day = new Date(y, m - 1, d).getDay();
+  return day === 0 ? 7 : day;
+}
+
 const CONFLICT_DOT_CLASS: Record<ShiftConflictLevel, string> = {
   ok: "bg-good",
   warning: "bg-important",
@@ -52,7 +58,7 @@ function ConflictLegend() {
 }
 
 type DialogState =
-  | { mode: "create"; membershipId: string; date: string }
+  | { mode: "create"; membershipId: string; date: string; serviceId: string | null }
   | { mode: "edit"; shift: PlanningShift }
   | null;
 
@@ -97,14 +103,25 @@ export function PlanningApp({
   const visibleShifts = visiblePositions ? data.shifts.filter((s) => visiblePositions.includes(s.position as ShiftPosition)) : data.shifts;
   const visibleMembers =
     zone === "tous" ? data.members : data.members.filter((m) => visibleShifts.some((s) => s.membershipId === m.membershipId));
+  const memberById = new Map(data.members.map((m) => [m.membershipId, m]));
 
-  const shiftsByMemberDay = new Map<string, PlanningShift[]>();
+  // Affichage "par jour, qui travaille" : la grille est organisée par SERVICE (lignes)
+  // × jour (colonnes) — chaque cellule montre directement les personnes concernées,
+  // jamais une ligne par personne qu'il faudrait scanner pour trouver qui travaille ce
+  // jour-là. Les shifts sans service (rare, "Aucun" dans la modale) vivent sous une
+  // ligne à part, ajoutée seulement si elle sert à quelque chose.
+  const shiftsByDateService = new Map<string, PlanningShift[]>();
   for (const s of visibleShifts) {
-    const key = `${s.membershipId}|${s.date}`;
-    const list = shiftsByMemberDay.get(key) ?? [];
+    const key = `${s.date}|${s.serviceId ?? "none"}`;
+    const list = shiftsByDateService.get(key) ?? [];
     list.push(s);
-    shiftsByMemberDay.set(key, list);
+    shiftsByDateService.set(key, list);
   }
+  const hasUnassignedServiceShifts = visibleShifts.some((s) => s.serviceId == null);
+  const serviceRows: { id: string; name: string; time: string | null; daysOfWeek: number[] | null }[] = [
+    ...data.services.map((s) => ({ id: s.id, name: s.name, time: `${s.startTime}–${s.endTime}`, daysOfWeek: s.daysOfWeek })),
+    ...(hasUnassignedServiceShifts ? [{ id: "none", name: "Sans service", time: null, daysOfWeek: null }] : []),
+  ];
 
   async function guarded(action: () => Promise<unknown>, successMessage?: string) {
     try {
@@ -215,11 +232,19 @@ export function PlanningApp({
     );
   }
 
-  function renderShifts(membershipId: string, date: string) {
-    const shifts = shiftsByMemberDay.get(`${membershipId}|${date}`) ?? [];
+  /// Une cellule = un (jour, service) — on y voit directement qui travaille, jamais une
+  /// ligne par personne à parcourir. `active` = ce service a lieu ce jour-là (sinon un
+  /// tiret, comme dans le panneau "Besoins en personnel") ; "Sans service" est toujours
+  /// actif puisqu'il n'a pas de jours propres.
+  function renderServiceSlot(serviceId: string, date: string, active: boolean) {
+    if (!active) {
+      return <div className="flex min-h-[3rem] items-center justify-center text-muted-foreground">—</div>;
+    }
+    const shifts = shiftsByDateService.get(`${date}|${serviceId}`) ?? [];
     return (
       <div className="flex min-h-[3rem] flex-col gap-1">
         {shifts.map((s) => {
+          const member = memberById.get(s.membershipId);
           const isDraft = s.status === "planned";
           const chipClass = cn(
             "rounded-lg border px-2 py-1 text-left text-[11px] leading-tight",
@@ -239,11 +264,9 @@ export function PlanningApp({
           const titleText = s.warnings.map((w) => w.message).join(" · ") || undefined;
           const content = (
             <>
-              <div className="font-medium">
-                {s.startTime}–{s.endTime}
-              </div>
-              <div className={s.conflictLevel === "ok" ? "truncate text-muted-foreground" : "truncate"}>
-                {SHIFT_POSITION_LABELS[s.position as keyof typeof SHIFT_POSITION_LABELS] ?? s.position}
+              <div className="truncate font-medium">{member ? member.firstName : "?"}</div>
+              <div className={cn("truncate", s.conflictLevel === "ok" && "text-muted-foreground")}>
+                {s.startTime}–{s.endTime} · {SHIFT_POSITION_LABELS[s.position as keyof typeof SHIFT_POSITION_LABELS] ?? s.position}
               </div>
               {warningSummary && (
                 <div className="mt-0.5 flex items-center gap-1 font-medium">
@@ -269,9 +292,10 @@ export function PlanningApp({
             </div>
           );
         })}
+        {shifts.length === 0 && !data.canEdit && <span className="m-auto text-muted-foreground">—</span>}
         {data.canEdit && (
           <button
-            onClick={() => setDialog({ mode: "create", membershipId, date })}
+            onClick={() => setDialog({ mode: "create", membershipId: "", date, serviceId: serviceId === "none" ? null : serviceId })}
             aria-label="Ajouter un shift"
             className="flex items-center justify-center rounded-lg border border-dashed border-border py-1.5 text-muted-foreground outline-none transition-colors hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent"
           >
@@ -293,7 +317,7 @@ export function PlanningApp({
           position: dialog.shift.position as ShiftPosition,
         }
       : dialog?.mode === "create"
-        ? { membershipId: dialog.membershipId, date: dialog.date }
+        ? { membershipId: dialog.membershipId || undefined, date: dialog.date, serviceId: dialog.serviceId }
         : {};
 
   return (
@@ -361,22 +385,19 @@ export function PlanningApp({
         </div>
       )}
 
-      {data.members.length === 0 ? (
+      {serviceRows.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Aucun membre actif dans l&apos;équipe.
-        </p>
-      ) : visibleMembers.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Personne n&apos;a de shift dans cette zone cette semaine.
+          Aucun service n&apos;est configuré pour cet établissement.
         </p>
       ) : (
         <>
-          {/* Vue semaine — desktop */}
+          {/* Vue semaine — desktop : par service (lignes) × jour (colonnes), pour voir
+              directement qui travaille sans parcourir une ligne par personne. */}
           <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card md:block">
             <table className="w-full min-w-[900px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="w-44 shrink-0 p-3 text-left text-xs font-medium text-muted-foreground">Équipe</th>
+                  <th className="w-36 shrink-0 p-3 text-left text-xs font-medium text-muted-foreground">Service</th>
                   {data.weekDays.map((date) => (
                     <th key={date} className="p-3 text-left text-xs font-medium text-muted-foreground">
                       {data.dayLabels[date]}
@@ -385,23 +406,15 @@ export function PlanningApp({
                 </tr>
               </thead>
               <tbody>
-                {visibleMembers.map((m) => (
-                  <tr key={m.membershipId} className="border-b border-border last:border-0">
+                {serviceRows.map((service) => (
+                  <tr key={service.id} className="border-b border-border last:border-0">
                     <td className="p-3 align-top">
-                      <p className="flex items-center gap-1.5 text-sm font-medium">
-                        <ConflictDot level={data.memberWeekStatus[m.membershipId] ?? "ok"} />
-                        {m.firstName} {m.lastName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatHours(data.totalHoursByMember[m.membershipId] ?? 0)}
-                        {m.weeklyHoursTarget ? ` / ${m.weeklyHoursTarget}h` : ""}
-                        {m.maxShiftsPerWeek != null && ` · ${data.shiftsCountByMember[m.membershipId] ?? 0}/${m.maxShiftsPerWeek} shifts`}
-                      </p>
-                      {renderObjective(m)}
+                      <p className="text-sm font-medium">{service.name}</p>
+                      {service.time && <p className="font-mono text-xs text-muted-foreground">{service.time}</p>}
                     </td>
                     {data.weekDays.map((date) => (
                       <td key={date} className="p-1.5 align-top">
-                        {renderShifts(m.membershipId, date)}
+                        {renderServiceSlot(service.id, date, service.daysOfWeek === null || service.daysOfWeek.includes(isoDayOfWeek(date)))}
                       </td>
                     ))}
                   </tr>
@@ -410,7 +423,7 @@ export function PlanningApp({
             </table>
           </div>
 
-          {/* Vue jour — mobile */}
+          {/* Vue jour — mobile : mêmes services, un jour à la fois. */}
           <div className="space-y-3 md:hidden">
             <div className="flex gap-1.5 overflow-x-auto pb-1">
               {data.weekDays.map((date) => (
@@ -428,9 +441,28 @@ export function PlanningApp({
               ))}
             </div>
             <div className="space-y-2">
-              {visibleMembers.map((m) => (
-                <div key={m.membershipId} className="rounded-2xl border border-border bg-card p-3">
-                  <div className="flex items-center justify-between gap-2">
+              {serviceRows.map((service) => {
+                const active = service.daysOfWeek === null || service.daysOfWeek.includes(isoDayOfWeek(selectedDay));
+                if (!active) return null;
+                return (
+                  <div key={service.id} className="rounded-2xl border border-border bg-card p-3">
+                    <p className="text-sm font-medium">{service.name}</p>
+                    {service.time && <p className="font-mono text-xs text-muted-foreground">{service.time}</p>}
+                    <div className="mt-2">{renderServiceSlot(service.id, selectedDay, true)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Résumé par personne : heures, objectif de services — séparé de la grille
+              elle-même, qui répond uniquement à "qui travaille, quel jour". */}
+          {visibleMembers.length > 0 && (
+            <Card className="space-y-2 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Équipe</p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {visibleMembers.map((m) => (
+                  <div key={m.membershipId} className="rounded-xl border border-border p-3">
                     <p className="flex items-center gap-1.5 text-sm font-medium">
                       <ConflictDot level={data.memberWeekStatus[m.membershipId] ?? "ok"} />
                       {m.firstName} {m.lastName}
@@ -440,13 +472,12 @@ export function PlanningApp({
                       {m.weeklyHoursTarget ? ` / ${m.weeklyHoursTarget}h` : ""}
                       {m.maxShiftsPerWeek != null && ` · ${data.shiftsCountByMember[m.membershipId] ?? 0}/${m.maxShiftsPerWeek} shifts`}
                     </p>
+                    {renderObjective(m)}
                   </div>
-                  {renderObjective(m)}
-                  <div className="mt-2">{renderShifts(m.membershipId, selectedDay)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </>
       )}
 
