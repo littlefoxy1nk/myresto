@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { evaluateShift, checkWeeklyLimit, occurrenceAvailabilities } from "@/modules/planning/compute";
+import { evaluateShift, checkWeeklyLimit, occurrenceAvailabilities, shiftsOverlap } from "@/modules/planning/compute";
 import { SHIFT_POSITIONS, SHIFT_POSITION_LABELS, type ShiftPosition } from "@/modules/planning/types";
 import type { AvailabilityRow, PlanningMember, PlanningServiceDefinition, PlanningShift } from "@/modules/planning/types";
 
@@ -102,6 +102,23 @@ export function ShiftFormDialog({
     shiftsCountByMember,
   ]);
 
+  // La liste "Membre" n'affiche que les personnes réellement disponibles à cette
+  // heure-là ce jour-là — jamais quelqu'un déjà occupé sur un autre shift qui
+  // chevauche, pour ne jamais pouvoir créer un conflit depuis cette modale. La
+  // personne déjà sur CE shift (en édition) reste visible : ce n'est pas un conflit
+  // avec elle-même.
+  const busyMembershipIds = useMemo(() => {
+    if (!date || !startTime || !endTime) return new Set<string>();
+    const busy = new Set<string>();
+    for (const s of allShifts) {
+      if (s.date !== date || s.id === editingShiftId) continue;
+      if (shiftsOverlap(s, { startTime, endTime })) busy.add(s.membershipId);
+    }
+    return busy;
+  }, [allShifts, date, startTime, endTime, editingShiftId]);
+
+  const selectableMembers = members.filter((m) => m.membershipId === membershipId || !busyMembershipIds.has(m.membershipId));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -138,13 +155,20 @@ export function ShiftFormDialog({
               <option value="" disabled>
                 Choisir une personne
               </option>
-              {members.map((m) => (
+              {selectableMembers.map((m) => (
                 <option key={m.membershipId} value={m.membershipId}>
                   {m.firstName} {m.lastName}
                   {m.jobTitle ? ` · ${m.jobTitle}` : ""}
                 </option>
               ))}
             </select>
+            {busyMembershipIds.size > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {busyMembershipIds.size} personne{busyMembershipIds.size > 1 ? "s" : ""} masquée
+                {busyMembershipIds.size > 1 ? "s" : ""} : déjà occupée{busyMembershipIds.size > 1 ? "s" : ""} sur un autre
+                shift à cette heure-là.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
