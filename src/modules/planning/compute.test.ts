@@ -11,6 +11,7 @@ import {
   computeServiceObjective,
   computeWeekSummaryParts,
   generateScheduleAssignments,
+  isGeneratorEligible,
   type GeneratorMember,
   type GeneratorSlot,
 } from "./compute";
@@ -289,6 +290,30 @@ test("computeWeekSummaryParts never mentions an objective that is already attein
   };
   const parts = computeWeekSummaryParts([], members, { m1: objective });
   assert.deepEqual(parts, []);
+});
+
+const genShift = { startTime: "18:00", endTime: "23:00", serviceId: "dinner" };
+
+test("isGeneratorEligible rejects someone with no declared availability at all — no data is never 'available'", () => {
+  assert.equal(isGeneratorEligible(genShift, []), false);
+});
+
+test("isGeneratorEligible accepts someone who declared this exact service as usual", () => {
+  const availabilities: AvailabilityRow[] = [{ dayOfWeek: 1, kind: "preferred", serviceId: "dinner", startTime: null, endTime: null }];
+  assert.equal(isGeneratorEligible(genShift, availabilities), true);
+});
+
+test("isGeneratorEligible rejects someone who only declared a different service that day", () => {
+  const availabilities: AvailabilityRow[] = [{ dayOfWeek: 1, kind: "preferred", serviceId: "lunch", startTime: null, endTime: null }];
+  assert.equal(isGeneratorEligible(genShift, availabilities), false);
+});
+
+test("isGeneratorEligible rejects someone explicitly marked unavailable for this service, even with a matching preferred row", () => {
+  const availabilities: AvailabilityRow[] = [
+    { dayOfWeek: 1, kind: "preferred", serviceId: "dinner", startTime: null, endTime: null },
+    { dayOfWeek: 1, kind: "unavailable", serviceId: "dinner", startTime: null, endTime: null },
+  ];
+  assert.equal(isGeneratorEligible(genShift, availabilities), false);
 });
 
 function makeGenMember(overrides: Partial<GeneratorMember> = {}): GeneratorMember {

@@ -101,6 +101,20 @@ export function checkAvailability(
   return { status: "ok" };
 }
 
+/// Éligibilité STRICTE pour le générateur d'horaire — volontairement différente de
+/// checkAvailability, pensée elle pour avertir sur un shift placé à la main : là,
+/// l'absence de donnée ne doit jamais être traitée comme un refus ("ok" par défaut, on
+/// ne peut rien affirmer). Pour une proposition AUTOMATIQUE c'est l'inverse qu'il faut :
+/// l'absence de disponibilité déclarée pour un jour signifie "ne travaille pas ce
+/// jour-là", jamais "aucune contrainte connue". Le générateur ne propose donc jamais
+/// quelqu'un sur un service qu'il n'a pas explicitement déclaré habituel (ou ajouté en
+/// plus cette semaine) — une personne qui n'a rien déclaré du tout n'est éligible à
+/// rien, elle n'est jamais "disponible par défaut".
+export function isGeneratorEligible(shift: { startTime: string; endTime: string; serviceId: string }, availabilities: AvailabilityRow[]): boolean {
+  if (checkAvailability(shift, availabilities).status === "unavailable") return false;
+  return availabilities.some((a) => a.kind === "preferred" && a.serviceId === shift.serviceId);
+}
+
 /// Réduit une liste de disponibilités à celles qui s'appliquent réellement à UNE
 /// occurrence précise (ce jour de semaine récurrent, OU cette date exacte pour une
 /// ligne ponctuelle) — à appeler avant checkAvailability/isDayGenerallyUnavailable/

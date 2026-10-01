@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/current-context";
 import { toDateKey } from "@/lib/utils";
 import { isoWeekday } from "@/lib/time";
 import { notifyMember } from "@/modules/myspace/server/notify";
-import { checkAvailability, generateScheduleAssignments, occurrenceAvailabilities, type GeneratorMember, type GeneratorSlot } from "@/modules/planning/compute";
+import { generateScheduleAssignments, isGeneratorEligible, occurrenceAvailabilities, type GeneratorMember, type GeneratorSlot } from "@/modules/planning/compute";
 import { SHIFT_POSITIONS, TARGET_SHIFTS_RULE_TYPE, type AvailabilityRow, type ShiftPosition } from "@/modules/planning/types";
 
 function formatShiftDayLabel(date: Date): string {
@@ -421,7 +421,7 @@ export async function generateWeekSchedule(weekStart: string) {
   const isEligible = (membershipId: string, slot: GeneratorSlot) => {
     if (absentOn.get(slot.date)?.has(membershipId)) return false;
     const rows = occurrenceAvailabilities(availabilitiesByMember.get(membershipId) ?? [], slot.dayOfWeek, slot.date);
-    return checkAvailability({ startTime: slot.startTime, endTime: slot.endTime, serviceId: slot.serviceId }, rows).status === "ok";
+    return isGeneratorEligible({ startTime: slot.startTime, endTime: slot.endTime, serviceId: slot.serviceId }, rows);
   };
 
   const assignments = generateScheduleAssignments({
