@@ -16,6 +16,7 @@ import {
   createZone,
   deleteZone,
   createTable,
+  createTablesBulk,
   updateTable,
   deleteTable,
   duplicateTable,
@@ -192,6 +193,14 @@ export function FloorPlanApp({
               onSelectTable={handleSelectTable}
               onMoveTable={(id, posX, posY) => guarded(() => updateTable({ id, posX, posY }))}
               onResizeTable={(id, width, height) => guarded(() => updateTable({ id, width, height }))}
+              onDropOnTable={
+                mergeMode
+                  ? undefined
+                  : (draggedId, targetId) => {
+                      setMergeSelection(new Set([draggedId, targetId]));
+                      setShowCreateGroup(true);
+                    }
+              }
             />
           </div>
         )}
@@ -227,6 +236,12 @@ export function FloorPlanApp({
         onOpenChange={setShowCreateTable}
         onCreate={(label, capacity, shape) =>
           guarded(() => createTable({ zoneId: activeZone.id, label, capacity, shape }), "Table créée")
+        }
+        onCreateBulk={(count, labelPrefix, capacity, shape) =>
+          guarded(
+            () => createTablesBulk({ zoneId: activeZone.id, count, labelPrefix, capacity, shape }),
+            `${count} tables créées`
+          )
         }
       />
       <CreateGroupDialog

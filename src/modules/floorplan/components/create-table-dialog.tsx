@@ -11,15 +11,23 @@ export function CreateTableDialog({
   open,
   onOpenChange,
   onCreate,
+  onCreateBulk,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate: (label: string, capacity: number, shape: TableShape) => Promise<void>;
+  onCreateBulk: (count: number, labelPrefix: string, capacity: number, shape: TableShape) => Promise<void>;
 }) {
   const [label, setLabel] = useState("");
+  const [count, setCount] = useState(1);
   const [capacity, setCapacity] = useState(4);
   const [shape, setShape] = useState<TableShape>("square");
   const [pending, setPending] = useState(false);
+  const bulk = count > 1;
+  // En mode "plusieurs tables", pas de nom unique possible — un préfixe numéroté à la
+  // suite ("T5", "T6"...) remplace le nom libre, modifiable individuellement ensuite
+  // comme n'importe quelle table.
+  const valid = label.trim().length > 0;
 
   return (
     <Dialog
@@ -28,42 +36,63 @@ export function CreateTableDialog({
         onOpenChange(o);
         if (!o) {
           setLabel("");
+          setCount(1);
           setCapacity(4);
           setShape("square");
         }
       }}
     >
       <DialogContent>
-        <DialogTitle>Nouvelle table</DialogTitle>
-        <DialogDescription>Elle sera ajoutée à la zone actuellement affichée.</DialogDescription>
+        <DialogTitle>Nouvelle{bulk ? "s" : ""} table{bulk ? "s" : ""}</DialogTitle>
+        <DialogDescription>
+          {bulk
+            ? "Créées d'un coup, placées à la suite sur le plan — à renommer ou déplacer individuellement ensuite."
+            : "Elle sera ajoutée à la zone actuellement affichée."}
+        </DialogDescription>
         <form
           className="mt-4 space-y-3"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!label.trim()) return;
+            if (!valid) return;
             setPending(true);
-            await onCreate(label.trim(), capacity, shape);
+            if (bulk) await onCreateBulk(count, label.trim(), capacity, shape);
+            else await onCreate(label.trim(), capacity, shape);
             setPending(false);
             onOpenChange(false);
           }}
         >
+          <div className="space-y-1.5">
+            <label htmlFor="table-count" className="text-sm font-medium">
+              Nombre de tables
+            </label>
+            <input
+              id="table-count"
+              type="number"
+              min={1}
+              max={50}
+              value={count}
+              onChange={(e) => setCount(Math.max(1, Number(e.target.value)))}
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label htmlFor="table-label" className="text-sm font-medium">
-                Nom / numéro
+                {bulk ? "Préfixe" : "Nom / numéro"}
               </label>
               <input
                 id="table-label"
                 autoFocus
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="ex: T14"
+                placeholder={bulk ? "ex: T" : "ex: T14"}
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
               />
+              {bulk && <p className="text-xs text-muted-foreground">Donnera {label || "T"}1, {label || "T"}2…</p>}
             </div>
             <div className="space-y-1.5">
               <label htmlFor="table-capacity" className="text-sm font-medium">
-                Capacité
+                Capacité {bulk ? "(chacune)" : ""}
               </label>
               <input
                 id="table-capacity"
@@ -93,8 +122,8 @@ export function CreateTableDialog({
               ))}
             </div>
           </div>
-          <Button type="submit" className="w-full" disabled={pending || !label.trim()}>
-            {pending ? "Création…" : "Créer la table"}
+          <Button type="submit" className="w-full" disabled={pending || !valid}>
+            {pending ? "Création…" : bulk ? `Créer ${count} tables` : "Créer la table"}
           </Button>
         </form>
       </DialogContent>

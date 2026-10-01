@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { TableShape } from "@/modules/floorplan/components/table-shape";
 import type { TableWithLiveState } from "@/modules/floorplan/types";
+import { rectsOverlap } from "@/modules/floorplan/compute";
 import { cn } from "@/lib/utils";
 
 type DragState = { id: string; startClientX: number; startClientY: number; startPosX: number; startPosY: number; posX: number; posY: number };
@@ -18,6 +19,7 @@ export function FloorPlanCanvas({
   onSelectTable,
   onMoveTable,
   onResizeTable,
+  onDropOnTable,
 }: {
   tables: TableWithLiveState[];
   canEdit: boolean;
@@ -26,11 +28,31 @@ export function FloorPlanCanvas({
   onSelectTable: (id: string) => void;
   onMoveTable: (id: string, posX: number, posY: number) => void;
   onResizeTable: (id: string, width: number, height: number) => void;
+  /// Glisser une table sur une autre propose de les fusionner plutôt que de la déplacer
+  /// là — voir computeDropTarget ci-dessous. Optionnel : sans ce prop, un dépôt sur une
+  /// autre table reste un simple déplacement (comportement d'avant).
+  onDropOnTable?: (draggedId: string, targetId: string) => void;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [resize, setResize] = useState<ResizeState | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const movedRef = useRef(false);
+
+  // Une table qu'on dépose sur une autre déjà dans le MÊME groupe n'a rien à fusionner
+  // (c'est déjà fait) — dans ce cas on laisse juste le déplacement se produire.
+  function findDropTarget(draggedId: string, posX: number, posY: number): TableWithLiveState | null {
+    const draggedTable = tables.find((t) => t.id === draggedId);
+    if (!draggedTable) return null;
+    const draggedGroupId = draggedTable.group?.id ?? null;
+    const draggedRect = { x: posX, y: posY, width: draggedTable.width, height: draggedTable.height };
+    for (const t of tables) {
+      if (t.id === draggedId) continue;
+      if (draggedGroupId && t.group?.id === draggedGroupId) continue;
+      if (rectsOverlap(draggedRect, { x: t.posX, y: t.posY, width: t.width, height: t.height })) return t;
+    }
+    return null;
+  }
 
   function startDrag(e: React.PointerEvent, table: TableWithLiveState) {
     if (!canEdit) {
@@ -81,6 +103,7 @@ export function FloorPlanCanvas({
       const posX = clamp(drag.startPosX + dx, 0, CANVAS_SIZE.width - 60);
       const posY = clamp(drag.startPosY + dy, 0, CANVAS_SIZE.height - 60);
       setDrag({ ...drag, posX, posY });
+      setDropTargetId(onDropOnTable && movedRef.current ? (findDropTarget(drag.id, posX, posY)?.id ?? null) : null);
     } else if (resize) {
       const dx = e.clientX - resize.startClientX;
       const dy = e.clientY - resize.startClientY;
@@ -92,9 +115,12 @@ export function FloorPlanCanvas({
 
   function handlePointerUp() {
     if (drag) {
-      if (movedRef.current) onMoveTable(drag.id, Math.round(drag.posX), Math.round(drag.posY));
+      const target = movedRef.current && onDropOnTable ? findDropTarget(drag.id, drag.posX, drag.posY) : null;
+      if (target && onDropOnTable) onDropOnTable(drag.id, target.id);
+      else if (movedRef.current) onMoveTable(drag.id, Math.round(drag.posX), Math.round(drag.posY));
       else onSelectTable(drag.id);
       setDrag(null);
+      setDropTargetId(null);
     }
     if (resize) {
       onResizeTable(resize.id, Math.round(resize.width), Math.round(resize.height));
@@ -165,6 +191,7 @@ export function FloorPlanCanvas({
                 table={displayTable}
                 selected={selected}
                 dragging={isDragging}
+                mergeTarget={dropTargetId === t.id}
                 onPointerDownCapture={(e) => startDrag(e, t)}
               />
               {canEdit && selected && !isDragging && (

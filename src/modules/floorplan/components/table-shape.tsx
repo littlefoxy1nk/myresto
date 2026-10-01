@@ -8,11 +8,16 @@ export function TableShape({
   table,
   selected,
   dragging,
+  mergeTarget,
   onPointerDownCapture,
 }: {
   table: TableWithLiveState;
   selected: boolean;
   dragging: boolean;
+  /// Une autre table est en train d'être glissée par-dessus celle-ci — un anneau vert
+  /// distinct de la sélection, pour annoncer "la déposer ici proposera de fusionner"
+  /// avant même de relâcher (voir floor-plan-canvas.tsx, findDropTarget).
+  mergeTarget?: boolean;
   onPointerDownCapture?: (e: React.PointerEvent) => void;
 }) {
   const style = LIVE_STATE_STYLE[table.liveState];
@@ -27,6 +32,7 @@ export function TableShape({
         style.border,
         style.text,
         selected && "ring-2 ring-accent ring-offset-2 ring-offset-background",
+        mergeTarget && "ring-2 ring-good ring-offset-2 ring-offset-background",
         dragging ? "cursor-grabbing shadow-lg" : "cursor-grab"
       )}
       style={{ left: table.posX, top: table.posY, width: table.width, height: table.height }}

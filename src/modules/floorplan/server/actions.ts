@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, requireAnyPermission } from "@/lib/current-context";
 import { startOfDay, endOfDay } from "date-fns";
 import { ZONE_TYPES, TABLE_SHAPES, TABLE_MANUAL_STATUSES } from "@/modules/floorplan/types";
+import { nextGridPosition } from "@/modules/floorplan/compute";
 
 const PATH = "/plan-de-salle";
 
@@ -72,16 +73,22 @@ const TableCreateSchema = z.object({
   label: z.string().min(1, "Le nom de la table est requis."),
   capacity: z.coerce.number().int().min(1).max(30),
   shape: z.enum(TABLE_SHAPES),
-  posX: z.number().default(40),
-  posY: z.number().default(40),
 });
 
+/// La position de départ n'est plus jamais choisie par l'appelant : avant, toute
+/// nouvelle table atterrissait au même point (40,40) et s'empilait sur les précédentes,
+/// obligeant à la faire glisser à la main juste pour la voir. Elle prend maintenant la
+/// prochaine case libre de la grille (voir nextGridPosition, compute.ts) — toujours
+/// modifiable ensuite au glisser-déposer, ça reste juste un point de départ sensé.
 export async function createTable(input: z.input<typeof TableCreateSchema>) {
   const ctx = await requirePermission("floorplan.edit");
   const data = TableCreateSchema.parse(input);
 
   const zone = await prisma.zone.findFirst({ where: { id: data.zoneId, establishmentId: ctx.establishment.id } });
   if (!zone) throw new Error("Zone introuvable.");
+
+  const existingCount = await prisma.restaurantTable.count({ where: { zoneId: data.zoneId } });
+  const { posX, posY } = nextGridPosition(existingCount);
 
   const table = await prisma.restaurantTable.create({
     data: {
@@ -90,12 +97,53 @@ export async function createTable(input: z.input<typeof TableCreateSchema>) {
       label: data.label,
       capacity: data.capacity,
       shape: data.shape,
-      posX: data.posX,
-      posY: data.posY,
+      posX,
+      posY,
     },
   });
   revalidatePath(PATH);
   return table;
+}
+
+const TablesBulkCreateSchema = z.object({
+  zoneId: z.string(),
+  count: z.coerce.number().int().min(1).max(50),
+  labelPrefix: z.string().min(1, "Le préfixe est requis."),
+  capacity: z.coerce.number().int().min(1).max(30),
+  shape: z.enum(TABLE_SHAPES),
+});
+
+/// Création rapide de plusieurs tables identiques d'un coup ("8 tables de 4") plutôt que
+/// de rouvrir la fenêtre une fois par table — le cas le plus courant à l'ouverture d'une
+/// nouvelle zone. Chaque table reçoit sa propre case de grille (voir nextGridPosition),
+/// numérotée à la suite des tables déjà présentes dans la zone ; libre ensuite de
+/// renommer ou déplacer individuellement, exactement comme une table créée une par une.
+export async function createTablesBulk(input: z.input<typeof TablesBulkCreateSchema>) {
+  const ctx = await requirePermission("floorplan.edit");
+  const data = TablesBulkCreateSchema.parse(input);
+
+  const zone = await prisma.zone.findFirst({ where: { id: data.zoneId, establishmentId: ctx.establishment.id } });
+  if (!zone) throw new Error("Zone introuvable.");
+
+  const existingCount = await prisma.restaurantTable.count({ where: { zoneId: data.zoneId } });
+
+  await prisma.restaurantTable.createMany({
+    data: Array.from({ length: data.count }, (_, i) => {
+      const { posX, posY } = nextGridPosition(existingCount + i);
+      return {
+        establishmentId: ctx.establishment.id,
+        zoneId: data.zoneId,
+        label: `${data.labelPrefix}${existingCount + i + 1}`,
+        capacity: data.capacity,
+        shape: data.shape,
+        posX,
+        posY,
+      };
+    }),
+  });
+
+  revalidatePath(PATH);
+  return data.count;
 }
 
 const TablePatchSchema = z.object({
