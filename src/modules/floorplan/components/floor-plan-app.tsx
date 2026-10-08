@@ -276,7 +276,11 @@ export function FloorPlanApp({
         open={!!confirmDeleteZoneId}
         onOpenChange={(open) => !open && setConfirmDeleteZoneId(null)}
         title="Supprimer cette zone ?"
-        description="Impossible si elle contient encore des tables."
+        description={
+          (zones.find((z) => z.id === confirmDeleteZoneId)?.tables.length ?? 0) > 0
+            ? `Ses ${zones.find((z) => z.id === confirmDeleteZoneId)?.tables.length} table(s) seront supprimées avec elle. Cette action est irréversible.`
+            : "Cette action est irréversible."
+        }
         confirmLabel="Supprimer"
         onConfirm={() => {
           if (!confirmDeleteZoneId) return;

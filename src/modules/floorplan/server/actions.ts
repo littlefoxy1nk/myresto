@@ -53,14 +53,36 @@ export async function deleteZone(zoneId: string) {
 
   const zone = await prisma.zone.findFirst({
     where: { id: zoneId, establishmentId: ctx.establishment.id },
-    include: { _count: { select: { tables: true } } },
+    include: { tables: { select: { id: true, label: true, groupMemberships: { select: { groupId: true } } } } },
   });
   if (!zone) throw new Error("Zone introuvable.");
-  if (zone._count.tables > 0) {
-    throw new Error("Déplacez ou supprimez d'abord les tables de cette zone.");
+
+  // Les tables partent avec la zone, mais jamais au détriment d'un service en cours :
+  // même garde-fou que deleteTable, appliqué à toutes les tables de la zone.
+  const tableIds = zone.tables.map((t) => t.id);
+  if (tableIds.length > 0) {
+    const today = new Date();
+    const busy = await prisma.reservationTable.findMany({
+      where: {
+        tableId: { in: tableIds },
+        reservation: {
+          date: { gte: startOfDay(today), lte: endOfDay(today) },
+          status: { notIn: ["cancelled", "completed", "no_show"] },
+        },
+      },
+      select: { tableId: true },
+    });
+    if (busy.length > 0) {
+      const busyLabels = zone.tables.filter((t) => busy.some((b) => b.tableId === t.id)).map((t) => t.label);
+      throw new Error(
+        `Impossible : ${busyLabels.join(", ")} ${busyLabels.length > 1 ? "ont" : "a"} une réservation active aujourd'hui — annulez-la d'abord.`
+      );
+    }
   }
 
+  const groupIds = [...new Set(zone.tables.flatMap((t) => t.groupMemberships.map((m) => m.groupId)))];
   await prisma.zone.delete({ where: { id: zoneId } });
+  await cleanupUndersizedGroups(groupIds);
   revalidatePath(PATH);
 }
 
