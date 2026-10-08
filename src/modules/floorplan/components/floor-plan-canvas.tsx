@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Minus, Plus } from "lucide-react";
 import { TableShape } from "@/modules/floorplan/components/table-shape";
 import type { TableWithLiveState } from "@/modules/floorplan/types";
 import { rectsOverlap } from "@/modules/floorplan/compute";
@@ -10,6 +11,13 @@ type DragState = { id: string; startClientX: number; startClientY: number; start
 type ResizeState = { id: string; startClientX: number; startClientY: number; startWidth: number; startHeight: number; width: number; height: number };
 
 const CANVAS_SIZE = { width: 960, height: 640 };
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 1.6;
+const ZOOM_STEP = 0.1;
+
+function clampZoom(z: number) {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+}
 
 export function FloorPlanCanvas({
   tables,
@@ -38,6 +46,22 @@ export function FloorPlanCanvas({
   const [resize, setResize] = useState<ResizeState | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const movedRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
+
+  // Pincement au trackpad / Ctrl+molette : le navigateur envoie un wheel avec ctrlKey.
+  // Écouteur natif non passif, sinon la page entière zoomerait à la place du plan.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom((z) => clampZoom(z - e.deltaY * 0.005));
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   // Une table qu'on dépose sur une autre déjà dans le MÊME groupe n'a rien à fusionner
   // (c'est déjà fait) — dans ce cas on laisse juste le déplacement se produire.
@@ -97,16 +121,16 @@ export function FloorPlanCanvas({
 
   function handlePointerMove(e: React.PointerEvent) {
     if (drag) {
-      const dx = e.clientX - drag.startClientX;
-      const dy = e.clientY - drag.startClientY;
+      const dx = (e.clientX - drag.startClientX) / zoom;
+      const dy = (e.clientY - drag.startClientY) / zoom;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) movedRef.current = true;
       const posX = clamp(drag.startPosX + dx, 0, CANVAS_SIZE.width - 60);
       const posY = clamp(drag.startPosY + dy, 0, CANVAS_SIZE.height - 60);
       setDrag({ ...drag, posX, posY });
       setDropTargetId(onDropOnTable && movedRef.current ? (findDropTarget(drag.id, posX, posY)?.id ?? null) : null);
     } else if (resize) {
-      const dx = e.clientX - resize.startClientX;
-      const dy = e.clientY - resize.startClientY;
+      const dx = (e.clientX - resize.startClientX) / zoom;
+      const dy = (e.clientY - resize.startClientY) / zoom;
       const width = clamp(resize.startWidth + dx, 48, 240);
       const height = clamp(resize.startHeight + dy, 48, 240);
       setResize({ ...resize, width, height });
@@ -147,16 +171,35 @@ export function FloorPlanCanvas({
   }
 
   return (
-    <div className="overflow-auto rounded-2xl border border-border bg-muted/40">
+    <div className="relative rounded-2xl border border-border bg-muted/40">
+      <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">
+        <button type="button" onClick={() => setZoom(clampZoom(zoom - ZOOM_STEP))} disabled={zoom <= ZOOM_MIN} aria-label="Dézoomer" className="flex h-8 w-8 items-center justify-center rounded-lg outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40">
+          <Minus size={15} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setZoom(1)}
+          aria-label="Revenir à 100 %"
+          className="h-8 min-w-12 rounded-lg px-1 text-xs font-medium tabular-nums outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          {Math.round(zoom * 100)} %
+        </button>
+        <button type="button" onClick={() => setZoom(clampZoom(zoom + ZOOM_STEP))} disabled={zoom >= ZOOM_MAX} aria-label="Zoomer" className="flex h-8 w-8 items-center justify-center rounded-lg outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40">
+          <Plus size={15} aria-hidden="true" />
+        </button>
+      </div>
+      <div ref={scrollRef} className="overflow-auto rounded-2xl">
+        <div style={{ width: CANVAS_SIZE.width * zoom, height: CANVAS_SIZE.height * zoom }}>
       <div
         ref={canvasRef}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        className="relative"
+        className="relative origin-top-left"
         style={{
           width: CANVAS_SIZE.width,
           height: CANVAS_SIZE.height,
+          transform: `scale(${zoom})`,
           backgroundImage: "radial-gradient(var(--border) 1px, transparent 1px)",
           backgroundSize: "24px 24px",
         }}
@@ -209,6 +252,8 @@ export function FloorPlanCanvas({
             </div>
           );
         })}
+      </div>
+        </div>
       </div>
     </div>
   );
