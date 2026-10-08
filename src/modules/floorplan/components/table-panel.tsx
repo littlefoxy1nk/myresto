@@ -68,19 +68,19 @@ export function TablePanel({
         </Button>
       )}
 
-      {table.activeReservation && (
+      {(table.dayReservations ?? (table.activeReservation ? [table.activeReservation] : [])).map((r) => (
         <Link
+          key={r.id}
           href="/reservations"
           className="mt-4 block rounded-xl border border-border bg-muted p-3 text-sm outline-none transition-colors hover:bg-border focus-visible:ring-2 focus-visible:ring-accent"
         >
-          <p className="font-medium">{table.activeReservation.customerName}</p>
+          <p className="font-medium">{r.customerName}</p>
           <p className="text-xs text-muted-foreground">
-            {table.activeReservation.partySize} pers. · {table.activeReservation.time}
-            {table.activeReservation.minutesFromNow > 0 &&
-              ` · dans ${formatMinutes(table.activeReservation.minutesFromNow)}`}
+            {r.partySize} pers. · {r.time}
+            {r.minutesFromNow > 0 && ` · dans ${formatMinutes(r.minutesFromNow)}`}
           </p>
         </Link>
-      )}
+      ))}
 
       {table.group && (
         <div className="mt-4 rounded-xl border border-accent/30 bg-accent-soft/40 p-3 text-sm">

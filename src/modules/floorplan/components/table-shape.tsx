@@ -9,6 +9,7 @@ export function TableShape({
   selected,
   dragging,
   mergeTarget,
+  showReservation,
   onPointerDownCapture,
 }: {
   table: TableWithLiveState;
@@ -18,6 +19,8 @@ export function TableShape({
   /// distinct de la sélection, pour annoncer "la déposer ici proposera de fusionner"
   /// avant même de relâcher (voir floor-plan-canvas.tsx, findDropTarget).
   mergeTarget?: boolean;
+  /// Aperçu d'un jour : affiche l'heure et le nom de la réservation sur la table.
+  showReservation?: boolean;
   onPointerDownCapture?: (e: React.PointerEvent) => void;
 }) {
   const style = LIVE_STATE_STYLE[table.liveState];
@@ -39,7 +42,14 @@ export function TableShape({
       data-table-id={table.id}
     >
       <span className="text-sm font-semibold">{table.label}</span>
-      <span className="opacity-80">{table.capacity} pers.</span>
+      {showReservation && table.activeReservation ? (
+        <span className="max-w-full truncate px-1 text-[11px] opacity-90">
+          {table.activeReservation.time} · {table.activeReservation.customerName}
+          {(table.dayReservations?.length ?? 0) > 1 && ` +${table.dayReservations!.length - 1}`}
+        </span>
+      ) : (
+        <span className="opacity-80">{table.capacity} pers.</span>
+      )}
     </div>
   );
 }

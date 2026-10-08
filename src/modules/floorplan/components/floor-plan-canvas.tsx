@@ -41,6 +41,7 @@ export function FloorPlanCanvas({
   onResizeTable,
   onDropOnTable,
   fit = false,
+  showReservations = false,
 }: {
   tables: TableWithLiveState[];
   canEdit: boolean;
@@ -56,6 +57,7 @@ export function FloorPlanCanvas({
   /// Mode lecture "tout d'un coup d'œil" (Mode Service) : le plan est cadré sur ses tables
   /// et mis à l'échelle de la largeur disponible — pas de défilement, pas de boutons de zoom.
   fit?: boolean;
+  showReservations?: boolean;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -294,6 +296,7 @@ export function FloorPlanCanvas({
                 selected={selected}
                 dragging={isDragging}
                 mergeTarget={dropTargetId === t.id}
+                showReservation={showReservations}
                 onPointerDownCapture={(e) => startDrag(e, t)}
               />
               {canEdit && selected && !isDragging && (

@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay, isSameDay } from "date-fns";
-import { timeToMinutes } from "@/lib/time";
-import { computeTableLiveState, computeSlotAvailability, type ReservationForStateCalc } from "./table-state";
+import { timeToMinutes, isoWeekday } from "@/lib/time";
+import {
+  computeTableLiveState,
+  computeSlotAvailability,
+  computeTableStateForWindow,
+  type ReservationForStateCalc,
+} from "./table-state";
 import type {
   ZoneWithTables,
   TableManualStatus,
@@ -215,4 +220,74 @@ export async function getFloorPlanForSlot(
       };
     }),
   }));
+}
+
+export type FloorPlanDayService = { id: string; name: string; startTime: string; endTime: string };
+
+/// Plan de salle d'un jour choisi (aperçu des jours à venir, ou passés) : l'état de chaque
+/// table dit seulement si elle est réservée sur la fenêtre demandée — le service choisi, ou
+/// la journée entière sans service. Chaque table porte la liste de ses réservations de la
+/// fenêtre dans `dayReservations`. Permission-agnostique comme getFloorPlan : l'appelant
+/// vérifie floorplan.view.
+export async function getFloorPlanForDay(
+  establishmentId: string,
+  date: Date,
+  serviceId: string | null
+): Promise<{ zones: ZoneWithTables[]; services: FloorPlanDayService[]; service: FloorPlanDayService | null }> {
+  const dayStart = startOfDay(date);
+  const dayEnd = endOfDay(date);
+  const weekday = isoWeekday(date);
+
+  const [allServices, { zones, groupByTable }, reservations] = await Promise.all([
+    prisma.serviceDefinition.findMany({ where: { establishmentId }, orderBy: { startTime: "asc" } }),
+    fetchZonesAndGroups(establishmentId, new Date(dayStart.getTime() + 12 * 3600_000)),
+    prisma.reservation.findMany({
+      where: { establishmentId, date: { gte: dayStart, lte: dayEnd }, status: { notIn: ["cancelled", "no_show"] } },
+      include: { tables: true },
+    }),
+  ]);
+
+  const services = allServices
+    .filter((sv) => sv.daysOfWeek.split(",").map(Number).includes(weekday))
+    .map((sv) => ({ id: sv.id, name: sv.name, startTime: sv.startTime, endTime: sv.endTime }));
+  const service = services.find((sv) => sv.id === serviceId) ?? null;
+  const windowStart = service ? timeToMinutes(service.startTime) : 0;
+  const windowEnd = service ? timeToMinutes(service.endTime) : 24 * 60;
+
+  const reservationsByTable = reservationsByTableMap(reservations);
+
+  return {
+    services,
+    service,
+    zones: zones.map((zone) => ({
+      id: zone.id,
+      name: zone.name,
+      type: zone.type as ZoneType,
+      sortOrder: zone.sortOrder,
+      tables: zone.tables.map((t) => {
+        const { liveState, reservations: dayReservations } = computeTableStateForWindow(
+          t.status as TableManualStatus,
+          reservationsByTable.get(t.id) ?? [],
+          windowStart,
+          windowEnd
+        );
+        return {
+          id: t.id,
+          zoneId: t.zoneId,
+          label: t.label,
+          capacity: t.capacity,
+          shape: t.shape as TableShape,
+          posX: t.posX,
+          posY: t.posY,
+          width: t.width,
+          height: t.height,
+          manualStatus: t.status as TableManualStatus,
+          liveState,
+          activeReservation: dayReservations[0] ?? null,
+          dayReservations,
+          group: groupByTable.get(t.id) ?? null,
+        };
+      }),
+    })),
+  };
 }

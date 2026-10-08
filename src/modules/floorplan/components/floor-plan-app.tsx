@@ -29,10 +29,13 @@ export function FloorPlanApp({
   zones,
   canEdit,
   canCreateReservation,
+  dayView = null,
 }: {
   zones: ZoneWithTables[];
   canEdit: boolean;
   canCreateReservation: boolean;
+  /// Aperçu en lecture seule d'un autre jour / d'un service (voir getFloorPlanForDay).
+  dayView?: { label: string; serviceName: string | null; isToday: boolean } | null;
 }) {
   const [activeZoneId, setActiveZoneId] = useState<string | null>(zones[0]?.id ?? null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -46,6 +49,8 @@ export function FloorPlanApp({
 
   const activeZone = zones.find((z) => z.id === activeZoneId) ?? zones[0] ?? null;
   const selectedTable = activeZone?.tables.find((t) => t.id === selectedTableId) ?? null;
+
+  const freeSuffix = dayView ? (dayView.serviceName ? "sur ce service" : "sur la journée") : "en ce moment";
 
   const zoneTotals = useMemo(() => {
     if (!activeZone) return { capacity: 0, free: 0 };
@@ -166,9 +171,19 @@ export function FloorPlanApp({
         )}
       </div>
 
+      {dayView && (
+        <p className="rounded-xl border border-accent/30 bg-accent-soft/40 px-4 py-2.5 text-sm">
+          <span className="font-medium text-accent">
+            Aperçu · {dayView.label}
+            {dayView.serviceName && ` · ${dayView.serviceName}`}
+          </span>{" "}
+          <span className="text-muted-foreground">— lecture seule, les réservations de ce créneau sont affichées sur les tables.</span>
+        </p>
+      )}
+
       <p className="text-sm text-muted-foreground">
         {activeZone.tables.length} table{activeZone.tables.length > 1 ? "s" : ""} · {zoneTotals.capacity} places ·{" "}
-        {zoneTotals.free} libre{zoneTotals.free > 1 ? "s" : ""} en ce moment
+        {zoneTotals.free} libre{zoneTotals.free > 1 ? "s" : ""} {freeSuffix}
       </p>
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start">
@@ -188,6 +203,7 @@ export function FloorPlanApp({
             <FloorPlanCanvas
               tables={activeZone.tables}
               canEdit={canEdit}
+              showReservations={!!dayView}
               selectedTableId={selectedTableId}
               mergeSelection={mergeSelection}
               onSelectTable={handleSelectTable}

@@ -103,6 +103,31 @@ export function computeSlotAvailability(
   return { liveState: "available", activeReservation: null };
 }
 
+/// État d'une table pour une journée/un service choisi à l'avance (aperçu des jours à
+/// venir) : pas de notion de "maintenant", juste "est-elle réservée dans cette fenêtre ?".
+/// Une réservation compte si elle chevauche la fenêtre [windowStart, windowEnd[ ; toutes
+/// celles qui comptent sont renvoyées, triées par heure, pour pouvoir afficher un double
+/// service sur la même table. `minutesFromNow` est fixé à 0 : il n'a pas de sens ici.
+export function computeTableStateForWindow(
+  manualStatus: TableManualStatus,
+  reservationsOnDate: ReservationForStateCalc[],
+  windowStartMinutes: number,
+  windowEndMinutes: number
+): { liveState: TableLiveState; reservations: TableUpcomingReservation[] } {
+  if (manualStatus === "unavailable") {
+    return { liveState: "unavailable", reservations: [] };
+  }
+
+  const reservations = reservationsOnDate
+    .filter((r) => r.status !== "cancelled" && r.status !== "no_show")
+    .map((r) => ({ r, start: timeToMinutes(r.time) }))
+    .filter((x) => x.start < windowEndMinutes && x.start + x.r.durationMinutes > windowStartMinutes)
+    .sort((a, b) => a.start - b.start)
+    .map((x) => toUpcoming(x.r, 0));
+
+  return { liveState: reservations.length > 0 ? "reserved" : "available", reservations };
+}
+
 function toUpcoming(r: ReservationForStateCalc, minutesFromNow: number): TableUpcomingReservation {
   return {
     id: r.id,

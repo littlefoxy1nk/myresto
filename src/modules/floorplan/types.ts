@@ -37,6 +37,8 @@ export type TableWithLiveState = {
   liveState: TableLiveState;
   /// La réservation qui explique l'état live (occupée / réservée / bientôt), s'il y en a une.
   activeReservation: TableUpcomingReservation | null;
+  /// Seulement en aperçu d'un jour choisi : toutes les réservations de la fenêtre, par heure.
+  dayReservations?: TableUpcomingReservation[];
   group: { id: string; label: string | null; combinedCapacity: number; tableIds: string[] } | null;
 };
 
