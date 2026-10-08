@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Minus, Plus } from "lucide-react";
+import { Maximize, Minus, Plus } from "lucide-react";
 import { TableShape } from "@/modules/floorplan/components/table-shape";
 import type { TableWithLiveState } from "@/modules/floorplan/types";
 import { rectsOverlap } from "@/modules/floorplan/compute";
@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 type DragState = { id: string; startClientX: number; startClientY: number; startPosX: number; startPosY: number; posX: number; posY: number };
 type ResizeState = { id: string; startClientX: number; startClientY: number; startWidth: number; startHeight: number; width: number; height: number };
 
-const CANVAS_SIZE = { width: 960, height: 640 };
-const ZOOM_MIN = 0.4;
+const CANVAS_SIZE = { width: 2400, height: 1600 };
+const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 1.6;
 const ZOOM_STEP = 0.1;
 
@@ -48,6 +48,21 @@ export function FloorPlanCanvas({
   const movedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
+
+  // Cadre toutes les tables de la zone d'un coup : zoom calculé sur leur boîte englobante,
+  // puis défilement pour que son coin haut-gauche soit en haut-gauche de la vue.
+  function fitToTables() {
+    const el = scrollRef.current;
+    if (!el || tables.length === 0) return;
+    const margin = 40;
+    const x1 = Math.max(0, Math.min(...tables.map((t) => t.posX)) - margin);
+    const y1 = Math.max(0, Math.min(...tables.map((t) => t.posY)) - margin);
+    const x2 = Math.max(...tables.map((t) => t.posX + t.width)) + margin;
+    const y2 = Math.max(...tables.map((t) => t.posY + t.height)) + margin;
+    const next = Math.min(1, clampZoom(Math.min(el.clientWidth / (x2 - x1), el.clientHeight / (y2 - y1))));
+    setZoom(next);
+    requestAnimationFrame(() => el.scrollTo({ left: x1 * next, top: y1 * next }));
+  }
 
   // Pincement au trackpad / Ctrl+molette : le navigateur envoie un wheel avec ctrlKey.
   // Écouteur natif non passif, sinon la page entière zoomerait à la place du plan.
@@ -173,6 +188,16 @@ export function FloorPlanCanvas({
   return (
     <div className="relative rounded-2xl border border-border bg-muted/40">
       <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={fitToTables}
+          disabled={tables.length === 0}
+          aria-label="Voir toutes les tables"
+          title="Voir toutes les tables"
+          className="flex h-8 w-8 items-center justify-center rounded-lg outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
+        >
+          <Maximize size={15} aria-hidden="true" />
+        </button>
         <button type="button" onClick={() => setZoom(clampZoom(zoom - ZOOM_STEP))} disabled={zoom <= ZOOM_MIN} aria-label="Dézoomer" className="flex h-8 w-8 items-center justify-center rounded-lg outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40">
           <Minus size={15} aria-hidden="true" />
         </button>
@@ -188,7 +213,7 @@ export function FloorPlanCanvas({
           <Plus size={15} aria-hidden="true" />
         </button>
       </div>
-      <div ref={scrollRef} className="overflow-auto rounded-2xl">
+      <div ref={scrollRef} className="h-[70vh] min-h-[420px] overflow-auto rounded-2xl">
         <div style={{ width: CANVAS_SIZE.width * zoom, height: CANVAS_SIZE.height * zoom }}>
       <div
         ref={canvasRef}
