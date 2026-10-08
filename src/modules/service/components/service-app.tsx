@@ -4,7 +4,8 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/lib/toast-bus";
-import { ZoneTabs } from "@/modules/floorplan/components/zone-tabs";
+import { ZONE_ICON, PRESSURE_DOT_CLASS, PRESSURE_LABEL } from "@/modules/floorplan/components/zone-tabs";
+import { cn } from "@/lib/utils";
 import { FloorPlanCanvas } from "@/modules/floorplan/components/floor-plan-canvas";
 import { ServiceAlerts } from "@/modules/service/components/service-alerts";
 import { ServiceNextUp } from "@/modules/service/components/service-next-up";
@@ -21,12 +22,9 @@ const REFRESH_INTERVAL_MS = 30_000;
 export function ServiceApp({ snapshot }: { snapshot: ServiceSnapshot }) {
   useAutoRefresh(REFRESH_INTERVAL_MS);
 
-  const [activeZoneId, setActiveZoneId] = useState<string | null>(snapshot.zones[0]?.id ?? null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(false);
 
-  const activeZone = snapshot.zones.find((z) => z.id === activeZoneId) ?? snapshot.zones[0] ?? null;
-  const selectedTable = activeZone?.tables.find((t) => t.id === selectedTableId) ?? null;
   // Arrivé mais pas encore installé : sans cette liste, la personne "disparaît" du
   // cockpit dès qu'elle quitte "Prochaines arrivées", jusqu'à cliquer sa table une à une.
   const arrivedWaiting = snapshot.timeline.filter((t) => t.status === "arrived");
@@ -109,42 +107,64 @@ export function ServiceApp({ snapshot }: { snapshot: ServiceSnapshot }) {
         </section>
       )}
 
-      {activeZone && (
-        <section className="space-y-3">
+      {snapshot.zones.length > 0 && (
+        <section className="space-y-5">
           <h2 className="text-sm font-semibold">Plan de salle</h2>
-          <ZoneTabs
-            zones={snapshot.zones}
-            activeZoneId={activeZone.id}
-            canEdit={false}
-            onSelect={setActiveZoneId}
-            onCreateZone={() => {}}
-            onDeleteZone={() => {}}
-            pressureByZoneId={snapshot.zonePressure}
-          />
-          <div className="flex flex-col gap-4 md:flex-row md:items-start">
-            <div className="w-full min-w-0 flex-1">
-              <FloorPlanCanvas
-                tables={activeZone.tables}
-                canEdit={false}
-                selectedTableId={selectedTableId}
-                mergeSelection={new Set()}
-                onSelectTable={setSelectedTableId}
-                onMoveTable={() => {}}
-                onResizeTable={() => {}}
-              />
-            </div>
-            {selectedTable && (
-              <ServiceTableSheet
-                key={selectedTable.id}
-                table={selectedTable}
-                onClose={() => setSelectedTableId(null)}
-                onMarkArrived={(id) => guarded(() => updateReservationStatus(id, "arrived"), "Client marqué arrivé")}
-                onMarkSeated={(id) => guarded(() => updateReservationStatus(id, "seated"), "Table installée")}
-                onRelease={(id) => guarded(() => releaseReservationTables(id), "Table libérée, en nettoyage")}
-                onMarkReady={(id) => guarded(() => setTableManualStatus(id, "available"), "Table prête")}
-              />
-            )}
-          </div>
+          {snapshot.zones.map((zone) => {
+            const capacity = zone.tables.reduce((sum, t) => sum + t.capacity, 0);
+            const free = zone.tables.filter((t) => t.liveState === "available").length;
+            const pressure = snapshot.zonePressure[zone.id];
+            const zoneSelectedTable = zone.tables.find((t) => t.id === selectedTableId) ?? null;
+            return (
+              <div key={zone.id} className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                  {pressure && (
+                    <span
+                      className={cn("inline-block h-2 w-2 shrink-0 rounded-full", PRESSURE_DOT_CLASS[pressure])}
+                      aria-label={PRESSURE_LABEL[pressure]}
+                      title={PRESSURE_LABEL[pressure]}
+                    />
+                  )}
+                  <span aria-hidden="true">{ZONE_ICON[zone.type] ?? "📍"}</span>
+                  {zone.name}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {free}/{zone.tables.length} libres · {capacity} pl.
+                  </span>
+                </div>
+                {zone.tables.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                    Aucune table dans cette zone.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start">
+                    <div className="w-full min-w-0 flex-1">
+                      <FloorPlanCanvas
+                        fit
+                        tables={zone.tables}
+                        canEdit={false}
+                        selectedTableId={selectedTableId}
+                        mergeSelection={new Set()}
+                        onSelectTable={setSelectedTableId}
+                        onMoveTable={() => {}}
+                        onResizeTable={() => {}}
+                      />
+                    </div>
+                    {zoneSelectedTable && (
+                      <ServiceTableSheet
+                        key={zoneSelectedTable.id}
+                        table={zoneSelectedTable}
+                        onClose={() => setSelectedTableId(null)}
+                        onMarkArrived={(id) => guarded(() => updateReservationStatus(id, "arrived"), "Client marqué arrivé")}
+                        onMarkSeated={(id) => guarded(() => updateReservationStatus(id, "seated"), "Table installée")}
+                        onRelease={(id) => guarded(() => releaseReservationTables(id), "Table libérée, en nettoyage")}
+                        onMarkReady={(id) => guarded(() => setTableManualStatus(id, "available"), "Table prête")}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </section>
       )}
 

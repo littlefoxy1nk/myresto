@@ -5,7 +5,7 @@ import type { ZoneWithTables } from "@/modules/floorplan/types";
 import type { ZonePressureLevel } from "@/modules/workload/types";
 import { Plus, X } from "lucide-react";
 
-const ZONE_ICON: Record<string, string> = {
+export const ZONE_ICON: Record<string, string> = {
   salle: "🍽️",
   terrasse: "🌿",
   bar: "🍸",
@@ -13,13 +13,13 @@ const ZONE_ICON: Record<string, string> = {
   autre: "📍",
 };
 
-const PRESSURE_DOT_CLASS: Record<ZonePressureLevel, string> = {
+export const PRESSURE_DOT_CLASS: Record<ZonePressureLevel, string> = {
   calme: "bg-good",
   chargee: "bg-watch",
   pleine: "bg-urgent",
 };
 
-const PRESSURE_LABEL: Record<ZonePressureLevel, string> = {
+export const PRESSURE_LABEL: Record<ZonePressureLevel, string> = {
   calme: "Calme",
   chargee: "Chargée",
   pleine: "Pleine",

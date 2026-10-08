@@ -19,6 +19,18 @@ function clampZoom(z: number) {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
 }
 
+const FIT_MARGIN = 40;
+const FIT_MAX_HEIGHT = 460;
+
+function tablesBounds(tables: TableWithLiveState[], margin = FIT_MARGIN) {
+  return {
+    x1: Math.max(0, Math.min(...tables.map((t) => t.posX)) - margin),
+    y1: Math.max(0, Math.min(...tables.map((t) => t.posY)) - margin),
+    x2: Math.max(...tables.map((t) => t.posX + t.width)) + margin,
+    y2: Math.max(...tables.map((t) => t.posY + t.height)) + margin,
+  };
+}
+
 export function FloorPlanCanvas({
   tables,
   canEdit,
@@ -28,6 +40,7 @@ export function FloorPlanCanvas({
   onMoveTable,
   onResizeTable,
   onDropOnTable,
+  fit = false,
 }: {
   tables: TableWithLiveState[];
   canEdit: boolean;
@@ -40,6 +53,9 @@ export function FloorPlanCanvas({
   /// là — voir computeDropTarget ci-dessous. Optionnel : sans ce prop, un dépôt sur une
   /// autre table reste un simple déplacement (comportement d'avant).
   onDropOnTable?: (draggedId: string, targetId: string) => void;
+  /// Mode lecture "tout d'un coup d'œil" (Mode Service) : le plan est cadré sur ses tables
+  /// et mis à l'échelle de la largeur disponible — pas de défilement, pas de boutons de zoom.
+  fit?: boolean;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -47,18 +63,30 @@ export function FloorPlanCanvas({
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const movedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [zoom, setZoom] = useState(1);
+  const [manualZoom, setZoom] = useState(1);
+  const [fitZoom, setFitZoom] = useState(1);
+  const zoom = fit ? fitZoom : manualZoom;
+  const bounds = tables.length > 0 ? tablesBounds(tables) : { x1: 0, y1: 0, x2: CANVAS_SIZE.width, y2: CANVAS_SIZE.height };
+
+  const fitWidth = bounds.x2 - bounds.x1;
+  const fitHeight = bounds.y2 - bounds.y1;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!fit || !el) return;
+    const update = () =>
+      setFitZoom(Math.min(1, Math.max(ZOOM_MIN, Math.min(el.clientWidth / fitWidth, FIT_MAX_HEIGHT / fitHeight))));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fit, fitWidth, fitHeight]);
 
   // Cadre toutes les tables de la zone d'un coup : zoom calculé sur leur boîte englobante,
   // puis défilement pour que son coin haut-gauche soit en haut-gauche de la vue.
   function fitToTables() {
     const el = scrollRef.current;
     if (!el || tables.length === 0) return;
-    const margin = 40;
-    const x1 = Math.max(0, Math.min(...tables.map((t) => t.posX)) - margin);
-    const y1 = Math.max(0, Math.min(...tables.map((t) => t.posY)) - margin);
-    const x2 = Math.max(...tables.map((t) => t.posX + t.width)) + margin;
-    const y2 = Math.max(...tables.map((t) => t.posY + t.height)) + margin;
+    const { x1, y1, x2, y2 } = tablesBounds(tables);
     const next = Math.min(1, clampZoom(Math.min(el.clientWidth / (x2 - x1), el.clientHeight / (y2 - y1))));
     setZoom(next);
     requestAnimationFrame(() => el.scrollTo({ left: x1 * next, top: y1 * next }));
@@ -68,7 +96,7 @@ export function FloorPlanCanvas({
   // Écouteur natif non passif, sinon la page entière zoomerait à la place du plan.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || fit) return;
     function onWheel(e: WheelEvent) {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
@@ -76,7 +104,7 @@ export function FloorPlanCanvas({
     }
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, []);
+  }, [fit]);
 
   // Une table qu'on dépose sur une autre déjà dans le MÊME groupe n'a rien à fusionner
   // (c'est déjà fait) — dans ce cas on laisse juste le déplacement se produire.
@@ -187,7 +215,7 @@ export function FloorPlanCanvas({
 
   return (
     <div className="relative rounded-2xl border border-border bg-muted/40">
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">
+      {!fit && <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">
         <button
           type="button"
           onClick={fitToTables}
@@ -212,9 +240,15 @@ export function FloorPlanCanvas({
         <button type="button" onClick={() => setZoom(clampZoom(zoom + ZOOM_STEP))} disabled={zoom >= ZOOM_MAX} aria-label="Zoomer" className="flex h-8 w-8 items-center justify-center rounded-lg outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40">
           <Plus size={15} aria-hidden="true" />
         </button>
-      </div>
-      <div ref={scrollRef} className="h-[70vh] min-h-[420px] overflow-auto rounded-2xl">
-        <div style={{ width: CANVAS_SIZE.width * zoom, height: CANVAS_SIZE.height * zoom }}>
+      </div>}
+      <div ref={scrollRef} className={fit ? "overflow-hidden rounded-2xl" : "h-[70vh] min-h-[420px] overflow-auto rounded-2xl"}>
+        <div
+          style={
+            fit
+              ? { width: fitWidth * zoom, height: fitHeight * zoom, overflow: "hidden", position: "relative", margin: "0 auto" }
+              : { width: CANVAS_SIZE.width * zoom, height: CANVAS_SIZE.height * zoom }
+          }
+        >
       <div
         ref={canvasRef}
         onPointerMove={handlePointerMove}
@@ -224,7 +258,7 @@ export function FloorPlanCanvas({
         style={{
           width: CANVAS_SIZE.width,
           height: CANVAS_SIZE.height,
-          transform: `scale(${zoom})`,
+          transform: fit ? `translate(${-bounds.x1 * zoom}px, ${-bounds.y1 * zoom}px) scale(${zoom})` : `scale(${zoom})`,
           backgroundImage: "radial-gradient(var(--border) 1px, transparent 1px)",
           backgroundSize: "24px 24px",
         }}
