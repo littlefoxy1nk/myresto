@@ -38,6 +38,8 @@ export default async function PlanDeSallePage({
     ? {
         label: format(new Date(`${dateKey}T00:00:00`), "EEEE d MMMM", { locale: fr }),
         serviceName: day.service?.name ?? null,
+        dateKey,
+        startTime: day.service?.startTime ?? null,
         isToday: dateKey === todayKey,
       }
     : null;
@@ -54,7 +56,8 @@ export default async function PlanDeSallePage({
       <FloorPlanApp
         zones={zones}
         canEdit={!dayView && ctx.can("floorplan.edit")}
-        canCreateReservation={!dayView && ctx.can("reservations.edit")}
+        canCreateReservation={ctx.can("reservations.edit")}
+        canWalkIn={ctx.can("reservations.edit") || ctx.can("service.run")}
         dayView={dayView}
       />
     </div>

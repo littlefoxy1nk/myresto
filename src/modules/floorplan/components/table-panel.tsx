@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { X, Copy, Trash2, Link2, Link2Off, CalendarPlus } from "lucide-react";
+import { X, Copy, Trash2, Link2, Link2Off, CalendarPlus, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LIVE_STATE_STYLE } from "@/modules/floorplan/live-state-style";
@@ -19,6 +19,8 @@ export function TablePanel({
   table,
   canEdit,
   canCreateReservation,
+  reserveHref,
+  onWalkIn,
   zones,
   onClose,
   onPatch,
@@ -30,6 +32,10 @@ export function TablePanel({
   table: TableWithLiveState;
   canEdit: boolean;
   canCreateReservation: boolean;
+  /// Lien "réserver pour plus tard" (date/heure du plan affiché déjà préremplies).
+  reserveHref: string;
+  /// Présent seulement sur le plan live : installer tout de suite un client sans réservation.
+  onWalkIn?: () => void;
   zones: { id: string; name: string }[];
   onClose: () => void;
   onPatch: (patch: Partial<{ label: string; capacity: number; shape: TableShape; zoneId: string; status: TableManualStatus }>) => void;
@@ -59,13 +65,23 @@ export function TablePanel({
         </button>
       </div>
 
-      {canCreateReservation && table.liveState === "available" && (
-        <Button asChild size="sm" className="mt-4 w-full">
-          <Link href={`/reservations/nouvelle?tableId=${table.id}&zoneId=${table.zoneId}`}>
-            <CalendarPlus size={14} aria-hidden="true" />
-            Réserver cette table
-          </Link>
-        </Button>
+      {table.liveState !== "unavailable" && (onWalkIn || canCreateReservation) && (
+        <div className="mt-4 space-y-2">
+          {onWalkIn && (table.liveState === "available" || table.liveState === "soon") && (
+            <Button size="sm" className="w-full" onClick={onWalkIn}>
+              <UserPlus size={14} aria-hidden="true" />
+              Installer un client maintenant
+            </Button>
+          )}
+          {canCreateReservation && (
+            <Button asChild size="sm" variant={onWalkIn ? "secondary" : "primary"} className="w-full">
+              <Link href={reserveHref}>
+                <CalendarPlus size={14} aria-hidden="true" />
+                Réserver cette table
+              </Link>
+            </Button>
+          )}
+        </div>
       )}
 
       {(table.dayReservations ?? (table.activeReservation ? [table.activeReservation] : [])).map((r) => (

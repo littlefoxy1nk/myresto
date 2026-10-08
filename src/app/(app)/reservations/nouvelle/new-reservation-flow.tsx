@@ -21,9 +21,13 @@ type Step = 1 | 2 | 3;
 export function NewReservationFlow({
   preselectedTableId,
   preselectedZoneId,
+  initialDate,
+  initialTime,
 }: {
   preselectedTableId?: string;
   preselectedZoneId?: string;
+  initialDate?: string;
+  initialTime?: string;
 }) {
   const [step, setStep] = useState<Step>(1);
 
@@ -31,8 +35,8 @@ export function NewReservationFlow({
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [partySize, setPartySize] = useState(2);
-  const [date, setDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
-  const [time, setTime] = useState("20:00");
+  const [date, setDate] = useState(() => initialDate ?? format(new Date(), "yyyy-MM-dd"));
+  const [time, setTime] = useState(initialTime ?? "20:00");
   const [notes, setNotes] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
   const [formError, setFormError] = useState<string | null>(null);

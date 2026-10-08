@@ -11,6 +11,7 @@ import { FloorPlanCanvas } from "@/modules/floorplan/components/floor-plan-canva
 import { TablePanel } from "@/modules/floorplan/components/table-panel";
 import { CreateZoneDialog } from "@/modules/floorplan/components/create-zone-dialog";
 import { CreateTableDialog } from "@/modules/floorplan/components/create-table-dialog";
+import { WalkInDialog } from "@/modules/service/components/walk-in-dialog";
 import { CreateGroupDialog } from "@/modules/floorplan/components/create-group-dialog";
 import {
   createZone,
@@ -25,17 +26,31 @@ import {
 } from "@/modules/floorplan/server/actions";
 import type { ZoneWithTables } from "@/modules/floorplan/types";
 
+function reserveHref(
+  table: { id: string; zoneId: string },
+  dayView: { dateKey: string; startTime: string | null } | null
+) {
+  const params = new URLSearchParams({ tableId: table.id, zoneId: table.zoneId });
+  if (dayView) {
+    params.set("date", dayView.dateKey);
+    if (dayView.startTime) params.set("time", dayView.startTime);
+  }
+  return `/reservations/nouvelle?${params.toString()}`;
+}
+
 export function FloorPlanApp({
   zones,
   canEdit,
   canCreateReservation,
+  canWalkIn,
   dayView = null,
 }: {
   zones: ZoneWithTables[];
   canEdit: boolean;
   canCreateReservation: boolean;
+  canWalkIn: boolean;
   /// Aperçu en lecture seule d'un autre jour / d'un service (voir getFloorPlanForDay).
-  dayView?: { label: string; serviceName: string | null; isToday: boolean } | null;
+  dayView?: { label: string; serviceName: string | null; isToday: boolean; dateKey: string; startTime: string | null } | null;
 }) {
   const [activeZoneId, setActiveZoneId] = useState<string | null>(zones[0]?.id ?? null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -46,6 +61,7 @@ export function FloorPlanApp({
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [confirmDeleteTableId, setConfirmDeleteTableId] = useState<string | null>(null);
   const [confirmDeleteZoneId, setConfirmDeleteZoneId] = useState<string | null>(null);
+  const [walkInTableId, setWalkInTableId] = useState<string | null>(null);
 
   const activeZone = zones.find((z) => z.id === activeZoneId) ?? zones[0] ?? null;
   const selectedTable = activeZone?.tables.find((t) => t.id === selectedTableId) ?? null;
@@ -227,6 +243,8 @@ export function FloorPlanApp({
             table={selectedTable}
             canEdit={canEdit}
             canCreateReservation={canCreateReservation}
+            reserveHref={reserveHref(selectedTable, dayView)}
+            onWalkIn={canWalkIn && !dayView ? () => setWalkInTableId(selectedTable.id) : undefined}
             zones={zones.map((z) => ({ id: z.id, name: z.name }))}
             onClose={() => setSelectedTableId(null)}
             onPatch={(patch) => guarded(() => updateTable({ id: selectedTable.id, ...patch }))}
@@ -247,6 +265,15 @@ export function FloorPlanApp({
         onOpenChange={setShowCreateZone}
         onCreate={(name, type) => guarded(() => createZone({ name, type }), "Zone créée")}
       />
+      {walkInTableId && (
+        <WalkInDialog
+          key={walkInTableId}
+          open
+          onOpenChange={(open) => !open && setWalkInTableId(null)}
+          tableId={walkInTableId}
+          tableCapacity={activeZone.tables.find((t) => t.id === walkInTableId)?.capacity ?? 2}
+        />
+      )}
       <CreateTableDialog
         open={showCreateTable}
         onOpenChange={setShowCreateTable}
