@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { startOfDay, endOfDay } from "date-fns";
+import { startOfDay, endOfDay, format } from "date-fns";
 import { computeDaysLeft } from "@/modules/stock/compute";
 import { computeWorkloadSummary } from "@/modules/workload/compute";
 import { computeFrequentationSignal, detectLargeGroups, detectNotableConcentration } from "@/modules/frequentation/compute";
@@ -138,6 +138,23 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
       severity: "urgent",
       title: `${t.membership.user.firstName} ${t.membership.user.lastName} est absent(e) aujourd'hui`,
       description: t.membership.jobTitle ?? undefined,
+    });
+  }
+
+  // Demandes de réservation en ligne en attente (tous jours à venir) : le client attend une réponse.
+  const pendingOnline = await prisma.reservation.findMany({
+    where: { establishmentId, source: "online", status: "new", date: { gte: startOfDay(today) } },
+    select: { date: true },
+    orderBy: { date: "asc" },
+  });
+  if (pendingOnline.length > 0) {
+    const n = pendingOnline.length;
+    alerts.push({
+      id: "online-requests",
+      severity: "important",
+      title: `${n} demande${n > 1 ? "s" : ""} de réservation en ligne à traiter`,
+      description: "Choisis une table puis confirme : le client attend ta réponse.",
+      action: { label: "Voir les demandes", href: `/reservations?date=${format(pendingOnline[0].date, "yyyy-MM-dd")}` },
     });
   }
 
