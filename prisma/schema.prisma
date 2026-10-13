@@ -60,6 +60,7 @@ model Establishment {
   zones           Zone[]
   tables          RestaurantTable[]
   tableGroups     TableGroup[]
+  monthlyFigures  MonthlyFigure[]
   reservations    Reservation[]
   customers       Customer[]
   shifts          Shift[]
@@ -703,6 +704,22 @@ model RevenueEntry {
   covers          Int           @default(0)
   source          String        @default("service") // service | event | other
   createdAt       DateTime      @default(now())
+}
+
+/// Chiffre d'un mois entier saisi d'un coup (sans le détail jour par jour) : utile pour
+/// historiser les mois passés. Quand il existe, il prime sur la somme des jours du mois.
+model MonthlyFigure {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  year            Int
+  month           Int           // 1..12
+  amountCents     Int
+  covers          Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([establishmentId, year, month])
 }
 
 model CostEntry {

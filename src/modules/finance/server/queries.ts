@@ -3,16 +3,15 @@ import { startOfDay, endOfDay, subDays, startOfWeek, endOfWeek } from "date-fns"
 import { getCurrentContext, ForbiddenError } from "@/lib/current-context";
 import { toDateKey } from "@/lib/utils";
 import { CLOSING_SOURCE } from "@/modules/finance/server/shared";
-import { computeAverageTicket, computeLaborCostRatio, computeMarginAfterLabor } from "@/modules/finance/compute";
+import { computeAverageTicket } from "@/modules/finance/compute";
+import { buildHistoryDatasets, type HistoryDatasets } from "@/modules/finance/history";
 import { computeShiftDurationHours } from "@/modules/planning/compute";
-import type { FinanceDailyEntry, FinanceSummary, ServiceReportItem } from "@/modules/finance/types";
+import type { FinanceSummary } from "@/modules/finance/types";
 
-/// Assemble la vue financière à partir des seules données réellement enregistrées
-/// (RevenueEntry, CostEntry catégorie "labor", ServiceReport) — aucun chiffre n'est
-/// simulé. Les heures planifiées viennent de Shift (Planning) mais sont recalculées ici
-/// directement plutôt que d'appeler getWeekPlanning, pour ne pas coupler l'accès aux
-/// finances à la permission schedule.view (un rôle peut avoir finance.view sans avoir
-/// schedule.view, ou l'inverse).
+/// Chiffres clés des derniers jours (CA, couverts, panier moyen, heures planifiées), à partir des
+/// seules données réellement enregistrées — aucun chiffre n'est simulé. Les heures planifiées
+/// viennent de Shift (Planning) mais sont recalculées ici plutôt que d'appeler getWeekPlanning, pour
+/// ne pas coupler l'accès aux finances à la permission schedule.view.
 export async function getFinanceSummary(establishmentId: string, rangeDays = 14): Promise<FinanceSummary> {
   const ctx = await getCurrentContext();
   if (!ctx.can("finance.view")) throw new ForbiddenError("finance.view");
@@ -22,97 +21,25 @@ export async function getFinanceSummary(establishmentId: string, rangeDays = 14)
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
 
-  const [revenueEntries, laborCostEntries, reports, weekShifts] = await Promise.all([
+  const [revenueEntries, weekShifts] = await Promise.all([
     prisma.revenueEntry.findMany({ where: { establishmentId, date: { gte: rangeStart, lte: rangeEnd } } }),
-    prisma.costEntry.findMany({
-      where: { establishmentId, category: "labor", date: { gte: rangeStart, lte: rangeEnd } },
-    }),
-    prisma.serviceReport.findMany({
-      where: { establishmentId },
-      orderBy: { date: "desc" },
-      take: 10,
-    }),
     prisma.shift.findMany({
       where: { establishmentId, date: { gte: weekStart, lte: weekEnd }, status: { not: "cancelled" } },
       select: { startTime: true, endTime: true },
     }),
   ]);
 
-  const revenueByDate = new Map<string, { amountCents: number; covers: number }>();
-  for (const r of revenueEntries) {
-    const key = toDateKey(r.date);
-    const entry = revenueByDate.get(key) ?? { amountCents: 0, covers: 0 };
-    entry.amountCents += r.amountCents;
-    entry.covers += r.covers;
-    revenueByDate.set(key, entry);
-  }
-  const laborByDate = new Map<string, number>();
-  for (const c of laborCostEntries) {
-    const key = toDateKey(c.date);
-    laborByDate.set(key, (laborByDate.get(key) ?? 0) + c.amountCents);
-  }
-
-  const dateKeys = [...new Set([...revenueByDate.keys(), ...laborByDate.keys()])].sort();
-  const daily: FinanceDailyEntry[] = dateKeys.map((date) => ({
-    date,
-    revenueCents: revenueByDate.get(date)?.amountCents ?? 0,
-    covers: revenueByDate.get(date)?.covers ?? 0,
-    laborCostCents: laborByDate.get(date) ?? 0,
-  }));
-
-  const totalRevenueCents = daily.reduce((s, d) => s + d.revenueCents, 0);
-  const totalCovers = daily.reduce((s, d) => s + d.covers, 0);
-  const totalLaborCostCents = daily.reduce((s, d) => s + d.laborCostCents, 0);
-
+  const totalRevenueCents = revenueEntries.reduce((s, r) => s + r.amountCents, 0);
+  const totalCovers = revenueEntries.reduce((s, r) => s + r.covers, 0);
   const plannedHoursThisWeek = weekShifts.reduce((s, sh) => s + computeShiftDurationHours(sh.startTime, sh.endTime), 0);
-
-  const recentReports: ServiceReportItem[] = reports.map((r) => ({
-    id: r.id,
-    date: toDateKey(r.date),
-    serviceLabel: r.serviceLabel,
-    rating: r.rating,
-    covers: r.covers,
-    note: r.note,
-    issues: r.issues ? r.issues.split(",").filter(Boolean) : [],
-  }));
 
   return {
     rangeDays,
     totalRevenueCents,
     totalCovers,
-    totalLaborCostCents,
-    averageTicketCents: computeAverageTicket(daily.map((d) => ({ amountCents: d.revenueCents, covers: d.covers }))),
-    laborCostRatio: computeLaborCostRatio(totalLaborCostCents, totalRevenueCents),
-    marginAfterLaborCents: computeMarginAfterLabor(totalRevenueCents, totalLaborCostCents),
+    averageTicketCents: computeAverageTicket(revenueEntries.map((r) => ({ amountCents: r.amountCents, covers: r.covers }))),
     plannedHoursThisWeek,
-    daily,
-    recentReports,
   };
-}
-
-/// Jours des `lookbackDays` derniers jours (hors aujourd'hui, dont le service n'est pas
-/// forcément terminé) sans clôture enregistrée — sert à relancer le manager sans deviner
-/// un CA à sa place. Vérification interne (même politique que getTodayClosing) pour ne
-/// jamais dépendre uniquement d'un futur appelant qui l'aurait oubliée.
-export async function getMissingClosingDates(establishmentId: string, lookbackDays = 14): Promise<string[]> {
-  const ctx = await getCurrentContext();
-  if (!ctx.can("finance.manage")) throw new ForbiddenError("finance.manage");
-
-  const rangeStart = startOfDay(subDays(new Date(), lookbackDays));
-  const rangeEnd = startOfDay(new Date());
-
-  const entries = await prisma.revenueEntry.findMany({
-    where: { establishmentId, source: CLOSING_SOURCE, date: { gte: rangeStart, lt: rangeEnd } },
-    select: { date: true },
-  });
-  const closedDates = new Set(entries.map((e) => toDateKey(e.date)));
-
-  const missing: string[] = [];
-  for (let i = 1; i <= lookbackDays; i++) {
-    const key = toDateKey(subDays(rangeEnd, i));
-    if (!closedDates.has(key)) missing.push(key);
-  }
-  return missing.sort();
 }
 
 /// Le CA du jour déjà saisi (le cas échéant), pour pré-remplir le formulaire de clôture
@@ -127,4 +54,30 @@ export async function getTodayClosing(establishmentId: string): Promise<{ revenu
     where: { establishmentId, source: CLOSING_SOURCE, date: today },
   });
   return entry ? { revenueCents: entry.amountCents, covers: entry.covers } : null;
+}
+
+/// Tout l'historique utile aux graphiques : CA saisi (jours + mois), couverts, et réservations
+/// réellement honorées (arrivées, installées ou terminées, jusqu'à aujourd'hui).
+export async function getFinanceHistory(establishmentId: string): Promise<HistoryDatasets> {
+  const ctx = await getCurrentContext();
+  if (!ctx.can("finance.view")) throw new ForbiddenError("finance.view");
+
+  const [revenue, monthly, done] = await Promise.all([
+    prisma.revenueEntry.findMany({ where: { establishmentId }, select: { date: true, amountCents: true, covers: true } }),
+    prisma.monthlyFigure.findMany({ where: { establishmentId } }),
+    prisma.reservation.findMany({
+      where: {
+        establishmentId,
+        status: { in: ["arrived", "seated", "completed"] },
+        date: { lte: endOfDay(new Date()) },
+      },
+      select: { date: true, partySize: true },
+    }),
+  ]);
+
+  return buildHistoryDatasets(
+    revenue.map((r) => ({ date: toDateKey(r.date), amountCents: r.amountCents, covers: r.covers })),
+    monthly.map((m) => ({ year: m.year, month: m.month, amountCents: m.amountCents, covers: m.covers })),
+    done.map((r) => ({ date: toDateKey(r.date), partySize: r.partySize }))
+  );
 }
