@@ -61,6 +61,7 @@ model Establishment {
   tables          RestaurantTable[]
   tableGroups     TableGroup[]
   monthlyFigures  MonthlyFigure[]
+  shoppingLists   ShoppingList[]
   reservations    Reservation[]
   customers       Customer[]
   shifts          Shift[]
@@ -689,6 +690,28 @@ model StockMovement {
   quantity        Float
   note            String?
   createdAt       DateTime      @default(now())
+}
+
+/// Une rubrique de la liste de courses ("Metro", "Boucher"…).
+model ShoppingList {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  name            String
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+
+  items           ShoppingItem[]
+}
+
+/// Un article d'une rubrique : une ligne de texte libre ("6 kg angus"), cochable une fois acheté.
+model ShoppingItem {
+  id        String       @id @default(cuid())
+  listId    String
+  list      ShoppingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  label     String
+  checked   Boolean      @default(false)
+  createdAt DateTime     @default(now())
 }
 
 // =========================================================================

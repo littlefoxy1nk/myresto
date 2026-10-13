@@ -1,17 +1,17 @@
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
-import { getStockOverview } from "@/modules/stock/server/queries";
-import { StockApp } from "@/modules/stock/components/stock-app";
+import { getShoppingLists } from "@/modules/stock/server/queries";
+import { ShoppingApp } from "@/modules/stock/components/shopping-app";
 
 export default async function StockPage() {
   const ctx = await getCurrentContext();
   if (!ctx.can("inventory.view")) redirect("/aujourdhui");
 
-  const overview = await getStockOverview(ctx.establishment.id);
+  const lists = await getShoppingLists(ctx.establishment.id);
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <StockApp overview={overview} />
+    <div className="mx-auto max-w-4xl">
+      <ShoppingApp lists={lists} canEdit={ctx.can("inventory.manage")} />
     </div>
   );
 }

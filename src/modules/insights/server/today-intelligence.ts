@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay, format } from "date-fns";
-import { computeDaysLeft } from "@/modules/stock/compute";
 import { computeWorkloadSummary } from "@/modules/workload/compute";
 import { computeFrequentationSignal, detectLargeGroups, detectNotableConcentration } from "@/modules/frequentation/compute";
 import { getHistoricalCoversByWeekday } from "@/modules/frequentation/server/queries";
@@ -57,7 +56,7 @@ export type TodaySummary = {
 };
 
 /// Calcule, à partir des données réelles de l'établissement (réservations, planning,
-/// congés, stock, historique de fréquentation), ce qu'un patron doit savoir aujourd'hui.
+/// congés, historique de fréquentation), ce qu'un patron doit savoir aujourd'hui.
 /// Pas de LLM ici, des règles explicites et vérifiables. Important : ce module ne
 /// contient et ne doit jamais contenir de déduction du type "couverts / ratio = nombre
 /// de serveurs nécessaires" — voir la Fréquentation (module frequentation), qui donne un
@@ -67,7 +66,7 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
   const dayStart = today;
   const dayEnd = endOfDay(today);
 
-  const [reservations, shifts, timeOffToday, tables, products, services, historicalCoversByWeekday] = await Promise.all([
+  const [reservations, shifts, timeOffToday, tables, services, historicalCoversByWeekday] = await Promise.all([
     prisma.reservation.findMany({
       where: {
         establishmentId,
@@ -90,7 +89,6 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
       include: { membership: { include: { user: true } } },
     }),
     prisma.restaurantTable.findMany({ where: { establishmentId } }),
-    prisma.product.findMany({ where: { establishmentId } }),
     prisma.serviceDefinition.findMany({ where: { establishmentId } }),
     getHistoricalCoversByWeekday(establishmentId, today),
   ]);
@@ -167,19 +165,6 @@ export async function computeTodaySummary(establishmentId: string): Promise<Toda
       description: "Pensez à les confirmer avant le service.",
       action: { label: "Voir les réservations", href: "/reservations" },
     });
-  }
-
-  // Stock critique : rupture avant le prochain réassort estimé
-  for (const p of products) {
-    const daysLeft = computeDaysLeft(p.currentStock, p.avgDailyUsage);
-    if (daysLeft != null && p.currentStock <= p.reorderThreshold) {
-      alerts.push({
-        id: `stock-${p.id}`,
-        severity: daysLeft <= 1 ? "urgent" : "watch",
-        title: `Stock faible : ${p.name}`,
-        description: `Il reste environ ${daysLeft} jour${daysLeft > 1 ? "s" : ""} de stock au rythme actuel.`,
-      });
-    }
   }
 
   // Fréquentation : un signal sur la demande, jamais une déduction de personnel. On ne

@@ -4,86 +4,91 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
-import { STOCK_MOVEMENT_TYPES } from "@/modules/stock/types";
+import { MAX_ITEM_LENGTH, parseItemLines } from "@/modules/stock/shopping";
 
-function revalidateStockPaths() {
+const NameSchema = z.string().trim().min(1, "Donne un nom à la rubrique.").max(60, "Nom trop long (60 caractères maximum).");
+
+function revalidate() {
   revalidatePath("/stock");
-  revalidatePath("/aujourdhui");
 }
 
-const CreateProductSchema = z.object({
-  name: z.string().min(1, "Le nom est requis."),
-  category: z.string().min(1, "La catégorie est requise."),
-  unit: z.string().min(1, "L'unité est requise."),
-  currentStock: z.coerce.number().min(0),
-  reorderThreshold: z.coerce.number().min(0),
-  avgDailyUsage: z.coerce.number().min(0),
-  unitCostCents: z.coerce.number().int().min(0),
-  supplierId: z.string().optional(),
-});
+async function ownedList(listId: string, establishmentId: string) {
+  const list = await prisma.shoppingList.findFirst({ where: { id: listId, establishmentId } });
+  if (!list) throw new Error("Rubrique introuvable.");
+  return list;
+}
 
-export async function createProduct(input: z.infer<typeof CreateProductSchema>) {
+async function ownedItem(itemId: string, establishmentId: string) {
+  const item = await prisma.shoppingItem.findFirst({ where: { id: itemId, list: { establishmentId } } });
+  if (!item) throw new Error("Article introuvable.");
+  return item;
+}
+
+export async function createShoppingList(name: string) {
   const ctx = await requirePermission("inventory.manage");
-  const data = CreateProductSchema.parse(input);
-
-  if (data.supplierId) {
-    const supplier = await prisma.supplier.findFirst({ where: { id: data.supplierId, establishmentId: ctx.establishment.id } });
-    if (!supplier) throw new Error("Fournisseur introuvable.");
-  }
-
-  await prisma.product.create({
-    data: {
-      establishmentId: ctx.establishment.id,
-      name: data.name,
-      category: data.category,
-      unit: data.unit,
-      currentStock: data.currentStock,
-      reorderThreshold: data.reorderThreshold,
-      avgDailyUsage: data.avgDailyUsage,
-      unitCostCents: data.unitCostCents,
-      supplierId: data.supplierId || null,
-    },
+  const parsed = NameSchema.parse(name);
+  const last = await prisma.shoppingList.findFirst({
+    where: { establishmentId: ctx.establishment.id },
+    orderBy: { sortOrder: "desc" },
   });
-
-  revalidateStockPaths();
+  await prisma.shoppingList.create({
+    data: { establishmentId: ctx.establishment.id, name: parsed, sortOrder: (last?.sortOrder ?? -1) + 1 },
+  });
+  revalidate();
 }
 
-const MovementSchema = z.object({
-  productId: z.string().min(1),
-  type: z.enum(STOCK_MOVEMENT_TYPES),
-  quantity: z.coerce.number().min(0, "La quantité doit être positive ou nulle."),
-  note: z.string().optional(),
-});
-
-/// "in" ajoute, "out" retire (jamais sous 0 — un stock physique ne peut pas être
-/// négatif), "inventory_adjustment" fixe le stock à la valeur comptée (correction
-/// d'inventaire), la quantité représentant alors le nouveau niveau, pas un delta.
-export async function recordStockMovement(input: z.infer<typeof MovementSchema>) {
+export async function renameShoppingList(listId: string, name: string) {
   const ctx = await requirePermission("inventory.manage");
-  const data = MovementSchema.parse(input);
+  const parsed = NameSchema.parse(name);
+  await ownedList(listId, ctx.establishment.id);
+  await prisma.shoppingList.update({ where: { id: listId }, data: { name: parsed } });
+  revalidate();
+}
 
-  const product = await prisma.product.findFirst({ where: { id: data.productId, establishmentId: ctx.establishment.id } });
-  if (!product) throw new Error("Produit introuvable.");
+export async function deleteShoppingList(listId: string) {
+  const ctx = await requirePermission("inventory.manage");
+  await ownedList(listId, ctx.establishment.id);
+  await prisma.shoppingList.delete({ where: { id: listId } });
+  revalidate();
+}
 
-  const newStock =
-    data.type === "in"
-      ? product.currentStock + data.quantity
-      : data.type === "out"
-        ? Math.max(0, product.currentStock - data.quantity)
-        : data.quantity;
+/// Ajoute un ou plusieurs articles (une ligne = un article, on peut coller une liste entière).
+export async function addShoppingItems(listId: string, text: string) {
+  const ctx = await requirePermission("inventory.manage");
+  await ownedList(listId, ctx.establishment.id);
+  const labels = parseItemLines(text);
+  if (labels.length === 0) return;
+  await prisma.shoppingItem.createMany({ data: labels.map((label) => ({ listId, label })) });
+  revalidate();
+}
 
-  await prisma.$transaction([
-    prisma.product.update({ where: { id: data.productId }, data: { currentStock: newStock } }),
-    prisma.stockMovement.create({
-      data: {
-        establishmentId: ctx.establishment.id,
-        productId: data.productId,
-        type: data.type,
-        quantity: data.quantity,
-        note: data.note || null,
-      },
-    }),
-  ]);
+export async function updateShoppingItem(itemId: string, label: string) {
+  const ctx = await requirePermission("inventory.manage");
+  await ownedItem(itemId, ctx.establishment.id);
+  const clean = z.string().trim().min(1, "L'article ne peut pas être vide.").max(MAX_ITEM_LENGTH).parse(label);
+  await prisma.shoppingItem.update({ where: { id: itemId }, data: { label: clean } });
+  revalidate();
+}
 
-  revalidateStockPaths();
+export async function setShoppingItemChecked(itemId: string, checked: boolean) {
+  const ctx = await requirePermission("inventory.manage");
+  await ownedItem(itemId, ctx.establishment.id);
+  await prisma.shoppingItem.update({ where: { id: itemId }, data: { checked } });
+  revalidate();
+}
+
+export async function deleteShoppingItem(itemId: string) {
+  const ctx = await requirePermission("inventory.manage");
+  await ownedItem(itemId, ctx.establishment.id);
+  await prisma.shoppingItem.delete({ where: { id: itemId } });
+  revalidate();
+}
+
+/// "Supprimer les cochés" (on a fini les courses) ou "Tout décocher" (on garde la liste pour la prochaine fois).
+export async function clearCheckedItems(listId: string, mode: "delete" | "uncheck") {
+  const ctx = await requirePermission("inventory.manage");
+  await ownedList(listId, ctx.establishment.id);
+  if (mode === "delete") await prisma.shoppingItem.deleteMany({ where: { listId, checked: true } });
+  else await prisma.shoppingItem.updateMany({ where: { listId, checked: true }, data: { checked: false } });
+  revalidate();
 }
