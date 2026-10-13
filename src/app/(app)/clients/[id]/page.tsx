@@ -37,8 +37,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       </Link>
 
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
           {customer.firstName} {customer.lastName}
+          {customer.newsletterConsent && <Badge variant="good">Newsletter</Badge>}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {[customer.phone, customer.email].filter(Boolean).join(" · ") || "Pas de coordonnées"}
@@ -74,6 +75,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                 allergies: customer.allergies,
                 notes: customer.notes,
                 favoriteTableId: customer.favoriteTableId,
+                phone: customer.phone,
+                birthday: customer.birthday,
               }}
               tables={tables}
             />

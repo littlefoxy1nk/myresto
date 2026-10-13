@@ -10,6 +10,9 @@ const UpdateProfileSchema = z.object({
   allergies: z.string().optional(),
   notes: z.string().optional(),
   favoriteTableId: z.string().optional(),
+  phone: z.string().optional(),
+  /// yyyy-MM-dd, ou vide pour l'effacer.
+  birthday: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, "Date d'anniversaire invalide.").optional(),
 });
 
 export async function updateCustomerProfile(customerId: string, input: z.infer<typeof UpdateProfileSchema>) {
@@ -33,6 +36,8 @@ export async function updateCustomerProfile(customerId: string, input: z.infer<t
       allergies: data.allergies || null,
       notes: data.notes || null,
       favoriteTableId: data.favoriteTableId || null,
+      phone: data.phone?.trim() || null,
+      birthday: data.birthday ? new Date(`${data.birthday}T00:00:00`) : null,
     },
   });
 

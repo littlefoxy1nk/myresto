@@ -11,13 +11,22 @@ export function CustomerProfileForm({
   tables,
 }: {
   customerId: string;
-  initial: { preferences: string | null; allergies: string | null; notes: string | null; favoriteTableId: string | null };
+  initial: {
+    preferences: string | null;
+    allergies: string | null;
+    notes: string | null;
+    favoriteTableId: string | null;
+    phone: string | null;
+    birthday: string | null;
+  };
   tables: { id: string; label: string }[];
 }) {
   const [preferences, setPreferences] = useState(initial.preferences ?? "");
   const [allergies, setAllergies] = useState(initial.allergies ?? "");
   const [notes, setNotes] = useState(initial.notes ?? "");
   const [favoriteTableId, setFavoriteTableId] = useState(initial.favoriteTableId ?? "");
+  const [phone, setPhone] = useState(initial.phone ?? "");
+  const [birthday, setBirthday] = useState(initial.birthday ?? "");
   const [pending, setPending] = useState(false);
 
   return (
@@ -27,7 +36,7 @@ export function CustomerProfileForm({
         e.preventDefault();
         setPending(true);
         try {
-          await updateCustomerProfile(customerId, { preferences, allergies, notes, favoriteTableId });
+          await updateCustomerProfile(customerId, { preferences, allergies, notes, favoriteTableId, phone, birthday });
           toast("Fiche mise à jour");
         } catch (err) {
           toast(err instanceof Error ? err.message : "Une erreur est survenue.", "error");
@@ -36,6 +45,34 @@ export function CustomerProfileForm({
         }
       }}
     >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label htmlFor="customer-phone" className="text-sm font-medium">
+            GSM
+          </label>
+          <input
+            id="customer-phone"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="0475 12 34 56"
+            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="customer-birthday" className="text-sm font-medium">
+            Date d&apos;anniversaire
+          </label>
+          <input
+            id="customer-birthday"
+            type="date"
+            value={birthday}
+            onChange={(e) => setBirthday(e.target.value)}
+            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          />
+        </div>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <label htmlFor="customer-preferences" className="text-sm font-medium">

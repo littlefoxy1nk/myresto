@@ -9,6 +9,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { logout } from "@/lib/actions/auth-actions";
 import { Check, LogOut } from "lucide-react";
 import { ServicesCard } from "@/modules/settings/components/services-card";
+import { ReviewLinksCard } from "@/modules/settings/components/review-links-card";
 import { OnlineBookingCard } from "@/modules/settings/components/online-booking-card";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -112,6 +113,18 @@ export default async function ParametresPage() {
             slug={ctx.establishment.bookingSlug}
             enabled={ctx.establishment.onlineBookingEnabled}
           />
+        </CardContent>
+      </Card>
+
+      <Card id="avis">
+        <CardHeader>
+          <CardTitle>Avis clients</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Les liens glissés dans le premier mail aux clients abonnés, pour qu&apos;ils laissent un avis après leur venue.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <ReviewLinksCard google={ctx.establishment.googleReviewUrl} tripadvisor={ctx.establishment.tripadvisorReviewUrl} />
         </CardContent>
       </Card>
 

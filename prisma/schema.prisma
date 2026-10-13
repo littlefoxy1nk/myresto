@@ -48,6 +48,9 @@ model Establishment {
   /// un restaurant ne reçoit de demandes en ligne que s'il l'a décidé.
   bookingSlug          String?  @unique
   onlineBookingEnabled Boolean  @default(false)
+  /// Liens "laisser un avis" glissés dans le premier mail aux clients abonnés.
+  googleReviewUrl      String?
+  tripadvisorReviewUrl String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -587,6 +590,14 @@ model Customer {
   notes           String?
   favoriteTableId String?
   favoriteTable   RestaurantTable? @relation(fields: [favoriteTableId], references: [id], onDelete: SetNull)
+  /// Accord explicite du client (case cochée à la réservation en ligne) pour recevoir les infos
+  /// du restaurant par email. Jamais présumé : false tant que le client n'a pas dit oui.
+  newsletterConsent   Boolean   @default(false)
+  newsletterConsentAt DateTime?
+  /// Secret du lien de désinscription glissé dans chaque mail (page publique /desinscription/<token>).
+  unsubscribeToken    String?   @unique
+  /// Date à laquelle le premier mail (demande d'infos + avis) a été ouvert dans la messagerie.
+  welcomeMailSentAt   DateTime?
   visitCount      Int           @default(0)
   totalSpentCents Int           @default(0)
   lastVisitAt     DateTime?

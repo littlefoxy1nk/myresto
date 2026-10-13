@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { isoWeekday } from "@/lib/time";
 import { requirePermission } from "@/lib/current-context";
 import { normalizePhone } from "@/modules/messaging/phone";
+import { subscribeCustomer } from "@/modules/newsletter/server/subscribe";
 import { notifyMember } from "@/modules/myspace/server/notify";
 import {
   buildAvailability,
@@ -140,20 +141,34 @@ export async function submitBookingRequest(
   });
   if (duplicate) return { ok: false, error: "Une demande existe déjà pour ce numéro à cette heure." };
 
-  await prisma.reservation.create({
-    data: {
-      establishmentId: establishment.id,
-      customerName: `${data.firstName} ${data.lastName}`,
-      customerPhone: data.phone,
-      customerEmail: data.email,
-      partySize: data.partySize,
-      date,
-      time: data.time,
-      durationMinutes: 90,
-      specialRequests: data.notes,
-      source: "online",
-      status: "new",
-    },
+  await prisma.$transaction(async (tx) => {
+    // Seuls les clients qui ont coché la case entrent dans la base clients (avec leur accord daté).
+    const customerId =
+      data.newsletterOptIn && data.email
+        ? await subscribeCustomer(tx, establishment.id, {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            phone: data.phone,
+            email: data.email,
+          })
+        : null;
+
+    await tx.reservation.create({
+      data: {
+        establishmentId: establishment.id,
+        customerId,
+        customerName: `${data.firstName} ${data.lastName}`,
+        customerPhone: data.phone,
+        customerEmail: data.email,
+        partySize: data.partySize,
+        date,
+        time: data.time,
+        durationMinutes: 90,
+        specialRequests: data.notes,
+        source: "online",
+        status: "new",
+      },
+    });
   });
 
   const managers = await prisma.membership.findMany({

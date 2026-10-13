@@ -52,12 +52,14 @@ export type BookingRequestInput = {
   date: string;
   time: string;
   notes?: string;
+  /// Accord explicite (case cochée) pour recevoir les infos du restaurant par email.
+  newsletterOptIn?: boolean;
 };
 
 export type BookingRequestResult =
   | {
       ok: true;
-      data: { firstName: string; lastName: string; phone: string; email: string | null; partySize: number; date: string; time: string; notes: string | null };
+      data: { firstName: string; lastName: string; phone: string; email: string | null; partySize: number; date: string; time: string; notes: string | null; newsletterOptIn: boolean };
     }
   | { ok: false; error: string };
 
@@ -80,6 +82,8 @@ export function validateBookingRequest(
 
   const email = input.email?.trim() || null;
   if (email && !EMAIL.test(email)) return { ok: false, error: "Cette adresse email ne semble pas valide." };
+
+  if (input.newsletterOptIn && !email) return { ok: false, error: "Indique ton email pour recevoir les infos du restaurant." };
 
   if (!Number.isInteger(input.partySize) || input.partySize < 1) return { ok: false, error: "Indique le nombre de personnes." };
   if (input.partySize > MAX_ONLINE_PARTY_SIZE) {
@@ -107,7 +111,7 @@ export function validateBookingRequest(
 
   return {
     ok: true,
-    data: { firstName, lastName, phone: input.phone.trim(), email, partySize: input.partySize, date: input.date, time: input.time, notes },
+    data: { firstName, lastName, phone: input.phone.trim(), email, partySize: input.partySize, date: input.date, time: input.time, notes, newsletterOptIn: !!input.newsletterOptIn && !!email },
   };
 }
 

@@ -21,6 +21,7 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
   const [date, setDate] = useState(today);
   const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
   const [website, setWebsite] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -74,7 +75,17 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
           try {
             const result = await submitBookingRequest(
               slug,
-              { firstName, lastName, phone, email: email || undefined, partySize, date, time, notes: notes || undefined },
+              {
+                firstName,
+                lastName,
+                phone,
+                email: email || undefined,
+                partySize,
+                date,
+                time,
+                notes: notes || undefined,
+                newsletterOptIn: newsletterOptIn && !!email.trim(),
+              },
               website
             );
             if (result.ok) setDone(true);
@@ -100,6 +111,26 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
         <Labeled id="bk-email" label="Email (facultatif)">
           <input id="bk-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
         </Labeled>
+
+        <label
+          className={`flex items-start gap-3 rounded-xl border border-border p-3 text-sm ${email.trim() ? "cursor-pointer" : "opacity-60"}`}
+        >
+          <input
+            type="checkbox"
+            checked={newsletterOptIn && !!email.trim()}
+            disabled={!email.trim()}
+            onChange={(e) => setNewsletterOptIn(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+          />
+          <span>
+            <span className="font-medium">Je veux recevoir les infos et actualités du restaurant par email</span>
+            <span className="block text-xs text-muted-foreground">
+              {email.trim()
+                ? "Facultatif. Tu pourras te désinscrire à tout moment depuis chaque mail."
+                : "Indique ton email ci-dessus pour pouvoir cocher cette case."}
+            </span>
+          </span>
+        </label>
 
         <div className="grid grid-cols-2 gap-3">
           <Labeled id="bk-size" label="Personnes *">

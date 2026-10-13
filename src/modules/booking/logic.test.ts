@@ -141,3 +141,15 @@ test("buildAvailability : le jour même, masque les heures à moins de 1 h 30 sa
   assert.equal(out[0].full, false);
   assert.equal(out[1].times[0], "20:30");
 });
+
+test("newsletter : la case exige un email", () => {
+  assert.equal(validateBookingRequest({ ...base, newsletterOptIn: true }, now, open).ok, false);
+  const ok = validateBookingRequest({ ...base, email: "a@b.be", newsletterOptIn: true }, now, open);
+  assert.equal(ok.ok, true);
+  if (ok.ok) assert.equal(ok.data.newsletterOptIn, true);
+});
+
+test("newsletter : jamais présumée", () => {
+  const r = validateBookingRequest({ ...base, email: "a@b.be" }, now, open);
+  assert.equal(r.ok && r.data.newsletterOptIn, false);
+});

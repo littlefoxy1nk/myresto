@@ -35,6 +35,7 @@ export async function getCustomersList(establishmentId: string, search?: string)
       lastName: c.lastName,
       phone: c.phone,
       email: c.email,
+      newsletterConsent: c.newsletterConsent,
       ...stats,
     };
   });
@@ -75,6 +76,7 @@ export async function getCustomerDetail(establishmentId: string, customerId: str
     lastName: customer.lastName,
     phone: customer.phone,
     email: customer.email,
+    newsletterConsent: customer.newsletterConsent,
     birthday: customer.birthday ? toDateKey(customer.birthday) : null,
     preferences: customer.preferences,
     allergies: customer.allergies,

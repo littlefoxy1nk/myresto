@@ -23,6 +23,7 @@ export type CustomerSummary = {
   lastName: string;
   phone: string | null;
   email: string | null;
+  newsletterConsent: boolean;
 } & CustomerStats;
 
 export type CustomerDetail = CustomerSummary & {
