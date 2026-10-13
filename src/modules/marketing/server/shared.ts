@@ -7,7 +7,6 @@ import { MARKETING_CHANNELS } from "@/modules/marketing/types";
 export const PostSchema = z.object({
   title: z.string().min(1, "Le titre est requis."),
   content: z.string().min(1, "Le texte est requis."),
-  mediaNote: z.string().optional(),
   channel: z.enum(MARKETING_CHANNELS),
   scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   scheduledTime: z.string().regex(/^\d{2}:\d{2}$/),

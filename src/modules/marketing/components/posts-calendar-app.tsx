@@ -75,8 +75,11 @@ export function PostsCalendarApp({ posts, canManage }: { posts: MarketingPostIte
             {formatWhen(post.scheduledFor)} · {MARKETING_CHANNEL_LABELS[post.channel]}
           </p>
           <p className="mt-1.5 text-sm text-muted-foreground">{post.content}</p>
-          {post.mediaNote && <p className="mt-1 text-xs italic text-muted-foreground">📎 {post.mediaNote}</p>}
         </div>
+        {post.mediaUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={post.mediaUrl} alt="" className="h-16 w-16 shrink-0 rounded-xl border border-border object-cover" />
+        )}
         {canManage && (
           <div className="flex shrink-0 gap-1.5">
             {post.status !== "published" && (

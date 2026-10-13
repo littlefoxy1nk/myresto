@@ -20,10 +20,8 @@ export type MarketingPostItem = {
   title: string;
   content: string;
   channel: MarketingChannel;
-  /// Note libre décrivant le visuel prévu (ex: "Photo du nouveau menu") — pas de vraie
-  /// bibliothèque de médias dans cette phase, voir le principe "calendrier et workflow
-  /// d'abord" de la spec.
-  mediaNote: string | null;
+  /// Adresse (authentifiée) de la photo de la publication, s'il y en a une.
+  mediaUrl: string | null;
   scheduledFor: string; // ISO — date et heure prévues
   status: MarketingPostStatus;
   createdAt: string;

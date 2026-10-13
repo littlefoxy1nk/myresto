@@ -61,15 +61,3 @@ test("PostSchema rejects a malformed date", () => {
   });
   assert.equal(result.success, false);
 });
-
-test("PostSchema treats mediaNote as optional", () => {
-  const result = PostSchema.safeParse({
-    title: "Titre",
-    content: "Texte",
-    channel: "instagram",
-    scheduledDate: "2026-09-18",
-    scheduledTime: "18:00",
-    status: "draft",
-  });
-  assert.ok(result.success);
-});

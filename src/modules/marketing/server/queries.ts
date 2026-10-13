@@ -6,7 +6,7 @@ function toItem(p: {
   id: string;
   title: string;
   content: string;
-  mediaNote: string | null;
+  mediaFileName: string | null;
   channel: string;
   scheduledFor: Date;
   status: string;
@@ -16,7 +16,7 @@ function toItem(p: {
     id: p.id,
     title: p.title,
     content: p.content,
-    mediaNote: p.mediaNote,
+    mediaUrl: p.mediaFileName ? `/api/marketing-media/${p.id}` : null,
     channel: p.channel as MarketingChannel,
     scheduledFor: p.scheduledFor.toISOString(),
     status: p.status as MarketingPostStatus,
