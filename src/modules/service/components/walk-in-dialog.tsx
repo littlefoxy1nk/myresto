@@ -4,16 +4,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast-bus";
-import { cn } from "@/lib/utils";
 import { createWalkIn } from "@/modules/reservations/server/actions";
-
-const DURATIONS = [60, 90, 120, 180, 240];
-
-function formatDuration(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
-}
 
 export function WalkInDialog({
   open,
@@ -29,7 +20,6 @@ export function WalkInDialog({
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [partySize, setPartySize] = useState(Math.min(tableCapacity, 2));
-  const [durationMinutes, setDurationMinutes] = useState(90);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const overCapacity = partySize > tableCapacity;
@@ -53,7 +43,6 @@ export function WalkInDialog({
                 partySize,
                 tableIds: [tableId],
                 allowOverCapacity: overCapacity,
-                durationMinutes,
               });
               toast("Client installé");
               onOpenChange(false);
@@ -103,27 +92,6 @@ export function WalkInDialog({
                 onChange={(e) => setPartySize(Number(e.target.value))}
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
               />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <span className="text-sm font-medium">Durée sur la table</span>
-            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Durée sur la table">
-              {DURATIONS.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  role="radio"
-                  aria-checked={durationMinutes === d}
-                  onClick={() => setDurationMinutes(d)}
-                  className={cn(
-                    "rounded-xl border px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
-                    durationMinutes === d ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
-                  )}
-                >
-                  {formatDuration(d)}
-                </button>
-              ))}
             </div>
           </div>
 

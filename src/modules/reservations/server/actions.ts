@@ -148,6 +148,9 @@ async function assertNoTableConflict(
   }
 }
 
+/// Durée de table supposée : jamais saisie à la main, on ne peut pas prévoir le timing d'un repas.
+const DEFAULT_DURATION_MINUTES = 90;
+
 const CreateReservationSchema = z.object({
   customerName: z.string().min(1, "Le nom du client est requis."),
   customerPhone: z.string().optional(),
@@ -246,7 +249,6 @@ const WalkInSchema = z.object({
   partySize: z.coerce.number().int().min(1).max(60),
   tableIds: z.array(z.string()).min(1, "Choisissez au moins une table."),
   allowOverCapacity: z.boolean().optional(),
-  durationMinutes: z.coerce.number().int().min(15).max(480).default(90),
 });
 
 /// Un client se présente sans réservation et s'installe tout de suite : contrairement
@@ -264,7 +266,7 @@ export async function createWalkIn(input: z.infer<typeof WalkInSchema>) {
   const time = format(now, "HH:mm");
 
   const reservation = await prisma.$transaction(async (tx) => {
-    await assertNoTableConflict(tx, ctx.establishment.id, data.tableIds, date, time, data.durationMinutes);
+    await assertNoTableConflict(tx, ctx.establishment.id, data.tableIds, date, time, DEFAULT_DURATION_MINUTES);
 
     const customerId = await findOrCreateCustomer(tx, ctx.establishment.id, {
       name: data.customerName,
@@ -280,7 +282,7 @@ export async function createWalkIn(input: z.infer<typeof WalkInSchema>) {
         partySize: data.partySize,
         date,
         time,
-        durationMinutes: data.durationMinutes,
+        durationMinutes: DEFAULT_DURATION_MINUTES,
         source: "walk_in",
         status: "seated",
       },
@@ -369,8 +371,6 @@ export async function updateReservationDetails(reservationId: string, input: z.i
   revalidatePath("/aujourdhui");
   revalidatePath("/service");
 }
-
-const DEFAULT_DURATION_MINUTES = 90;
 
 /// Bloque (ou libère) la table d'une réservation pour toute la soirée : la durée est étendue jusqu'à
 /// la fin du dernier service. Refusé si une autre réservation occupe déjà une de ses tables plus tard

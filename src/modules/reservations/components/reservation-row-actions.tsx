@@ -122,7 +122,6 @@ function EditReservationDialog({
   const [partySize, setPartySize] = useState(initial.partySize);
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);
-  const [durationMinutes, setDurationMinutes] = useState(initial.durationMinutes);
   const [spansNextService, setSpansNextService] = useState(initial.spansNextService);
   const [notes, setNotes] = useState(initial.notes);
   const [specialRequests, setSpecialRequests] = useState(initial.specialRequests);
@@ -146,7 +145,7 @@ function EditReservationDialog({
                 date,
                 time,
                 // Décocher "bloquer le service suivant" ramène la durée à la normale (90 min).
-                durationMinutes: !spansNextService && initial.spansNextService && !initial.blocksEvening ? 90 : durationMinutes,
+                durationMinutes: !spansNextService && initial.spansNextService && !initial.blocksEvening ? 90 : initial.durationMinutes,
                 spansNextService,
                 blocksEvening: initial.blocksEvening,
                 notes,
@@ -161,7 +160,7 @@ function EditReservationDialog({
             }
           }}
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div>
             <div className="space-y-1.5">
               <label htmlFor="edit-party-size" className="text-sm font-medium">
                 Personnes
@@ -173,21 +172,6 @@ function EditReservationDialog({
                 max={60}
                 value={partySize}
                 onChange={(e) => setPartySize(Number(e.target.value))}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="edit-duration" className="text-sm font-medium">
-                Durée (min)
-              </label>
-              <input
-                id="edit-duration"
-                type="number"
-                min={15}
-                max={480}
-                step={15}
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(Number(e.target.value))}
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
               />
             </div>
