@@ -20,8 +20,6 @@ import {
 } from "@/modules/stock/server/actions";
 import type { ShoppingListView } from "@/modules/stock/server/queries";
 
-const SUGGESTIONS = ["Metro", "Boucher", "Boulanger", "Primeur"];
-
 const inputClass =
   "w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
@@ -61,18 +59,8 @@ export function ShoppingApp({ lists, canEdit }: { lists: ShoppingListView[]; can
         <Card className="space-y-3 p-6 text-center">
           <p className="text-sm font-medium">Aucune rubrique pour l&apos;instant</p>
           <p className="text-sm text-muted-foreground">
-            Crée une rubrique par endroit où tu fais tes courses, puis note dedans ce qu&apos;il te faut.
+            Crée une rubrique par endroit où tu fais tes courses (en bas de page), puis note dedans ce qu&apos;il te faut.
           </p>
-          {canEdit && (
-            <div className="flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => (
-                <Button key={s} size="sm" variant="secondary" onClick={() => run(() => createShoppingList(s))}>
-                  <Plus size={14} aria-hidden="true" />
-                  {s}
-                </Button>
-              ))}
-            </div>
-          )}
         </Card>
       )}
 

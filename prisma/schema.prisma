@@ -62,6 +62,7 @@ model Establishment {
   tableGroups     TableGroup[]
   monthlyFigures  MonthlyFigure[]
   shoppingLists   ShoppingList[]
+  editorialLines  EditorialLine[]
   reservations    Reservation[]
   customers       Customer[]
   shifts          Shift[]
@@ -628,8 +629,34 @@ model MarketingPost {
   scheduledFor    DateTime
   status          String        @default("draft") // draft | scheduled | published
   aiGenerated     Boolean       @default(false)
+  /// Sujet traité (ex : "plat du jour", "soirée jazz") et ligne éditoriale suivie, s'il y en a une.
+  subject         String?
+  editorialLineId String?
+  editorialLine   EditorialLine? @relation(fields: [editorialLineId], references: [id], onDelete: SetNull)
+  /// Quand la personne a dit "publiée" (jamais automatique).
+  publishedAt     DateTime?
+  /// Résultats saisis à la main après publication (aucune connexion aux réseaux).
+  likes           Int?
+  comments        Int?
+  reach           Int?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+}
+
+/// Les règles d'écriture d'un type de communication : à qui on parle, sur quel ton, de quoi, et ce qu'on évite.
+model EditorialLine {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  name            String
+  audience        String?
+  tone            String?
+  themes          String?
+  avoid           String?
+  hashtags        String?
+  createdAt       DateTime      @default(now())
+
+  posts           MarketingPost[]
 }
 
 model Campaign {

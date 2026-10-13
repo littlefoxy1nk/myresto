@@ -27,4 +27,23 @@ export type MarketingPostItem = {
   scheduledFor: string; // ISO — date et heure prévues
   status: MarketingPostStatus;
   createdAt: string;
+  subject: string | null;
+  editorialLineId: string | null;
+  editorialLineName: string | null;
+  /// ISO — quand la personne a dit "publiée" ; null tant qu'elle ne l'a pas fait.
+  publishedAt: string | null;
+  /// Résultats saisis à la main après publication.
+  likes: number | null;
+  comments: number | null;
+  reach: number | null;
+};
+
+export type EditorialLineItem = {
+  id: string;
+  name: string;
+  audience: string | null;
+  tone: string | null;
+  themes: string | null;
+  avoid: string | null;
+  hashtags: string | null;
 };
