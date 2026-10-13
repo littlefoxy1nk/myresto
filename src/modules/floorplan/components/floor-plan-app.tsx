@@ -11,6 +11,7 @@ import { FloorPlanCanvas } from "@/modules/floorplan/components/floor-plan-canva
 import { TablePanel } from "@/modules/floorplan/components/table-panel";
 import { CreateZoneDialog } from "@/modules/floorplan/components/create-zone-dialog";
 import { CreateTableDialog } from "@/modules/floorplan/components/create-table-dialog";
+import { MoveReservationDialog } from "@/modules/reservations/components/move-reservation-dialog";
 import { WalkInDialog } from "@/modules/service/components/walk-in-dialog";
 import { CreateGroupDialog } from "@/modules/floorplan/components/create-group-dialog";
 import {
@@ -62,6 +63,7 @@ export function FloorPlanApp({
   const [confirmDeleteTableId, setConfirmDeleteTableId] = useState<string | null>(null);
   const [confirmDeleteZoneId, setConfirmDeleteZoneId] = useState<string | null>(null);
   const [walkInTableId, setWalkInTableId] = useState<string | null>(null);
+  const [moveReservationId, setMoveReservationId] = useState<string | null>(null);
 
   const activeZone = zones.find((z) => z.id === activeZoneId) ?? zones[0] ?? null;
   const selectedTable = activeZone?.tables.find((t) => t.id === selectedTableId) ?? null;
@@ -245,6 +247,7 @@ export function FloorPlanApp({
             canCreateReservation={canCreateReservation}
             reserveHref={reserveHref(selectedTable, dayView)}
             onWalkIn={canWalkIn && !dayView ? () => setWalkInTableId(selectedTable.id) : undefined}
+            onMoveReservation={canWalkIn ? setMoveReservationId : undefined}
             zones={zones.map((z) => ({ id: z.id, name: z.name }))}
             onClose={() => setSelectedTableId(null)}
             onPatch={(patch) => guarded(() => updateTable({ id: selectedTable.id, ...patch }))}
@@ -265,6 +268,13 @@ export function FloorPlanApp({
         onOpenChange={setShowCreateZone}
         onCreate={(name, type) => guarded(() => createZone({ name, type }), "Zone créée")}
       />
+      {moveReservationId && (
+        <MoveReservationDialog
+          key={moveReservationId}
+          reservationId={moveReservationId}
+          onOpenChange={(open) => !open && setMoveReservationId(null)}
+        />
+      )}
       {walkInTableId && (
         <WalkInDialog
           key={walkInTableId}

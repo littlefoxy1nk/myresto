@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Pencil, Ban, UserX } from "lucide-react";
+import { Pencil, Ban, UserX, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { MoveReservationDialog } from "@/modules/reservations/components/move-reservation-dialog";
 import { toast } from "@/lib/toast-bus";
 import { updateReservationStatus, updateReservationDetails } from "@/modules/reservations/server/actions";
 
@@ -27,6 +28,7 @@ export function ReservationRowActions({
   editInitial: EditInitial;
 }) {
   const [editOpen, setEditOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmNoShow, setConfirmNoShow] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -46,6 +48,9 @@ export function ReservationRowActions({
     <>
       <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)} aria-label="Modifier la réservation">
         <Pencil size={14} aria-hidden="true" />
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => setMoveOpen(true)} aria-label="Changer de table">
+        <ArrowRightLeft size={14} aria-hidden="true" />
       </Button>
       {showNoShow && (
         <Button
@@ -85,6 +90,7 @@ export function ReservationRowActions({
         confirmLabel="Marquer no-show"
         onConfirm={() => setStatus("no_show", "Réservation marquée no-show")}
       />
+      {moveOpen && <MoveReservationDialog reservationId={reservationId} onOpenChange={setMoveOpen} />}
       {editOpen && (
         <EditReservationDialog
           reservationId={reservationId}

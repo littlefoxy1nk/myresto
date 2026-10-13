@@ -22,6 +22,7 @@ export function WalkInDialog({
   const [partySize, setPartySize] = useState(Math.min(tableCapacity, 2));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const overCapacity = partySize > tableCapacity;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -41,6 +42,7 @@ export function WalkInDialog({
                 customerPhone: customerPhone.trim() || undefined,
                 partySize,
                 tableIds: [tableId],
+                allowOverCapacity: overCapacity,
               });
               toast("Client installé");
               onOpenChange(false);
@@ -93,10 +95,17 @@ export function WalkInDialog({
             </div>
           </div>
 
+          {overCapacity && (
+            <p className="rounded-lg bg-important-soft px-3 py-2 text-sm text-important" role="status">
+              Conflit de capacité : cette table a {tableCapacity} place{tableCapacity > 1 ? "s" : ""} pour {partySize} personnes.
+              Tu peux l&apos;installer quand même.
+            </p>
+          )}
+
           {error && <p className="text-sm text-urgent">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={pending || !customerName.trim()}>
-            {pending ? "Installation…" : "Installer"}
+            {pending ? "Installation…" : overCapacity ? "Installer quand même" : "Installer"}
           </Button>
         </form>
       </DialogContent>

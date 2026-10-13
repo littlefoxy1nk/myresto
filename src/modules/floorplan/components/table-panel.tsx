@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { X, Copy, Trash2, Link2, Link2Off, CalendarPlus, UserPlus } from "lucide-react";
+import { X, Copy, Trash2, Link2, Link2Off, CalendarPlus, UserPlus, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { isMovable } from "@/modules/reservations/move";
 import { LIVE_STATE_STYLE } from "@/modules/floorplan/live-state-style";
 import { TABLE_SHAPES, TABLE_MANUAL_STATUSES, type TableWithLiveState, type TableShape, type TableManualStatus } from "@/modules/floorplan/types";
 
@@ -21,6 +22,7 @@ export function TablePanel({
   canCreateReservation,
   reserveHref,
   onWalkIn,
+  onMoveReservation,
   zones,
   onClose,
   onPatch,
@@ -36,6 +38,8 @@ export function TablePanel({
   reserveHref: string;
   /// Présent seulement sur le plan live : installer tout de suite un client sans réservation.
   onWalkIn?: () => void;
+  /// Présent si l'utilisateur peut changer une réservation de table.
+  onMoveReservation?: (reservationId: string) => void;
   zones: { id: string; name: string }[];
   onClose: () => void;
   onPatch: (patch: Partial<{ label: string; capacity: number; shape: TableShape; zoneId: string; status: TableManualStatus }>) => void;
@@ -85,17 +89,28 @@ export function TablePanel({
       )}
 
       {(table.dayReservations ?? (table.activeReservation ? [table.activeReservation] : [])).map((r) => (
-        <Link
-          key={r.id}
-          href="/reservations"
-          className="mt-4 block rounded-xl border border-border bg-muted p-3 text-sm outline-none transition-colors hover:bg-border focus-visible:ring-2 focus-visible:ring-accent"
-        >
-          <p className="font-medium">{r.customerName}</p>
-          <p className="text-xs text-muted-foreground">
-            {r.partySize} pers. · {r.time}
-            {r.minutesFromNow > 0 && ` · dans ${formatMinutes(r.minutesFromNow)}`}
-          </p>
-        </Link>
+        <div key={r.id} className="mt-4 rounded-xl border border-border bg-muted p-3 text-sm">
+          <Link
+            href="/reservations"
+            className="block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <p className="font-medium">{r.customerName}</p>
+            <p className="text-xs text-muted-foreground">
+              {r.partySize} pers. · {r.time}
+              {r.minutesFromNow > 0 && ` · dans ${formatMinutes(r.minutesFromNow)}`}
+            </p>
+          </Link>
+          {onMoveReservation && isMovable(r.status) && (
+            <button
+              type="button"
+              onClick={() => onMoveReservation(r.id)}
+              className="mt-2 flex items-center gap-1.5 text-xs font-medium text-accent outline-none hover:underline focus-visible:underline"
+            >
+              <ArrowRightLeft size={13} aria-hidden="true" />
+              Changer de table
+            </button>
+          )}
+        </div>
       ))}
 
       {table.group && (

@@ -64,6 +64,8 @@ export function NewReservationFlow({
     return selectedTables.reduce((s, t) => s + t.capacity, 0);
   }, [selectedTables]);
 
+  const overCapacity = selectedTables.length > 0 && selectedCapacity < partySize;
+
   async function goToTableStep() {
     setFormError(null);
     if (!customerName.trim()) return setFormError("Le nom du client est requis.");
@@ -130,6 +132,7 @@ export function NewReservationFlow({
         tableIds: [...selectedTableIds],
         notes: notes.trim() || undefined,
         specialRequests: specialRequests.trim() || undefined,
+        allowOverCapacity: overCapacity,
       });
       toast("Réservation créée");
       setCreatedReservation({ customerName: customerName.trim(), time });
@@ -258,8 +261,11 @@ export function NewReservationFlow({
                   ? "Aucune table sélectionnée"
                   : `${selectedTables.map((t) => t.label).join(" + ")} · ${selectedCapacity} places`}
               </p>
-              {selectedTables.length > 0 && selectedCapacity < partySize && (
-                <p className="text-xs text-urgent">Capacité insuffisante pour {partySize} personnes.</p>
+              {overCapacity && (
+                <p className="text-xs text-important">
+                  Conflit de capacité : {selectedCapacity} place{selectedCapacity > 1 ? "s" : ""} pour {partySize} personnes.
+                  Tu peux continuer quand même.
+                </p>
               )}
             </div>
           </Card>
@@ -271,10 +277,10 @@ export function NewReservationFlow({
             </Button>
             <Button
               className="flex-1"
-              disabled={selectedTables.length === 0 || selectedCapacity < partySize}
+              disabled={selectedTables.length === 0}
               onClick={() => setStep(3)}
             >
-              Continuer
+              {overCapacity ? "Continuer quand même" : "Continuer"}
             </Button>
           </div>
         </div>
@@ -291,6 +297,11 @@ export function NewReservationFlow({
             <Row label="Heure" value={time} />
             <Row label="Personnes" value={String(partySize)} />
             <Row label="Table(s)" value={selectedTables.map((t) => t.label).join(" + ")} />
+            {overCapacity && (
+              <p className="rounded-lg bg-important-soft px-3 py-2 text-sm text-important">
+                Capacité dépassée : {selectedCapacity} place{selectedCapacity > 1 ? "s" : ""} pour {partySize} personnes.
+              </p>
+            )}
             {specialRequests && <Row label="Demandes" value={specialRequests} />}
             {notes && <Row label="Notes" value={notes} />}
           </div>

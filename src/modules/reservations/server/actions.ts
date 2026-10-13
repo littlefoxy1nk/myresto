@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { timeToMinutes } from "@/lib/time";
 import { requirePermission, requireAnyPermission } from "@/lib/current-context";
 import { findOrCreateCustomer } from "@/modules/customers/server/matching";
+import { getFloorPlan } from "@/modules/floorplan/server/queries";
+import { isMovable, type DayBooking } from "@/modules/reservations/move";
 
 const VALID_STATUSES = [
   "new",
@@ -75,7 +77,12 @@ export async function releaseReservationTables(reservationId: string) {
 /// capacité nécessaire (en tenant compte d'un groupe de tables combinées actif, ex:
 /// T12+T13). Partagé par la création et la modification pour ne jamais dupliquer cette
 /// règle de capacité.
-async function assertTablesHaveCapacity(establishmentId: string, tableIds: string[], partySize: number) {
+async function assertTablesHaveCapacity(
+  establishmentId: string,
+  tableIds: string[],
+  partySize: number,
+  allowOverCapacity = false
+) {
   const tables = await prisma.restaurantTable.findMany({
     where: { id: { in: tableIds }, establishmentId },
     include: { groupMemberships: { include: { group: true } } },
@@ -92,7 +99,7 @@ async function assertTablesHaveCapacity(establishmentId: string, tableIds: strin
   const totalCapacity =
     activeGroup && tables.length > 1 ? activeGroup.group.combinedCapacity : tables.reduce((s, t) => s + t.capacity, 0);
 
-  if (totalCapacity < partySize) {
+  if (totalCapacity < partySize && !allowOverCapacity) {
     throw new Error(`La capacité sélectionnée (${totalCapacity}) est insuffisante pour ${partySize} personnes.`);
   }
 }
@@ -149,6 +156,8 @@ const CreateReservationSchema = z.object({
   tableIds: z.array(z.string()).min(1, "Choisissez au moins une table."),
   notes: z.string().optional(),
   specialRequests: z.string().optional(),
+  /// Posé par l'écran seulement après avoir signalé "capacité dépassée" et reçu un OK explicite.
+  allowOverCapacity: z.boolean().optional(),
 });
 
 export type CreateReservationInput = z.infer<typeof CreateReservationSchema>;
@@ -161,7 +170,7 @@ export async function createReservation(input: CreateReservationInput) {
   const ctx = await requirePermission("reservations.edit");
   const data = CreateReservationSchema.parse(input);
 
-  await assertTablesHaveCapacity(ctx.establishment.id, data.tableIds, data.partySize);
+  await assertTablesHaveCapacity(ctx.establishment.id, data.tableIds, data.partySize, data.allowOverCapacity);
 
   const date = new Date(`${data.date}T00:00:00`);
 
@@ -213,6 +222,7 @@ const WalkInSchema = z.object({
   customerPhone: z.string().optional(),
   partySize: z.coerce.number().int().min(1).max(60),
   tableIds: z.array(z.string()).min(1, "Choisissez au moins une table."),
+  allowOverCapacity: z.boolean().optional(),
 });
 
 /// Un client se présente sans réservation et s'installe tout de suite : contrairement
@@ -223,7 +233,7 @@ export async function createWalkIn(input: z.infer<typeof WalkInSchema>) {
   const ctx = await requireAnyPermission("reservations.edit", "service.run");
   const data = WalkInSchema.parse(input);
 
-  await assertTablesHaveCapacity(ctx.establishment.id, data.tableIds, data.partySize);
+  await assertTablesHaveCapacity(ctx.establishment.id, data.tableIds, data.partySize, data.allowOverCapacity);
 
   const now = new Date();
   const date = startOfDay(now);
@@ -315,6 +325,152 @@ export async function updateReservationDetails(reservationId: string, input: z.i
         specialRequests: data.specialRequests || null,
       },
     });
+  });
+
+  revalidatePath("/reservations");
+  revalidatePath("/plan-de-salle");
+  revalidatePath("/aujourdhui");
+  revalidatePath("/service");
+}
+
+export type MoveReservationData = {
+  reservation: {
+    id: string;
+    customerName: string;
+    partySize: number;
+    date: string;
+    time: string;
+    durationMinutes: number;
+    status: string;
+    tableIds: string[];
+  };
+  zones: {
+    id: string;
+    name: string;
+    tables: {
+      id: string;
+      label: string;
+      capacity: number;
+      manualStatus: string;
+      group: { id: string; combinedCapacity: number } | null;
+    }[];
+  }[];
+  /// Toutes les réservations actives de ce jour-là (avec leurs tables) : l'écran en déduit
+  /// seul qui gêne qui — voir move.ts.
+  bookings: DayBooking[];
+};
+
+/// Ce qu'il faut à l'écran "Changer de table" : la réservation, les tables, et les
+/// réservations du même jour. Les données brutes suffisent — la logique de conflit est
+/// pure et partagée (move.ts), pas dupliquée côté serveur.
+export async function getMoveReservationData(reservationId: string): Promise<MoveReservationData> {
+  const ctx = await requireAnyPermission("reservations.edit", "service.run");
+
+  const reservation = await prisma.reservation.findFirst({
+    where: { id: reservationId, establishmentId: ctx.establishment.id },
+    include: { tables: true },
+  });
+  if (!reservation) throw new Error("Réservation introuvable.");
+
+  const [zones, dayReservations] = await Promise.all([
+    getFloorPlan(ctx.establishment.id),
+    prisma.reservation.findMany({
+      where: {
+        establishmentId: ctx.establishment.id,
+        date: { gte: startOfDay(reservation.date), lte: endOfDay(reservation.date) },
+        status: { notIn: ["cancelled", "no_show"] },
+      },
+      include: { tables: true },
+    }),
+  ]);
+
+  return {
+    reservation: {
+      id: reservation.id,
+      customerName: reservation.customerName,
+      partySize: reservation.partySize,
+      date: format(reservation.date, "yyyy-MM-dd"),
+      time: reservation.time,
+      durationMinutes: reservation.durationMinutes,
+      status: reservation.status,
+      tableIds: reservation.tables.map((t) => t.tableId),
+    },
+    zones: zones.map((z) => ({
+      id: z.id,
+      name: z.name,
+      tables: z.tables.map((t) => ({
+        id: t.id,
+        label: t.label,
+        capacity: t.capacity,
+        manualStatus: t.manualStatus,
+        group: t.group ? { id: t.group.id, combinedCapacity: t.group.combinedCapacity } : null,
+      })),
+    })),
+    bookings: dayReservations.map((r) => ({
+      id: r.id,
+      customerName: r.customerName,
+      partySize: r.partySize,
+      time: r.time,
+      durationMinutes: r.durationMinutes,
+      status: r.status,
+      tableIds: r.tables.map((t) => t.tableId),
+    })),
+  };
+}
+
+const MoveReservationSchema = z.object({
+  moves: z
+    .array(z.object({ reservationId: z.string(), tableIds: z.array(z.string()).min(1, "Choisissez au moins une table.") }))
+    .min(1),
+  allowOverCapacity: z.boolean().optional(),
+});
+
+/// Change la table d'une réservation, et au besoin celles des réservations qu'elle
+/// déloge (échange 6 <-> 8, ou déplacement de l'occupante sur une autre table libre) —
+/// le tout dans UNE transaction : soit tout le plan est valide, soit rien ne bouge.
+/// Les conflits sont revérifiés après écriture de tous les déplacements, donc deux
+/// réservations qui échangent leurs tables ne se bloquent pas l'une l'autre.
+export async function moveReservation(input: z.infer<typeof MoveReservationSchema>) {
+  const ctx = await requireAnyPermission("reservations.edit", "service.run");
+  const data = MoveReservationSchema.parse(input);
+
+  const ids = data.moves.map((m) => m.reservationId);
+  if (new Set(ids).size !== ids.length) throw new Error("Une réservation est listée deux fois.");
+
+  const reservations = await prisma.reservation.findMany({
+    where: { id: { in: ids }, establishmentId: ctx.establishment.id },
+  });
+  if (reservations.length !== ids.length) throw new Error("Réservation introuvable.");
+  for (const r of reservations) {
+    if (!isMovable(r.status)) {
+      throw new Error(`La réservation de ${r.customerName} est clôturée et ne peut plus changer de table.`);
+    }
+  }
+
+  const allTableIds = [...new Set(data.moves.flatMap((m) => m.tableIds))];
+  const tables = await prisma.restaurantTable.findMany({
+    where: { id: { in: allTableIds }, establishmentId: ctx.establishment.id },
+  });
+  if (tables.length !== allTableIds.length) throw new Error("Une des tables sélectionnées est introuvable.");
+  const blocked = tables.find((t) => t.status === "unavailable");
+  if (blocked) throw new Error(`${blocked.label} est marquée indisponible.`);
+
+  for (const m of data.moves) {
+    const r = reservations.find((x) => x.id === m.reservationId)!;
+    await assertTablesHaveCapacity(ctx.establishment.id, m.tableIds, r.partySize, data.allowOverCapacity);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const m of data.moves) {
+      await tx.reservationTable.deleteMany({ where: { reservationId: m.reservationId } });
+      await tx.reservationTable.createMany({
+        data: [...new Set(m.tableIds)].map((tableId) => ({ reservationId: m.reservationId, tableId })),
+      });
+    }
+    for (const m of data.moves) {
+      const r = reservations.find((x) => x.id === m.reservationId)!;
+      await assertNoTableConflict(tx, ctx.establishment.id, m.tableIds, r.date, r.time, r.durationMinutes, r.id);
+    }
   });
 
   revalidatePath("/reservations");
