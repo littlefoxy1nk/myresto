@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { MoveReservationDialog } from "@/modules/reservations/components/move-reservation-dialog";
+import { SpanNextService, type ServiceWithDays } from "@/modules/reservations/components/span-next-service";
 import { toast } from "@/lib/toast-bus";
 import { updateReservationStatus, updateReservationDetails } from "@/modules/reservations/server/actions";
 
@@ -16,16 +17,19 @@ type EditInitial = {
   durationMinutes: number;
   notes: string;
   specialRequests: string;
+  spansNextService: boolean;
 };
 
 export function ReservationRowActions({
   reservationId,
   showNoShow,
   editInitial,
+  services,
 }: {
   reservationId: string;
   showNoShow: boolean;
   editInitial: EditInitial;
+  services: ServiceWithDays[];
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -95,6 +99,7 @@ export function ReservationRowActions({
         <EditReservationDialog
           reservationId={reservationId}
           initial={editInitial}
+          services={services}
           onOpenChange={setEditOpen}
         />
       )}
@@ -105,16 +110,19 @@ export function ReservationRowActions({
 function EditReservationDialog({
   reservationId,
   initial,
+  services,
   onOpenChange,
 }: {
   reservationId: string;
   initial: EditInitial;
+  services: ServiceWithDays[];
   onOpenChange: (open: boolean) => void;
 }) {
   const [partySize, setPartySize] = useState(initial.partySize);
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);
   const [durationMinutes, setDurationMinutes] = useState(initial.durationMinutes);
+  const [spansNextService, setSpansNextService] = useState(initial.spansNextService);
   const [notes, setNotes] = useState(initial.notes);
   const [specialRequests, setSpecialRequests] = useState(initial.specialRequests);
   const [pending, setPending] = useState(false);
@@ -132,7 +140,16 @@ function EditReservationDialog({
             setPending(true);
             setError(null);
             try {
-              await updateReservationDetails(reservationId, { partySize, date, time, durationMinutes, notes, specialRequests });
+              await updateReservationDetails(reservationId, {
+                partySize,
+                date,
+                time,
+                // Décocher "bloquer le service suivant" ramène la durée à la normale (90 min).
+                durationMinutes: !spansNextService && initial.spansNextService ? 90 : durationMinutes,
+                spansNextService,
+                notes,
+                specialRequests,
+              });
               toast("Réservation modifiée");
               onOpenChange(false);
             } catch (err) {
@@ -199,6 +216,13 @@ function EditReservationDialog({
               />
             </div>
           </div>
+          <SpanNextService
+            services={services}
+            date={date}
+            time={time}
+            checked={spansNextService}
+            onChange={setSpansNextService}
+          />
           <div className="space-y-1.5">
             <label htmlFor="edit-special" className="text-sm font-medium">
               Demandes spéciales

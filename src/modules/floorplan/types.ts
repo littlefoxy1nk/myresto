@@ -39,7 +39,7 @@ export type TableWithLiveState = {
   activeReservation: TableUpcomingReservation | null;
   /// Seulement en aperçu d'un jour choisi : toutes les réservations de la fenêtre, par heure.
   dayReservations?: TableUpcomingReservation[];
-  group: { id: string; label: string | null; combinedCapacity: number; tableIds: string[] } | null;
+  group: { id: string; label: string | null; combinedCapacity: number; tableIds: string[]; isPermanent: boolean } | null;
 };
 
 export type ZoneWithTables = {

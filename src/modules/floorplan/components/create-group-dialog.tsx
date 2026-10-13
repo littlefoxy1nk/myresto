@@ -9,16 +9,23 @@ export function CreateGroupDialog({
   onOpenChange,
   tableLabels,
   suggestedCapacity,
+  dayLabel,
+  allowPermanent,
   onCreate,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tableLabels: string[];
   suggestedCapacity: number;
-  onCreate: (combinedCapacity: number, label: string) => Promise<void>;
+  /// Le jour concerné, en toutes lettres ("aujourd'hui", "vendredi 9 octobre").
+  dayLabel: string;
+  /// Faux sur l'aperçu d'un autre jour : la fusion n'y vaut que pour ce jour.
+  allowPermanent: boolean;
+  onCreate: (combinedCapacity: number, label: string, permanent: boolean) => Promise<void>;
 }) {
   const [capacity, setCapacity] = useState(suggestedCapacity);
   const [label, setLabel] = useState("");
+  const [permanent, setPermanent] = useState(false);
   const [pending, setPending] = useState(false);
 
   useEffect(() => setCapacity(suggestedCapacity), [suggestedCapacity]);
@@ -28,18 +35,40 @@ export function CreateGroupDialog({
       <DialogContent>
         <DialogTitle>Fusionner {tableLabels.join(" + ")}</DialogTitle>
         <DialogDescription>
-          Ces tables seront présentées comme une seule unité sur le plan tant que le groupe est actif.
+          Ces tables seront présentées comme une seule unité sur le plan {permanent ? "tant que le groupe est actif" : `${dayLabel} uniquement — les autres jours restent inchangés`}.
         </DialogDescription>
         <form
           className="mt-4 space-y-3"
           onSubmit={async (e) => {
             e.preventDefault();
             setPending(true);
-            await onCreate(capacity, label.trim());
+            await onCreate(capacity, label.trim(), allowPermanent && permanent);
             setPending(false);
             onOpenChange(false);
           }}
         >
+          {allowPermanent && (
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Durée de la fusion">
+              {[
+                { value: false, title: `Seulement ${dayLabel}`, hint: "Les autres jours restent inchangés" },
+                { value: true, title: "Tous les jours", hint: "Fusion permanente" },
+              ].map((o) => (
+                <button
+                  key={String(o.value)}
+                  type="button"
+                  role="radio"
+                  aria-checked={permanent === o.value}
+                  onClick={() => setPermanent(o.value)}
+                  className={`rounded-xl border px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
+                    permanent === o.value ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
+                  }`}
+                >
+                  <span className="block text-sm font-medium">{o.title}</span>
+                  <span className="block text-xs text-muted-foreground">{o.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="space-y-1.5">
             <label htmlFor="group-capacity" className="text-sm font-medium">
               Capacité combinée

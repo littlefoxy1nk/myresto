@@ -12,6 +12,12 @@ import { ZoneTabs } from "@/modules/floorplan/components/zone-tabs";
 import { FloorPlanCanvas } from "@/modules/floorplan/components/floor-plan-canvas";
 import { getReservationPlanningData, type ReservationPlanningResult } from "@/modules/reservations/server/planning";
 import { createReservation } from "@/modules/reservations/server/actions";
+import {
+  SpanNextService,
+  servicesOnDate,
+  type ServiceWithDays,
+} from "@/modules/reservations/components/span-next-service";
+import { effectiveDuration } from "@/modules/service/spans";
 import type { TableSuggestion } from "@/modules/floorplan/server/suggestions";
 
 const DURATION_MINUTES = 90;
@@ -23,11 +29,13 @@ export function NewReservationFlow({
   preselectedZoneId,
   initialDate,
   initialTime,
+  services,
 }: {
   preselectedTableId?: string;
   preselectedZoneId?: string;
   initialDate?: string;
   initialTime?: string;
+  services: ServiceWithDays[];
 }) {
   const [step, setStep] = useState<Step>(1);
 
@@ -39,6 +47,7 @@ export function NewReservationFlow({
   const [time, setTime] = useState(initialTime ?? "20:00");
   const [notes, setNotes] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
+  const [spansNextService, setSpansNextService] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   const [loadingPlanning, setLoadingPlanning] = useState(false);
@@ -66,6 +75,8 @@ export function NewReservationFlow({
 
   const overCapacity = selectedTables.length > 0 && selectedCapacity < partySize;
 
+  const duration = effectiveDuration(DURATION_MINUTES, time, spansNextService, servicesOnDate(services, date));
+
   async function goToTableStep() {
     setFormError(null);
     if (!customerName.trim()) return setFormError("Le nom du client est requis.");
@@ -74,7 +85,7 @@ export function NewReservationFlow({
 
     setLoadingPlanning(true);
     try {
-      const result = await getReservationPlanningData({ date, time, durationMinutes: DURATION_MINUTES, partySize });
+      const result = await getReservationPlanningData({ date, time, durationMinutes: duration, partySize });
       setPlanning(result);
       const preselected = preselectedTableId
         ? result.zones.flatMap((z) => z.tables).find((t) => t.id === preselectedTableId && t.liveState === "available")
@@ -129,6 +140,7 @@ export function NewReservationFlow({
         date,
         time,
         durationMinutes: DURATION_MINUTES,
+        spansNextService,
         tableIds: [...selectedTableIds],
         notes: notes.trim() || undefined,
         specialRequests: specialRequests.trim() || undefined,
@@ -188,6 +200,13 @@ export function NewReservationFlow({
             <Field label="Date" value={date} onChange={setDate} type="date" />
             <Field label="Heure" value={time} onChange={setTime} type="time" />
           </div>
+          <SpanNextService
+            services={services}
+            date={date}
+            time={time}
+            checked={spansNextService}
+            onChange={setSpansNextService}
+          />
           <Field label="Demandes particulières (optionnel)" value={specialRequests} onChange={setSpecialRequests} />
           <Field label="Notes internes (optionnel)" value={notes} onChange={setNotes} />
           <Button size="lg" className="w-full" disabled={loadingPlanning} onClick={goToTableStep}>
@@ -296,6 +315,7 @@ export function NewReservationFlow({
             <Row label="Date" value={format(new Date(`${date}T00:00:00`), "d MMMM yyyy")} />
             <Row label="Heure" value={time} />
             <Row label="Personnes" value={String(partySize)} />
+            {spansNextService && <Row label="Services" value="Bloque aussi le service suivant" />}
             <Row label="Table(s)" value={selectedTables.map((t) => t.label).join(" + ")} />
             {overCapacity && (
               <p className="rounded-lg bg-important-soft px-3 py-2 text-sm text-important">

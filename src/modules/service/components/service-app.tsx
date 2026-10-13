@@ -40,7 +40,7 @@ export function ServiceApp({ snapshot }: { snapshot: ServiceSnapshot }) {
 
   function handleAlertAction(alert: ServiceAlert) {
     if (alert.action.kind === "release") {
-      guarded(() => releaseReservationTables(alert.action.targetId), "Table libérée, en nettoyage");
+      guarded(() => releaseReservationTables(alert.action.targetId), "Table libérée, prête");
     } else {
       guarded(() => setTableManualStatus(alert.action.targetId, "available"), "Table prête");
     }
@@ -156,7 +156,7 @@ export function ServiceApp({ snapshot }: { snapshot: ServiceSnapshot }) {
                         onClose={() => setSelectedTableId(null)}
                         onMarkArrived={(id) => guarded(() => updateReservationStatus(id, "arrived"), "Client marqué arrivé")}
                         onMarkSeated={(id) => guarded(() => updateReservationStatus(id, "seated"), "Table installée")}
-                        onRelease={(id) => guarded(() => releaseReservationTables(id), "Table libérée, en nettoyage")}
+                        onRelease={(id) => guarded(() => releaseReservationTables(id), "Table libérée, prête")}
                         onMarkReady={(id) => guarded(() => setTableManualStatus(id, "available"), "Table prête")}
                       />
                     )}

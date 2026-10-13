@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay, isSameDay } from "date-fns";
 import { timeToMinutes, isoWeekday } from "@/lib/time";
+import { groupInstantFor } from "@/modules/floorplan/group-scope";
 import {
   computeTableLiveState,
   computeSlotAvailability,
@@ -14,9 +15,10 @@ import type {
   ZoneType,
 } from "@/modules/floorplan/types";
 
-type GroupInfo = { id: string; label: string | null; combinedCapacity: number; tableIds: string[] };
+type GroupInfo = { id: string; label: string | null; combinedCapacity: number; tableIds: string[]; isPermanent: boolean };
 
-async function fetchZonesAndGroups(establishmentId: string, at: Date) {
+/// Zones + groupes de tables actifs À UNE DATE donnée (une fusion d'un soir n'existe que ce jour-là).
+export async function fetchZonesAndGroups(establishmentId: string, at: Date) {
   const [zones, groups] = await Promise.all([
     prisma.zone.findMany({
       where: { establishmentId },
@@ -36,7 +38,13 @@ async function fetchZonesAndGroups(establishmentId: string, at: Date) {
   const groupByTable = new Map<string, GroupInfo>();
   for (const g of groups) {
     const tableIds = g.members.map((m) => m.tableId);
-    const info: GroupInfo = { id: g.id, label: g.label, combinedCapacity: g.combinedCapacity, tableIds };
+    const info: GroupInfo = {
+      id: g.id,
+      label: g.label,
+      combinedCapacity: g.combinedCapacity,
+      tableIds,
+      isPermanent: g.isPermanent,
+    };
     for (const tableId of tableIds) groupByTable.set(tableId, info);
   }
 
@@ -151,7 +159,7 @@ export async function getFloorPlanForSlot(
   const requestedStartMinutes = timeToMinutes(time);
 
   const [{ zones, groupByTable }, reservations] = await Promise.all([
-    fetchZonesAndGroups(establishmentId, date),
+    fetchZonesAndGroups(establishmentId, groupInstantFor(date, new Date())),
     prisma.reservation.findMany({
       where: {
         establishmentId,
@@ -240,7 +248,7 @@ export async function getFloorPlanForDay(
 
   const [allServices, { zones, groupByTable }, reservations] = await Promise.all([
     prisma.serviceDefinition.findMany({ where: { establishmentId }, orderBy: { startTime: "asc" } }),
-    fetchZonesAndGroups(establishmentId, new Date(dayStart.getTime() + 12 * 3600_000)),
+    fetchZonesAndGroups(establishmentId, groupInstantFor(date, new Date())),
     prisma.reservation.findMany({
       where: { establishmentId, date: { gte: dayStart, lte: dayEnd }, status: { notIn: ["cancelled", "no_show"] } },
       include: { tables: true },

@@ -7,6 +7,7 @@ import { requirePermission, requireAnyPermission } from "@/lib/current-context";
 import { startOfDay, endOfDay } from "date-fns";
 import { ZONE_TYPES, TABLE_SHAPES, TABLE_MANUAL_STATUSES } from "@/modules/floorplan/types";
 import { nextGridPosition } from "@/modules/floorplan/compute";
+import { groupWindow, windowsOverlap } from "@/modules/floorplan/group-scope";
 
 const PATH = "/plan-de-salle";
 
@@ -282,6 +283,8 @@ const GroupCreateSchema = z.object({
   tableIds: z.array(z.string()).min(2, "Sélectionnez au moins deux tables."),
   combinedCapacity: z.coerce.number().int().min(1).max(60),
   label: z.string().optional(),
+  /// yyyy-MM-dd : la fusion ne vaut que ce jour-là. Absent = permanente.
+  date: z.string().optional(),
 });
 
 export async function createTableGroup(input: z.infer<typeof GroupCreateSchema>) {
@@ -297,21 +300,27 @@ export async function createTableGroup(input: z.infer<typeof GroupCreateSchema>)
   const zoneIds = new Set(tables.map((t) => t.zoneId));
   if (zoneIds.size > 1) throw new Error("Seules des tables d'une même zone peuvent être fusionnées.");
 
-  const now = new Date();
-  const alreadyGrouped = await prisma.tableGroupMember.findFirst({
-    where: {
-      tableId: { in: data.tableIds },
-      group: { activeFrom: { lte: now }, OR: [{ activeUntil: null }, { activeUntil: { gte: now } }] },
-    },
+  const window = groupWindow(data.date, new Date());
+  const candidates = await prisma.tableGroupMember.findMany({
+    where: { tableId: { in: data.tableIds } },
+    include: { group: true },
   });
-  if (alreadyGrouped) throw new Error("Une de ces tables fait déjà partie d'un groupe actif.");
+  if (candidates.some((m) => windowsOverlap(m.group, window))) {
+    throw new Error(
+      data.date
+        ? "Une de ces tables est déjà fusionnée ce jour-là."
+        : "Une de ces tables fait déjà partie d'un groupe actif."
+    );
+  }
 
   const group = await prisma.tableGroup.create({
     data: {
       establishmentId: ctx.establishment.id,
       label: data.label || null,
       combinedCapacity: data.combinedCapacity,
-      isPermanent: true,
+      isPermanent: window.isPermanent,
+      activeFrom: window.activeFrom,
+      activeUntil: window.activeUntil,
     },
   });
   await prisma.tableGroupMember.createMany({
@@ -330,8 +339,11 @@ export async function dissolveTableGroup(groupId: string) {
   });
   if (!group) throw new Error("Groupe introuvable.");
 
-  await prisma.tableGroup.update({ where: { id: groupId }, data: { activeUntil: new Date() } });
+  // Une fusion d'un seul jour disparaît tout simplement ; une permanente est close à partir de maintenant.
+  if (group.isPermanent) await prisma.tableGroup.update({ where: { id: groupId }, data: { activeUntil: new Date() } });
+  else await prisma.tableGroup.delete({ where: { id: groupId } });
   revalidatePath(PATH);
+  revalidatePath("/service");
 }
 
 /// Un groupe réduit à 0 ou 1 table (après suppression d'une table membre) n'a plus de

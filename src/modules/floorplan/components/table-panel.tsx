@@ -19,6 +19,7 @@ const STATUS_LABELS: Record<TableManualStatus, string> = {
 export function TablePanel({
   table,
   canEdit,
+  canMerge,
   canCreateReservation,
   reserveHref,
   onWalkIn,
@@ -33,6 +34,8 @@ export function TablePanel({
 }: {
   table: TableWithLiveState;
   canEdit: boolean;
+  /// Fusionner des tables (plan live, ou aperçu d'un jour : alors pour ce jour seulement).
+  canMerge: boolean;
   canCreateReservation: boolean;
   /// Lien "réserver pour plus tard" (date/heure du plan affiché déjà préremplies).
   reserveHref: string;
@@ -119,8 +122,11 @@ export function TablePanel({
             <Link2 size={14} aria-hidden="true" />
             Fusionnée · {table.group.combinedCapacity} pers.
           </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Avec {table.group.tableIds.length - 1} autre(s) table(s)</p>
-          {canEdit && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Avec {table.group.tableIds.length - 1} autre(s) table(s) ·{" "}
+            {table.group.isPermanent ? "tous les jours" : "ce jour seulement"}
+          </p>
+          {(canEdit || (canMerge && !table.group.isPermanent)) && (
             <button
               onClick={() => onDissolveGroup(table.group!.id)}
               className="mt-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:underline"
@@ -238,8 +244,14 @@ export function TablePanel({
           </div>
         </div>
       ) : (
-        <div className="mt-4 space-y-1 text-sm text-muted-foreground">
+        <div className="mt-4 space-y-2 text-sm text-muted-foreground">
           <p>{table.capacity} personnes · {SHAPE_LABELS[table.shape]}</p>
+          {canMerge && !table.group && (
+            <Button size="sm" variant="secondary" onClick={onStartMerge}>
+              <Link2 size={14} aria-hidden="true" />
+              Fusionner pour ce jour
+            </Button>
+          )}
         </div>
       )}
     </div>

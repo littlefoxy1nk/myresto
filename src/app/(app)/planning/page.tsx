@@ -6,6 +6,8 @@ import { PlanningApp } from "@/modules/planning/components/planning-app";
 import { WorkerPlanningView } from "@/modules/planning/components/worker-planning-view";
 import { getReplacementRequests } from "@/modules/replacement/server/queries";
 import { AssignReplacementControl } from "@/modules/replacement/components/assign-replacement-control";
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -47,8 +49,23 @@ export default async function PlanningPage({
     );
   }
 
+  const serviceCount = ctx.can("settings.manage")
+    ? await prisma.serviceDefinition.count({ where: { establishmentId: ctx.establishment.id } })
+    : 0;
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      {ctx.can("settings.manage") && serviceCount <= 1 && (
+        <p className="rounded-xl border border-accent/30 bg-accent-soft/40 px-4 py-2.5 text-sm">
+          <span className="font-medium text-accent">Définis tes services</span>{" "}
+          <span className="text-muted-foreground">
+            (ex : 12h, 18h, 20h30) pour que le planning, le plan de salle et les réservations suivent tes vrais horaires.
+          </span>{" "}
+          <Link href="/parametres#services" className="font-medium text-accent underline underline-offset-2">
+            Ouvrir les paramètres
+          </Link>
+        </p>
+      )}
       {replacementRequests.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-base font-semibold">Remplacements en attente</h2>

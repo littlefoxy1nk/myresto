@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { PERMISSIONS } from "@/lib/permissions";
 import { logout } from "@/lib/actions/auth-actions";
 import { Check, LogOut } from "lucide-react";
+import { ServicesCard } from "@/modules/settings/components/services-card";
+import { OnlineBookingCard } from "@/modules/settings/components/online-booking-card";
 
 const CATEGORY_LABELS: Record<string, string> = {
   reservations: "Réservations & salle",
@@ -28,6 +30,19 @@ export default async function ParametresPage() {
     include: { permissions: { include: { permission: true } } },
     orderBy: { createdAt: "asc" },
   });
+
+  const services = (
+    await prisma.serviceDefinition.findMany({
+      where: { establishmentId: ctx.establishment.id },
+      orderBy: { startTime: "asc" },
+    })
+  ).map((s) => ({
+    id: s.id,
+    name: s.name,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    days: s.daysOfWeek.split(",").map(Number),
+  }));
 
   const categories = Array.from(new Set(PERMISSIONS.map((p) => p.category)));
 
@@ -68,6 +83,35 @@ export default async function ParametresPage() {
           <Info label="Ville" value={ctx.establishment.city ?? "—"} />
           <Info label="Devise" value={ctx.establishment.currency} />
           <Info label="Fuseau horaire" value={ctx.establishment.timezone} />
+        </CardContent>
+      </Card>
+
+      <Card id="services">
+        <CardHeader>
+          <CardTitle>Services</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Les plages d&apos;accueil de ton établissement (ex : 12h, 18h, 20h30). Elles servent au planning, au plan de salle,
+            aux réservations et à la page de réservation en ligne.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <ServicesCard services={services} />
+        </CardContent>
+      </Card>
+
+      <Card id="reservation-en-ligne">
+        <CardHeader>
+          <CardTitle>Réservation en ligne</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Un lien public à partager (site, Instagram, Google) : le client envoie une demande (nom, prénom, GSM
+            obligatoires), tu es notifié, tu choisis la table et tu confirmes.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <OnlineBookingCard
+            slug={ctx.establishment.bookingSlug}
+            enabled={ctx.establishment.onlineBookingEnabled}
+          />
         </CardContent>
       </Card>
 

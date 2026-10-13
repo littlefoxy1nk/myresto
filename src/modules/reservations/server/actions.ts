@@ -8,8 +8,11 @@ import { prisma } from "@/lib/prisma";
 import { timeToMinutes } from "@/lib/time";
 import { requirePermission, requireAnyPermission } from "@/lib/current-context";
 import { findOrCreateCustomer } from "@/modules/customers/server/matching";
-import { getFloorPlan } from "@/modules/floorplan/server/queries";
+import { fetchZonesAndGroups } from "@/modules/floorplan/server/queries";
+import { groupInstantFor } from "@/modules/floorplan/group-scope";
 import { isMovable, type DayBooking } from "@/modules/reservations/move";
+import { effectiveDuration } from "@/modules/service/spans";
+import { getServiceWindowsForDate } from "@/modules/service/server/windows";
 
 const VALID_STATUSES = [
   "new",
@@ -47,9 +50,8 @@ export async function updateReservationStatus(reservationId: string, status: (ty
 /// "Libérer" une table (Mode Service) : le client est parti. Marquer la réservation
 /// "completed" suffit déjà à ce que computeTableLiveState arrête de la compter comme
 /// occupante — mais dans la réalité d'un service, une table qui se vide a besoin d'être
-/// nettoyée avant d'accueillir quelqu'un d'autre. On l'affecte donc explicitement en
-/// nettoyage plutôt que de la remettre "disponible" en un clic ; "Marquer prête"
-/// (setTableManualStatus) reste l'étape suivante, déclenchée par le staff une fois fait.
+/// nettoyée — mais "libérée" dit déjà "prête" : la table redevient directement disponible.
+/// Le statut manuel "Nettoyage" reste un choix explicite du staff (panneau de la table).
 export async function releaseReservationTables(reservationId: string) {
   const ctx = await requireAnyPermission("reservations.edit", "service.run");
 
@@ -62,8 +64,8 @@ export async function releaseReservationTables(reservationId: string) {
   await prisma.reservation.update({ where: { id: reservationId }, data: { status: "completed" } });
   await prisma.reservationStatusEvent.create({ data: { reservationId, status: "completed" } });
   await prisma.restaurantTable.updateMany({
-    where: { id: { in: reservation.tables.map((t) => t.tableId) } },
-    data: { status: "cleaning" },
+    where: { id: { in: reservation.tables.map((t) => t.tableId) }, status: "cleaning" },
+    data: { status: "available" },
   });
 
   revalidatePath("/reservations");
@@ -81,7 +83,8 @@ async function assertTablesHaveCapacity(
   establishmentId: string,
   tableIds: string[],
   partySize: number,
-  allowOverCapacity = false
+  allowOverCapacity = false,
+  at: Date = new Date()
 ) {
   const tables = await prisma.restaurantTable.findMany({
     where: { id: { in: tableIds }, establishmentId },
@@ -93,7 +96,7 @@ async function assertTablesHaveCapacity(
 
   const activeGroup = tables[0]?.groupMemberships.find((m) => {
     const g = m.group;
-    const isActive = g.activeFrom <= new Date() && (!g.activeUntil || g.activeUntil >= new Date());
+    const isActive = g.activeFrom <= at && (!g.activeUntil || g.activeUntil >= at);
     return isActive && tables.every((t) => t.groupMemberships.some((gm) => gm.groupId === g.id));
   });
   const totalCapacity =
@@ -158,6 +161,8 @@ const CreateReservationSchema = z.object({
   specialRequests: z.string().optional(),
   /// Posé par l'écran seulement après avoir signalé "capacité dépassée" et reçu un OK explicite.
   allowOverCapacity: z.boolean().optional(),
+  /// Bloque aussi le service suivant : la durée est étendue jusqu'à sa fin (voir service/spans.ts).
+  spansNextService: z.boolean().optional(),
 });
 
 export type CreateReservationInput = z.infer<typeof CreateReservationSchema>;
@@ -170,12 +175,25 @@ export async function createReservation(input: CreateReservationInput) {
   const ctx = await requirePermission("reservations.edit");
   const data = CreateReservationSchema.parse(input);
 
-  await assertTablesHaveCapacity(ctx.establishment.id, data.tableIds, data.partySize, data.allowOverCapacity);
-
   const date = new Date(`${data.date}T00:00:00`);
+  await assertTablesHaveCapacity(
+    ctx.establishment.id,
+    data.tableIds,
+    data.partySize,
+    data.allowOverCapacity,
+    groupInstantFor(date, new Date())
+  );
+
+  const spans = data.spansNextService ?? false;
+  const durationMinutes = effectiveDuration(
+    data.durationMinutes,
+    data.time,
+    spans,
+    await getServiceWindowsForDate(ctx.establishment.id, date)
+  );
 
   const reservation = await prisma.$transaction(async (tx) => {
-    await assertNoTableConflict(tx, ctx.establishment.id, data.tableIds, date, data.time, data.durationMinutes);
+    await assertNoTableConflict(tx, ctx.establishment.id, data.tableIds, date, data.time, durationMinutes);
 
     const customerId = await findOrCreateCustomer(tx, ctx.establishment.id, {
       name: data.customerName,
@@ -193,7 +211,8 @@ export async function createReservation(input: CreateReservationInput) {
         partySize: data.partySize,
         date,
         time: data.time,
-        durationMinutes: data.durationMinutes,
+        durationMinutes,
+        spansNextService: spans,
         notes: data.notes || null,
         specialRequests: data.specialRequests || null,
         source: "manual",
@@ -286,6 +305,7 @@ const UpdateReservationSchema = z.object({
   durationMinutes: z.coerce.number().int().min(15).max(480),
   notes: z.string().optional(),
   specialRequests: z.string().optional(),
+  spansNextService: z.boolean().optional(),
 });
 
 /// Modifie une réservation existante (personnes, date, heure, durée, notes) sans
@@ -307,12 +327,19 @@ export async function updateReservationDetails(reservationId: string, input: z.i
   }
 
   const tableIds = reservation.tables.map((t) => t.tableId);
-  await assertTablesHaveCapacity(ctx.establishment.id, tableIds, data.partySize);
-
   const date = new Date(`${data.date}T00:00:00`);
+  await assertTablesHaveCapacity(ctx.establishment.id, tableIds, data.partySize, false, groupInstantFor(date, new Date()));
+
+  const spans = data.spansNextService ?? false;
+  const durationMinutes = effectiveDuration(
+    data.durationMinutes,
+    data.time,
+    spans,
+    await getServiceWindowsForDate(ctx.establishment.id, date)
+  );
 
   await prisma.$transaction(async (tx) => {
-    await assertNoTableConflict(tx, ctx.establishment.id, tableIds, date, data.time, data.durationMinutes, reservationId);
+    await assertNoTableConflict(tx, ctx.establishment.id, tableIds, date, data.time, durationMinutes, reservationId);
 
     await tx.reservation.update({
       where: { id: reservationId },
@@ -320,7 +347,8 @@ export async function updateReservationDetails(reservationId: string, input: z.i
         partySize: data.partySize,
         date,
         time: data.time,
-        durationMinutes: data.durationMinutes,
+        durationMinutes,
+        spansNextService: spans,
         notes: data.notes || null,
         specialRequests: data.specialRequests || null,
       },
@@ -372,8 +400,8 @@ export async function getMoveReservationData(reservationId: string): Promise<Mov
   });
   if (!reservation) throw new Error("Réservation introuvable.");
 
-  const [zones, dayReservations] = await Promise.all([
-    getFloorPlan(ctx.establishment.id),
+  const [{ zones, groupByTable }, dayReservations] = await Promise.all([
+    fetchZonesAndGroups(ctx.establishment.id, groupInstantFor(reservation.date, new Date())),
     prisma.reservation.findMany({
       where: {
         establishmentId: ctx.establishment.id,
@@ -402,8 +430,8 @@ export async function getMoveReservationData(reservationId: string): Promise<Mov
         id: t.id,
         label: t.label,
         capacity: t.capacity,
-        manualStatus: t.manualStatus,
-        group: t.group ? { id: t.group.id, combinedCapacity: t.group.combinedCapacity } : null,
+        manualStatus: t.status,
+        group: groupByTable.get(t.id) ? { id: groupByTable.get(t.id)!.id, combinedCapacity: groupByTable.get(t.id)!.combinedCapacity } : null,
       })),
     })),
     bookings: dayReservations.map((r) => ({
@@ -457,7 +485,13 @@ export async function moveReservation(input: z.infer<typeof MoveReservationSchem
 
   for (const m of data.moves) {
     const r = reservations.find((x) => x.id === m.reservationId)!;
-    await assertTablesHaveCapacity(ctx.establishment.id, m.tableIds, r.partySize, data.allowOverCapacity);
+    await assertTablesHaveCapacity(
+      ctx.establishment.id,
+      m.tableIds,
+      r.partySize,
+      data.allowOverCapacity,
+      groupInstantFor(r.date, new Date())
+    );
   }
 
   await prisma.$transaction(async (tx) => {

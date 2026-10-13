@@ -25,6 +25,7 @@ import {
   createTableGroup,
   dissolveTableGroup,
 } from "@/modules/floorplan/server/actions";
+import { toDateKey } from "@/lib/utils";
 import type { ZoneWithTables } from "@/modules/floorplan/types";
 
 function reserveHref(
@@ -44,12 +45,15 @@ export function FloorPlanApp({
   canEdit,
   canCreateReservation,
   canWalkIn,
+  canMergeDay = false,
   dayView = null,
 }: {
   zones: ZoneWithTables[];
   canEdit: boolean;
   canCreateReservation: boolean;
   canWalkIn: boolean;
+  /// Aperçu d'un jour (non passé) : on peut y fusionner des tables, pour CE jour seulement.
+  canMergeDay?: boolean;
   /// Aperçu en lecture seule d'un autre jour / d'un service (voir getFloorPlanForDay).
   dayView?: { label: string; serviceName: string | null; isToday: boolean; dateKey: string; startTime: string | null } | null;
 }) {
@@ -64,6 +68,9 @@ export function FloorPlanApp({
   const [confirmDeleteZoneId, setConfirmDeleteZoneId] = useState<string | null>(null);
   const [walkInTableId, setWalkInTableId] = useState<string | null>(null);
   const [moveReservationId, setMoveReservationId] = useState<string | null>(null);
+
+  const canMerge = canEdit || canMergeDay;
+  const todayKey = toDateKey(new Date());
 
   const activeZone = zones.find((z) => z.id === activeZoneId) ?? zones[0] ?? null;
   const selectedTable = activeZone?.tables.find((t) => t.id === selectedTableId) ?? null;
@@ -164,7 +171,7 @@ export function FloorPlanApp({
           onCreateZone={() => setShowCreateZone(true)}
           onDeleteZone={(id) => setConfirmDeleteZoneId(id)}
         />
-        {canEdit && (
+        {canMerge && (mergeMode || canEdit) && (
           <div className="flex items-center gap-2">
             {mergeMode ? (
               <>
@@ -244,6 +251,7 @@ export function FloorPlanApp({
             key={selectedTable.id}
             table={selectedTable}
             canEdit={canEdit}
+            canMerge={canMerge}
             canCreateReservation={canCreateReservation}
             reserveHref={reserveHref(selectedTable, dayView)}
             onWalkIn={canWalkIn && !dayView ? () => setWalkInTableId(selectedTable.id) : undefined}
@@ -305,9 +313,17 @@ export function FloorPlanApp({
         }}
         tableLabels={activeZone.tables.filter((t) => selectedTableIds.includes(t.id)).map((t) => t.label)}
         suggestedCapacity={suggestedCapacity}
-        onCreate={async (combinedCapacity, label) => {
+        dayLabel={dayView && !dayView.isToday ? dayView.label : "aujourd'hui"}
+        allowPermanent={canEdit && !dayView}
+        onCreate={async (combinedCapacity, label, permanent) => {
           await guarded(
-            () => createTableGroup({ tableIds: selectedTableIds, combinedCapacity, label: label || undefined }),
+            () =>
+              createTableGroup({
+                tableIds: selectedTableIds,
+                combinedCapacity,
+                label: label || undefined,
+                date: permanent ? undefined : (dayView?.dateKey ?? todayKey),
+              }),
             "Tables fusionnées"
           );
           exitMergeMode();

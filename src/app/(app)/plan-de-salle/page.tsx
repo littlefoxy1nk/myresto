@@ -58,6 +58,7 @@ export default async function PlanDeSallePage({
         canEdit={!dayView && ctx.can("floorplan.edit")}
         canCreateReservation={ctx.can("reservations.edit")}
         canWalkIn={ctx.can("reservations.edit") || ctx.can("service.run")}
+        canMergeDay={!!dayView && dateKey >= todayKey && ctx.can("floorplan.edit")}
         dayView={dayView}
       />
     </div>

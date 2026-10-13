@@ -44,6 +44,10 @@ model Establishment {
   timezone      String   @default("Europe/Brussels")
   currency      String   @default("EUR")
   onboardedAt   DateTime?
+  /// Lien public de réservation en ligne : /reserver/<bookingSlug>. Désactivé par défaut —
+  /// un restaurant ne reçoit de demandes en ligne que s'il l'a décidé.
+  bookingSlug          String?  @unique
+  onlineBookingEnabled Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -529,6 +533,14 @@ model Reservation {
   notes           String?       // notes internes
   specialRequests String?       // allergies, anniversaire, événement...
   source          String        @default("manual") // manual | phone | online | walk_in
+  /// Bloque aussi le service suivant (ex: arrivée à 19h entre le service de 18h et celui de
+  /// 20h30) : durationMinutes est alors étendue jusqu'à la fin de ce service, si bien que la
+  /// table apparaît occupée sur les deux. Voir modules/service/spans.ts.
+  spansNextService Boolean      @default(false)
+  /// Suivi de la confirmation demandée au client : none | asked ("?" : pas de nouvelle)
+  /// | confirmed ("V"). Indépendant du statut de la réservation.
+  confirmationState    String   @default("none")
+  confirmationAskedAt  DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

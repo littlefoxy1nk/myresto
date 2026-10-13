@@ -114,7 +114,7 @@ export function MoveReservationDialog({
         moves: Object.entries(moves).map(([reservationId, tableIds]) => ({ reservationId, tableIds })),
         allowOverCapacity: overCapacity.length > 0,
       });
-      toast(displaced.length > 0 ? "Réservations déplacées" : "Réservation déplacée");
+      toast(res.tableIds.length === 0 ? "Table attribuée" : displaced.length > 0 ? "Réservations déplacées" : "Réservation déplacée");
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue.");
@@ -126,9 +126,10 @@ export function MoveReservationDialog({
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-        <DialogTitle>Changer de table</DialogTitle>
+        <DialogTitle>{res.tableIds.length > 0 ? "Changer de table" : "Choisir une table"}</DialogTitle>
         <DialogDescription>
-          {res.customerName} · {res.partySize} pers. · {res.time} · actuellement sur {labels(res.tableIds)}
+          {res.customerName} · {res.partySize} pers. · {res.time} ·{" "}
+          {res.tableIds.length > 0 ? `actuellement sur ${labels(res.tableIds)}` : "pas encore de table"}
         </DialogDescription>
 
         {step === "choose" && (
@@ -188,12 +189,10 @@ export function MoveReservationDialog({
             ) : (
               <Button className="w-full" disabled={target.length === 0 || pending} onClick={confirm}>
                 {pending
-                  ? "Déplacement…"
+                  ? "Enregistrement…"
                   : target.length === 0
                     ? "Choisis une table"
-                    : overCapacity.length > 0
-                      ? `Déplacer sur ${labels(target)} quand même`
-                      : `Déplacer sur ${labels(target)}`}
+                    : `${res.tableIds.length === 0 ? "Attribuer" : "Déplacer sur"} ${res.tableIds.length === 0 ? "la table " : ""}${labels(target)}${overCapacity.length > 0 ? " quand même" : ""}`}
               </Button>
             )}
           </div>
