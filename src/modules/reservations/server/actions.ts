@@ -163,6 +163,7 @@ const CreateReservationSchema = z.object({
   allowOverCapacity: z.boolean().optional(),
   /// Bloque aussi le service suivant : la durée est étendue jusqu'à sa fin (voir service/spans.ts).
   spansNextService: z.boolean().optional(),
+  blocksEvening: z.boolean().optional(),
 });
 
 export type CreateReservationInput = z.infer<typeof CreateReservationSchema>;
@@ -185,11 +186,13 @@ export async function createReservation(input: CreateReservationInput) {
   );
 
   const spans = data.spansNextService ?? false;
+  const evening = data.blocksEvening ?? false;
   const durationMinutes = effectiveDuration(
     data.durationMinutes,
     data.time,
     spans,
-    await getServiceWindowsForDate(ctx.establishment.id, date)
+    await getServiceWindowsForDate(ctx.establishment.id, date),
+    evening
   );
 
   const reservation = await prisma.$transaction(async (tx) => {
@@ -213,6 +216,7 @@ export async function createReservation(input: CreateReservationInput) {
         time: data.time,
         durationMinutes,
         spansNextService: spans,
+        blocksEvening: evening,
         notes: data.notes || null,
         specialRequests: data.specialRequests || null,
         source: "manual",
@@ -306,6 +310,7 @@ const UpdateReservationSchema = z.object({
   notes: z.string().optional(),
   specialRequests: z.string().optional(),
   spansNextService: z.boolean().optional(),
+  blocksEvening: z.boolean().optional(),
 });
 
 /// Modifie une réservation existante (personnes, date, heure, durée, notes) sans
@@ -331,11 +336,13 @@ export async function updateReservationDetails(reservationId: string, input: z.i
   await assertTablesHaveCapacity(ctx.establishment.id, tableIds, data.partySize, false, groupInstantFor(date, new Date()));
 
   const spans = data.spansNextService ?? false;
+  const evening = data.blocksEvening ?? false;
   const durationMinutes = effectiveDuration(
     data.durationMinutes,
     data.time,
     spans,
-    await getServiceWindowsForDate(ctx.establishment.id, date)
+    await getServiceWindowsForDate(ctx.establishment.id, date),
+    evening
   );
 
   await prisma.$transaction(async (tx) => {
@@ -349,10 +356,53 @@ export async function updateReservationDetails(reservationId: string, input: z.i
         time: data.time,
         durationMinutes,
         spansNextService: spans,
+        blocksEvening: evening,
         notes: data.notes || null,
         specialRequests: data.specialRequests || null,
       },
     });
+  });
+
+  revalidatePath("/reservations");
+  revalidatePath("/plan-de-salle");
+  revalidatePath("/aujourdhui");
+  revalidatePath("/service");
+}
+
+const DEFAULT_DURATION_MINUTES = 90;
+
+/// Bloque (ou libère) la table d'une réservation pour toute la soirée : la durée est étendue jusqu'à
+/// la fin du dernier service. Refusé si une autre réservation occupe déjà une de ses tables plus tard
+/// ce soir-là — le message dit laquelle.
+export async function setBlocksEvening(reservationId: string, blocks: boolean) {
+  const ctx = await requirePermission("reservations.edit");
+
+  const reservation = await prisma.reservation.findFirst({
+    where: { id: reservationId, establishmentId: ctx.establishment.id },
+    include: { tables: true },
+  });
+  if (!reservation) throw new Error("Réservation introuvable.");
+  if (["completed", "cancelled", "no_show"].includes(reservation.status)) {
+    throw new Error("Cette réservation est déjà clôturée.");
+  }
+  if (reservation.tables.length === 0) throw new Error("Attribue d'abord une table à cette réservation.");
+
+  const services = await getServiceWindowsForDate(ctx.establishment.id, reservation.date);
+  const durationMinutes = effectiveDuration(
+    DEFAULT_DURATION_MINUTES,
+    reservation.time,
+    reservation.spansNextService,
+    services,
+    blocks
+  );
+  if (blocks && durationMinutes === DEFAULT_DURATION_MINUTES) {
+    throw new Error("Rien à bloquer : cette réservation n'a pas de service après son heure.");
+  }
+
+  const tableIds = reservation.tables.map((t) => t.tableId);
+  await prisma.$transaction(async (tx) => {
+    await assertNoTableConflict(tx, ctx.establishment.id, tableIds, reservation.date, reservation.time, durationMinutes, reservationId);
+    await tx.reservation.update({ where: { id: reservationId }, data: { blocksEvening: blocks, durationMinutes } });
   });
 
   revalidatePath("/reservations");

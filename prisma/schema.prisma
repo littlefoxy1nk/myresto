@@ -537,6 +537,9 @@ model Reservation {
   /// 20h30) : durationMinutes est alors étendue jusqu'à la fin de ce service, si bien que la
   /// table apparaît occupée sur les deux. Voir modules/service/spans.ts.
   spansNextService Boolean      @default(false)
+  /// Bloque la table jusqu'à la fermeture (réservation du soir) : durationMinutes est étendue
+  /// jusqu'à la fin du dernier service du jour. Voir eveningEnd dans service/spans.ts.
+  blocksEvening    Boolean      @default(false)
   /// Suivi de la confirmation demandée au client : none | asked ("?" : pas de nouvelle)
   /// | confirmed ("V"). Indépendant du statut de la réservation.
   confirmationState    String   @default("none")

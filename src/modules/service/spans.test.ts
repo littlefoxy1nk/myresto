@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { effectiveDuration, nextServiceAfter, overlapsService, serviceAt, type ServiceWindow } from "./spans";
+import { effectiveDuration, eveningEnd, nextServiceAfter, overlapsService, serviceAt, type ServiceWindow } from "./spans";
 
 const services: ServiceWindow[] = [
   { id: "midi", name: "12h", startTime: "12:00", endTime: "14:30" },
@@ -52,4 +52,18 @@ test("overlapsService : 19h bloquant le service suivant apparaît sur les deux",
   const r = { time: "19:00", durationMinutes: effectiveDuration(90, "19:00", true, services) };
   assert.equal(overlapsService(r, services[1]), true);
   assert.equal(overlapsService(r, services[2]), true);
+});
+
+test("eveningEnd : fin du dernier service pour une réservation du soir, rien pour le midi", () => {
+  assert.equal(eveningEnd(services, "19:00"), "23:00");
+  assert.equal(eveningEnd(services, "12:30"), null);
+  assert.equal(eveningEnd(services, "23:00"), null);
+});
+
+test("effectiveDuration : bloquer toute la soirée à 19h → jusqu'à 23h", () => {
+  assert.equal(effectiveDuration(90, "19:00", false, services, true), 240);
+});
+
+test("effectiveDuration : bloquer la soirée ne s'applique pas à un déjeuner", () => {
+  assert.equal(effectiveDuration(90, "12:30", false, services, true), 90);
 });

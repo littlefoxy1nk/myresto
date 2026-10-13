@@ -21,7 +21,8 @@ import { fr } from "date-fns/locale";
 import { Plus } from "lucide-react";
 import { toDateKey } from "@/lib/utils";
 import { isoWeekday, timeToMinutes } from "@/lib/time";
-import { overlapsService } from "@/modules/service/spans";
+import { eveningEnd, overlapsService } from "@/modules/service/spans";
+import { BlockEveningToggle } from "@/modules/reservations/components/block-evening-toggle";
 import { RESERVATION_STATUS_LABEL, RESERVATION_STATUS_VARIANT } from "@/modules/reservations/status";
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
@@ -137,9 +138,11 @@ export default async function ReservationsPage({
           const isOpen = r.status === "new" || r.status === "confirmed";
           const recipient = toRecipient(r);
           const isRequest = r.source === "online" && r.status === "new";
+          const eveningUntil = eveningEnd(dayServices, r.time);
 
           return (
-            <Card key={r.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+            <Card key={r.id} className="p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
               <div className="flex items-baseline gap-2 sm:w-48 sm:shrink-0">
                 <span className="shrink-0 text-sm font-semibold tabular-nums">{r.time}</span>
                 {r.customerId ? (
@@ -156,6 +159,7 @@ export default async function ReservationsPage({
                 <Badge variant={RESERVATION_STATUS_VARIANT[r.status]}>{RESERVATION_STATUS_LABEL[r.status]}</Badge>
                 {isRequest && <Badge variant="important">Demande en ligne</Badge>}
                 {r.spansNextService && <Badge variant="neutral">2 services</Badge>}
+                {r.blocksEvening && <Badge variant="neutral">Toute la soirée</Badge>}
                 {!hasTables && isOpen && <span className="text-xs text-muted-foreground">sans table</span>}
                 {r.specialRequests && <span className="text-xs text-muted-foreground">· {r.specialRequests}</span>}
               </div>
@@ -198,12 +202,23 @@ export default async function ReservationsPage({
                           notes: r.notes ?? "",
                           specialRequests: r.specialRequests ?? "",
                           spansNextService: r.spansNextService,
+                          blocksEvening: r.blocksEvening,
                         }}
                       />
                     )}
                   </>
                 )}
               </div>
+              </div>
+              {canEdit && isOpen && hasTables && (eveningUntil || r.blocksEvening) && (
+                <div className="mt-2 border-t border-border pt-2 sm:pl-[12.5rem]">
+                  <BlockEveningToggle
+                    reservationId={r.id}
+                    checked={r.blocksEvening}
+                    until={eveningUntil ?? "la fermeture"}
+                  />
+                </div>
+              )}
             </Card>
           );
         })}

@@ -20,7 +20,13 @@ import {
 import { effectiveDuration } from "@/modules/service/spans";
 import type { TableSuggestion } from "@/modules/floorplan/server/suggestions";
 
-const DURATION_MINUTES = 90;
+const DURATION_OPTIONS = [60, 90, 120, 150, 180, 240];
+
+function formatDuration(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
+}
 
 type Step = 1 | 2 | 3;
 
@@ -47,6 +53,7 @@ export function NewReservationFlow({
   const [time, setTime] = useState(initialTime ?? "20:00");
   const [notes, setNotes] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(90);
   const [spansNextService, setSpansNextService] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -75,7 +82,7 @@ export function NewReservationFlow({
 
   const overCapacity = selectedTables.length > 0 && selectedCapacity < partySize;
 
-  const duration = effectiveDuration(DURATION_MINUTES, time, spansNextService, servicesOnDate(services, date));
+  const duration = effectiveDuration(durationMinutes, time, spansNextService, servicesOnDate(services, date));
 
   async function goToTableStep() {
     setFormError(null);
@@ -139,7 +146,7 @@ export function NewReservationFlow({
         partySize,
         date,
         time,
-        durationMinutes: DURATION_MINUTES,
+        durationMinutes,
         spansNextService,
         tableIds: [...selectedTableIds],
         notes: notes.trim() || undefined,
@@ -199,6 +206,25 @@ export function NewReservationFlow({
             <Field label="Personnes" value={String(partySize)} onChange={(v) => setPartySize(Number(v) || 1)} type="number" />
             <Field label="Date" value={date} onChange={setDate} type="date" />
             <Field label="Heure" value={time} onChange={setTime} type="time" />
+          </div>
+          <div className="space-y-1.5">
+            <span className="text-sm font-medium">Durée sur la table</span>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Durée sur la table">
+              {DURATION_OPTIONS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  role="radio"
+                  aria-checked={durationMinutes === d}
+                  onClick={() => setDurationMinutes(d)}
+                  className={`rounded-xl border px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
+                    durationMinutes === d ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
+                  }`}
+                >
+                  {formatDuration(d)}
+                </button>
+              ))}
+            </div>
           </div>
           <SpanNextService
             services={services}
@@ -314,6 +340,7 @@ export function NewReservationFlow({
             {customerEmail && <Row label="Email" value={customerEmail} />}
             <Row label="Date" value={format(new Date(`${date}T00:00:00`), "d MMMM yyyy")} />
             <Row label="Heure" value={time} />
+            <Row label="Durée" value={formatDuration(duration)} />
             <Row label="Personnes" value={String(partySize)} />
             {spansNextService && <Row label="Services" value="Bloque aussi le service suivant" />}
             <Row label="Table(s)" value={selectedTables.map((t) => t.label).join(" + ")} />

@@ -20,19 +20,41 @@ export function nextServiceAfter(services: ServiceWindow[], time: string): Servi
   return sorted(services).find((s) => timeToMinutes(s.startTime) >= from && s.id !== current?.id) ?? null;
 }
 
-/// Durée réellement bloquée : la durée normale, ou — si le responsable a coché "bloquer
-/// aussi le service suivant" — jusqu'à la fin de ce service, si c'est plus long. Ainsi la
-/// table apparaît occupée sur les deux services avec la logique de chevauchement habituelle.
+/// À partir de cette heure, une réservation est "du soir" : elle peut bloquer sa table
+/// jusqu'à la fermeture.
+export const EVENING_START_MINUTES = 17 * 60;
+
+/// Fin de la soirée = fin du dernier service du jour, pour une réservation du soir. Null si la
+/// réservation n'est pas du soir ou s'il n'y a rien après son heure.
+export function eveningEnd(services: ServiceWindow[], time: string): string | null {
+  const t = timeToMinutes(time);
+  if (t < EVENING_START_MINUTES || services.length === 0) return null;
+  const last = sorted(services)[services.length - 1];
+  return timeToMinutes(last.endTime) > t ? last.endTime : null;
+}
+
+/// Durée réellement bloquée : la durée normale, étendue — si le responsable l'a demandé — jusqu'à
+/// la fin du service suivant ("bloquer aussi le service suivant") ou jusqu'à la fermeture
+/// ("bloquer toute la soirée"), si c'est plus long. La table apparaît alors occupée sur tous les
+/// services concernés avec la logique de chevauchement habituelle.
 export function effectiveDuration(
   baseMinutes: number,
   time: string,
   spansNextService: boolean,
-  services: ServiceWindow[]
+  services: ServiceWindow[],
+  blocksEvening = false
 ): number {
-  if (!spansNextService) return baseMinutes;
-  const next = nextServiceAfter(services, time);
-  if (!next) return baseMinutes;
-  return Math.max(baseMinutes, timeToMinutes(next.endTime) - timeToMinutes(time));
+  const start = timeToMinutes(time);
+  let duration = baseMinutes;
+  if (spansNextService) {
+    const next = nextServiceAfter(services, time);
+    if (next) duration = Math.max(duration, timeToMinutes(next.endTime) - start);
+  }
+  if (blocksEvening) {
+    const end = eveningEnd(services, time);
+    if (end) duration = Math.max(duration, timeToMinutes(end) - start);
+  }
+  return duration;
 }
 
 function sorted(services: ServiceWindow[]) {

@@ -18,6 +18,7 @@ type EditInitial = {
   notes: string;
   specialRequests: string;
   spansNextService: boolean;
+  blocksEvening: boolean;
 };
 
 export function ReservationRowActions({
@@ -145,8 +146,9 @@ function EditReservationDialog({
                 date,
                 time,
                 // Décocher "bloquer le service suivant" ramène la durée à la normale (90 min).
-                durationMinutes: !spansNextService && initial.spansNextService ? 90 : durationMinutes,
+                durationMinutes: !spansNextService && initial.spansNextService && !initial.blocksEvening ? 90 : durationMinutes,
                 spansNextService,
+                blocksEvening: initial.blocksEvening,
                 notes,
                 specialRequests,
               });
