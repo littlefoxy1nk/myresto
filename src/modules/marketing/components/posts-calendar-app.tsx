@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Camera, Share2, Mail, MessageSquare, Plus, Pencil, Trash2, CheckCircle2 } from "lucide-react";
+import { Camera, Share2, Mail, MessageSquare, Plus, Pencil, Trash2, CheckCircle2, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,13 @@ export function PostsCalendarApp({ posts, canManage }: { posts: MarketingPostIte
         {post.mediaUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={post.mediaUrl} alt="" className="h-16 w-16 shrink-0 rounded-xl border border-border object-cover" />
+        )}
+        {post.mediaUrl && (
+          <Button size="sm" variant="ghost" asChild>
+            <a href={`${post.mediaUrl}?download=1`} aria-label="Télécharger la photo" title="Télécharger la photo">
+              <Download size={14} aria-hidden="true" />
+            </a>
+          </Button>
         )}
         {canManage && (
           <div className="flex shrink-0 gap-1.5">
