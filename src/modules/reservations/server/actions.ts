@@ -246,6 +246,7 @@ const WalkInSchema = z.object({
   partySize: z.coerce.number().int().min(1).max(60),
   tableIds: z.array(z.string()).min(1, "Choisissez au moins une table."),
   allowOverCapacity: z.boolean().optional(),
+  durationMinutes: z.coerce.number().int().min(15).max(480).default(90),
 });
 
 /// Un client se présente sans réservation et s'installe tout de suite : contrairement
@@ -263,7 +264,7 @@ export async function createWalkIn(input: z.infer<typeof WalkInSchema>) {
   const time = format(now, "HH:mm");
 
   const reservation = await prisma.$transaction(async (tx) => {
-    await assertNoTableConflict(tx, ctx.establishment.id, data.tableIds, date, time, 90);
+    await assertNoTableConflict(tx, ctx.establishment.id, data.tableIds, date, time, data.durationMinutes);
 
     const customerId = await findOrCreateCustomer(tx, ctx.establishment.id, {
       name: data.customerName,
@@ -279,7 +280,7 @@ export async function createWalkIn(input: z.infer<typeof WalkInSchema>) {
         partySize: data.partySize,
         date,
         time,
-        durationMinutes: 90,
+        durationMinutes: data.durationMinutes,
         source: "walk_in",
         status: "seated",
       },

@@ -1,28 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { addDays, format } from "date-fns";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { isoWeekday } from "@/lib/time";
-import { bookingSlots, selectableSlots, MAX_DAYS_AHEAD, MAX_ONLINE_PARTY_SIZE } from "@/modules/booking/logic";
-import { submitBookingRequest } from "@/modules/booking/server/actions";
-
-type PublicService = { id: string; name: string; startTime: string; endTime: string; days: number[] };
+import { MAX_DAYS_AHEAD, MAX_ONLINE_PARTY_SIZE, MIN_LEAD_MINUTES, type ServiceAvailability } from "@/modules/booking/logic";
+import { getBookingAvailability, submitBookingRequest } from "@/modules/booking/server/actions";
 
 const inputClass =
   "w-full rounded-xl border border-border bg-background px-3 py-2.5 text-base outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
-export function BookingForm({
-  slug,
-  restaurantName,
-  services,
-}: {
-  slug: string;
-  restaurantName: string;
-  services: PublicService[];
-}) {
+export function BookingForm({ slug, restaurantName }: { slug: string; restaurantName: string }) {
   const today = format(new Date(), "yyyy-MM-dd");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -37,12 +26,27 @@ export function BookingForm({
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
 
-  const slots = useMemo(() => {
-    const d = new Date(`${date}T00:00:00`);
-    if (Number.isNaN(d.getTime())) return [];
-    const weekday = isoWeekday(d);
-    return selectableSlots(bookingSlots(services.filter((s) => s.days.includes(weekday))), date === today, new Date());
-  }, [date, today, services]);
+  // Les créneaux dépendent du jour ET du nombre de personnes (un service peut être complet pour 6 mais pas pour 2).
+  const key = `${date}|${partySize}`;
+  const [availability, setAvailability] = useState<{ key: string; services: ServiceAvailability[]; error?: string } | null>(null);
+  const loading = availability?.key !== key;
+
+  useEffect(() => {
+    let cancelled = false;
+    getBookingAvailability(slug, date, partySize)
+      .then((res) => {
+        if (cancelled) return;
+        setAvailability(res.ok ? { key, services: res.services } : { key, services: [], error: res.error });
+      })
+      .catch(() => !cancelled && setAvailability({ key, services: [], error: "Impossible de charger les heures." }));
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, date, partySize, key]);
+
+  const sections = availability?.key === key ? availability.services : [];
+  const hasAnyTime = sections.some((sv) => sv.times.length > 0);
+  const stillSelected = sections.some((sv) => sv.times.includes(time));
 
   if (done) {
     return (
@@ -127,27 +131,44 @@ export function BookingForm({
           </Labeled>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <span className="text-sm font-medium">Heure *</span>
-          {slots.length === 0 ? (
+          {loading ? (
+            <p className="rounded-xl bg-muted px-3 py-2.5 text-sm text-muted-foreground">Recherche des heures…</p>
+          ) : availability?.error ? (
+            <p className="rounded-xl bg-muted px-3 py-2.5 text-sm text-muted-foreground">{availability.error}</p>
+          ) : sections.length === 0 ? (
             <p className="rounded-xl bg-muted px-3 py-2.5 text-sm text-muted-foreground">Le restaurant est fermé ce jour-là.</p>
           ) : (
-            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Heure d'arrivée">
-              {slots.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  role="radio"
-                  aria-checked={time === s}
-                  onClick={() => setTime(s)}
-                  className={`rounded-xl border px-3.5 py-2 text-sm font-medium tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
-                    time === s ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+            sections.map((sv) => (
+              <div key={sv.id} className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {sv.name} · {sv.startTime}–{sv.endTime}
+                </p>
+                {sv.times.length === 0 ? (
+                  <p className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
+                    {sv.full ? "Complet — appelle le restaurant pour une éventuelle place." : "Plus de créneau en ligne pour ce service."}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={`Heure d'arrivée, ${sv.name}`}>
+                    {sv.times.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        role="radio"
+                        aria-checked={time === t}
+                        onClick={() => setTime(t)}
+                        className={`rounded-xl border px-3.5 py-2 text-sm font-medium tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
+                          time === t ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
           )}
         </div>
 
@@ -169,11 +190,12 @@ export function BookingForm({
           </p>
         )}
 
-        <Button type="submit" size="lg" className="w-full" disabled={pending || slots.length === 0}>
+        <Button type="submit" size="lg" className="w-full" disabled={pending || loading || !hasAnyTime || !stillSelected}>
           {pending ? "Envoi…" : "Envoyer ma demande"}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          Ta réservation est confirmée par le restaurant. Pour plus de {MAX_ONLINE_PARTY_SIZE} personnes, appelle-le directement.
+          Réservation en ligne jusqu&apos;à {MAX_ONLINE_PARTY_SIZE} personnes, au moins {Math.floor(MIN_LEAD_MINUTES / 60)} h {String(MIN_LEAD_MINUTES % 60).padStart(2, "0")} avant l&apos;heure choisie — sinon, appelle le
+          restaurant. Elle n&apos;est valable qu&apos;une fois confirmée par lui.
         </p>
       </form>
     </Card>

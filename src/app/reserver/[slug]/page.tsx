@@ -19,7 +19,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
           Envoie ta demande de réservation : le restaurant te confirme par message.
         </p>
       </header>
-      <BookingForm slug={slug} restaurantName={info.name} services={info.services} />
+      <BookingForm slug={slug} restaurantName={info.name} />
     </main>
   );
 }

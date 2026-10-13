@@ -2,28 +2,45 @@ import { timeToMinutes } from "@/lib/time";
 import { normalizePhone } from "@/modules/messaging/phone";
 import type { ServiceWindow } from "@/modules/service/spans";
 
-export const MAX_ONLINE_PARTY_SIZE = 10;
+/// Au-delà, le client doit appeler le restaurant.
+export const MAX_ONLINE_PARTY_SIZE = 6;
 export const MAX_DAYS_AHEAD = 90;
 const SLOT_STEP_MINUTES = 30;
-/// Dernière arrivée possible : une heure avant la fin du service.
-const LAST_ARRIVAL_BEFORE_END_MINUTES = 60;
-/// Une demande en ligne doit laisser au moins ce délai avant l'heure choisie, le jour même.
-export const MIN_LEAD_MINUTES = 60;
+/// Une demande en ligne doit être faite au moins 1 h 30 avant l'heure choisie ; plus tard, il faut appeler.
+export const MIN_LEAD_MINUTES = 90;
+/// Durée de table supposée pour une demande en ligne.
+export const ONLINE_BOOKING_DURATION_MINUTES = 90;
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
-/// Heures proposées au client : de l'ouverture de chaque service jusqu'à une heure avant sa
-/// fin, par pas d'une demi-heure.
-export function bookingSlots(services: ServiceWindow[]): string[] {
-  const out = new Set<string>();
-  for (const s of services) {
-    const start = timeToMinutes(s.startTime);
-    const last = timeToMinutes(s.endTime) - LAST_ARRIVAL_BEFORE_END_MINUTES;
-    for (let m = start; m <= Math.max(start, last); m += SLOT_STEP_MINUTES) out.add(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
+export type ServiceSlotTimes = { service: ServiceWindow; times: string[] };
+
+/// Créneaux de chaque service : de son ouverture à sa fermeture incluse, par demi-heure
+/// (ex : un service 18:00–21:30 propose 18:00 … 21:30). Une heure commune à deux services
+/// qui se touchent (20:30) appartient à celui qui commence à cette heure.
+export function slotsByService(services: ServiceWindow[]): ServiceSlotTimes[] {
+  const ordered = [...services].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+  const owner = new Map<number, string>();
+  for (const s of ordered) {
+    for (let m = timeToMinutes(s.startTime); m <= timeToMinutes(s.endTime); m += SLOT_STEP_MINUTES) owner.set(m, s.id);
   }
-  return [...out].sort();
+  return ordered.map((service) => ({
+    service,
+    times: [...owner.entries()]
+      .filter(([, id]) => id === service.id)
+      .map(([m]) => m)
+      .sort((a, b) => a - b)
+      .map((m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`),
+  }));
+}
+
+/// Toutes les heures proposables un jour donné (tous services confondus).
+export function bookingSlots(services: ServiceWindow[]): string[] {
+  return slotsByService(services)
+    .flatMap((x) => x.times)
+    .sort();
 }
 
 export type BookingRequestInput = {
@@ -112,9 +129,52 @@ export function createRateLimiter(max: number, windowMs: number) {
   };
 }
 
-/// Heures réellement proposées : le jour même, celles qui laissent encore le délai minimum.
-export function selectableSlots(slots: string[], isToday: boolean, now: Date): string[] {
-  if (!isToday) return slots;
-  const earliest = now.getHours() * 60 + now.getMinutes() + MIN_LEAD_MINUTES;
-  return slots.filter((s) => timeToMinutes(s) >= earliest);
+/// Une réservation déjà prise (même celle d'une demande en ligne sans table) qui consomme des places.
+export type BookedParty = { time: string; durationMinutes: number; partySize: number };
+
+/// Places encore libres à une heure donnée : places totales moins les couverts des réservations
+/// qui se chevauchent avec la durée d'une demande en ligne.
+export function seatsFreeAt(time: string, bookings: BookedParty[], totalSeats: number): number {
+  const start = timeToMinutes(time);
+  const end = start + ONLINE_BOOKING_DURATION_MINUTES;
+  const taken = bookings
+    .filter((b) => timeToMinutes(b.time) < end && timeToMinutes(b.time) + b.durationMinutes > start)
+    .reduce((sum, b) => sum + b.partySize, 0);
+  return totalSeats - taken;
+}
+
+export type ServiceAvailability = {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  /// Heures encore réservables pour ce nombre de personnes.
+  times: string[];
+  /// Il y avait des heures atteignables en ligne mais plus aucune place : le service est complet.
+  full: boolean;
+};
+
+/// Ce que le client voit : par service, uniquement les heures qui laissent le délai minimum (le jour même)
+/// ET où il reste de la place pour son groupe. Un service sans place est marqué complet.
+export function buildAvailability(params: {
+  services: ServiceWindow[];
+  bookings: BookedParty[];
+  totalSeats: number;
+  partySize: number;
+  isToday: boolean;
+  now: Date;
+}): ServiceAvailability[] {
+  const earliest = params.now.getHours() * 60 + params.now.getMinutes() + MIN_LEAD_MINUTES;
+  return slotsByService(params.services).map(({ service, times }) => {
+    const reachable = params.isToday ? times.filter((t) => timeToMinutes(t) >= earliest) : times;
+    const open = reachable.filter((t) => seatsFreeAt(t, params.bookings, params.totalSeats) >= params.partySize);
+    return {
+      id: service.id,
+      name: service.name,
+      startTime: service.startTime,
+      endTime: service.endTime,
+      times: open,
+      full: reachable.length > 0 && open.length === 0,
+    };
+  });
 }
