@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { isPlanningView } from "@/modules/planning/periods";
+import { requireModule } from "@/lib/module-guard";
 import { startOfWeek, addDays, format, parseISO, isValid } from "date-fns";
 import { getCurrentContext } from "@/lib/current-context";
 import { getWeekPlanning } from "@/modules/planning/server/queries";
@@ -21,6 +23,7 @@ export default async function PlanningPage({
   searchParams: Promise<{ week?: string }>;
 }) {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "planning");
   if (!ctx.can("schedule.view")) redirect("/aujourdhui");
 
   const { week } = await searchParams;
@@ -61,7 +64,7 @@ export default async function PlanningPage({
           <span className="text-muted-foreground">
             (ex : 12h, 18h, 20h30) pour que le planning, le plan de salle et les réservations suivent tes vrais horaires.
           </span>{" "}
-          <Link href="/parametres#services" className="font-medium text-accent underline underline-offset-2">
+          <Link href="/parametres?tab=etablissement#services" className="font-medium text-accent underline underline-offset-2">
             Ouvrir les paramètres
           </Link>
         </p>
@@ -89,7 +92,7 @@ export default async function PlanningPage({
           </div>
         </section>
       )}
-      <PlanningApp data={data} {...weekNavProps} />
+      <PlanningApp data={data} view={isPlanningView(ctx.establishment.planningView) ? ctx.establishment.planningView : "service"} {...weekNavProps} />
     </div>
   );
 }

@@ -4,10 +4,11 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
+import { serviceLabel } from "@/lib/service-label";
 import { validateService, type ServiceInput } from "@/modules/service/validation";
 
 const ServiceSchema = z.object({
-  name: z.string(),
+  name: z.string().optional(),
   startTime: z.string(),
   endTime: z.string(),
   days: z.array(z.number()),
@@ -32,7 +33,8 @@ function revalidate() {
 
 function toData(input: ServiceInput) {
   return {
-    name: input.name.trim(),
+    // Jamais de nom générique : le service s'appelle par son horaire ("Service de 18h à 20h30").
+    name: serviceLabel(input.startTime, input.endTime),
     startTime: input.startTime,
     endTime: input.endTime,
     daysOfWeek: [...new Set(input.days)].sort().join(","),

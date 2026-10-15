@@ -8,6 +8,7 @@ import { getCurrentContext, requirePermission } from "@/lib/current-context";
 import { toDateKey } from "@/lib/utils";
 import { isoWeekday } from "@/lib/time";
 import { notifyMember } from "@/modules/myspace/server/notify";
+import { isPlanningView } from "@/modules/planning/periods";
 import { generateScheduleAssignments, isGeneratorEligible, occurrenceAvailabilities, type GeneratorMember, type GeneratorSlot } from "@/modules/planning/compute";
 import { SHIFT_POSITIONS, STAFFABLE_POSITIONS, TARGET_SHIFTS_RULE_TYPE, type AvailabilityRow, type ShiftPosition } from "@/modules/planning/types";
 
@@ -588,4 +589,13 @@ export async function respondToCoverageRequest(requestId: string, accept: boolea
 
   revalidatePlanningPaths();
   revalidatePath("/mon-espace");
+}
+
+/// Comment le planning regroupe les services : une ligne par service, ou juste Midi et Soir. Un réglage de
+/// l'établissement (pas de la personne), réservé à qui construit le planning.
+export async function setPlanningView(view: string) {
+  const ctx = await requirePermission("schedule.edit");
+  if (!isPlanningView(view)) throw new Error("Affichage inconnu.");
+  await prisma.establishment.update({ where: { id: ctx.establishment.id }, data: { planningView: view } });
+  revalidatePlanningPaths();
 }

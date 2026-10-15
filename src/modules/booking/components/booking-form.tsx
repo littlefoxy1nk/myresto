@@ -174,7 +174,7 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
             sections.map((sv) => (
               <div key={sv.id} className="space-y-1.5">
                 <p className="text-xs font-medium text-muted-foreground">
-                  {sv.name} · {sv.startTime}–{sv.endTime}
+                  {sv.name}
                 </p>
                 {sv.times.length === 0 ? (
                   <p className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">

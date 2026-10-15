@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import { requireModule } from "@/lib/module-guard";
 import { getCurrentContext } from "@/lib/current-context";
 import { prisma } from "@/lib/prisma";
 import { NewEmployeeForm } from "./new-employee-form";
 
 export default async function NouvelEmployePage() {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "staff");
   if (!ctx.can("staff.manage")) redirect("/equipe");
 
   const [roles, serviceDefinitions] = await Promise.all([

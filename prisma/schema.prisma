@@ -51,6 +51,11 @@ model Establishment {
   /// Liens "laisser un avis" glissés dans le premier mail aux clients abonnés.
   googleReviewUrl      String?
   tripadvisorReviewUrl String?
+  /// Fonctionnalités masquées pour cet établissement (clés séparées par des virgules, voir lib/modules.ts).
+  /// Vide = tout est affiché. Masquer ne supprime aucune donnée.
+  disabledModules      String   @default("")
+  /// Comment le planning regroupe les services : "service" (une ligne par service) ou "periode" (juste Midi et Soir).
+  planningView         String   @default("service")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -62,6 +67,8 @@ model Establishment {
   tableGroups     TableGroup[]
   monthlyFigures  MonthlyFigure[]
   shoppingLists   ShoppingList[]
+  contactMessages ContactMessage[]
+  countdownEvents CountdownEvent[]
   reservations    Reservation[]
   customers       Customer[]
   shifts          Shift[]
@@ -111,6 +118,8 @@ model User {
   lastName      String
   phone         String?
   avatarUrl     String?
+  /// Le "bonhomme" de la personne : JSON {gender, skin, hair, hairStyle, eyes} (voir lib/avatar.ts).
+  avatarJson    String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -128,6 +137,8 @@ model Membership {
   roleId          String
   role            Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
   status          String        @default("active") // active | inactive
+  /// Catégories de notifications que cette personne a désactivées (voir lib/notification-preferences.ts).
+  mutedNotificationCategories String @default("")
   /// fixe = l'horaire habituel (voir Availability) est déclaré par le manager, l'employé
   /// le consulte en lecture seule et ne peut qu'ajouter des disponibilités ponctuelles.
   /// flexijob = statut belge du même nom : le manager pose un horaire de départ mais
@@ -835,5 +846,32 @@ model AuditLog {
   entityType      String
   entityId        String
   metadata        String?       // JSON stringifié
+  createdAt       DateTime      @default(now())
+}
+
+/// Message envoyé depuis le formulaire de contact de Paramètres (copie gardée même si l'email échoue).
+model ContactMessage {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  userId          String
+  userName        String
+  userEmail       String?
+  category        String        // probleme | question | idee
+  subject         String
+  message         String
+  emailedAt       DateTime?
+  emailError      String?
+  createdAt       DateTime      @default(now())
+}
+
+/// Un événement dont on veut voir le compte à rebours sur Aujourd'hui (Saint-Valentin, soirée privée, fermeture…).
+model CountdownEvent {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  title           String
+  /// Le jour de l'événement (00:00 locale) : le décompte se fait en jours entiers.
+  date            DateTime
   createdAt       DateTime      @default(now())
 }

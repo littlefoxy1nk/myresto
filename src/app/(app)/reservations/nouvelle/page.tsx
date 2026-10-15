@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { requireModule } from "@/lib/module-guard";
 import { getCurrentContext } from "@/lib/current-context";
 import { prisma } from "@/lib/prisma";
 import { NewReservationFlow } from "./new-reservation-flow";
@@ -9,6 +10,7 @@ export default async function NouvelleReservationPage({
   searchParams: Promise<{ tableId?: string; zoneId?: string; date?: string; time?: string }>;
 }) {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "reservations");
   if (!ctx.can("reservations.edit")) redirect("/reservations");
 
   const { tableId, zoneId, date, time } = await searchParams;

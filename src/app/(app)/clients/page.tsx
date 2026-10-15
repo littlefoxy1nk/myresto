@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireModule } from "@/lib/module-guard";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
 import { getCustomersList } from "@/modules/customers/server/queries";
@@ -19,6 +20,7 @@ export default async function ClientsPage({
   searchParams: Promise<{ q?: string; filter?: string }>;
 }) {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "crm");
   if (!ctx.can("crm.view")) redirect("/aujourdhui");
 
   const { q, filter } = await searchParams;

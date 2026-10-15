@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireModule } from "@/lib/module-guard";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
 import { prisma } from "@/lib/prisma";
@@ -24,6 +25,7 @@ const TIMEOFF_STATUS_VARIANT: Record<string, "watch" | "good" | "neutral"> = {
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ctx = await getCurrentContext();
+  requireModule(ctx, "staff");
   if (!ctx.can("staff.view")) redirect("/aujourdhui");
 
   const profile = await getEmployeeProfile(id);

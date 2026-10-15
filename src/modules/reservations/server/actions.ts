@@ -305,6 +305,16 @@ export async function createWalkIn(input: z.infer<typeof WalkInSchema>) {
   return reservation;
 }
 
+/// Rend une table occupée d'un seul geste, sans rien demander : un client installé sans réservation, créé comme
+/// un walk-in (installé maintenant, 2 couverts au plus) avec les mêmes contrôles de conflit. La table se
+/// libère ensuite comme n'importe quelle autre ("Libérer la table").
+export async function occupyTable(tableId: string) {
+  const ctx = await requireAnyPermission("reservations.edit", "service.run");
+  const table = await prisma.restaurantTable.findFirst({ where: { id: tableId, establishmentId: ctx.establishment.id } });
+  if (!table) throw new Error("Table introuvable.");
+  await createWalkIn({ customerName: "Client sans réservation", partySize: Math.min(table.capacity, 2), tableIds: [tableId] });
+}
+
 const UpdateReservationSchema = z.object({
   partySize: z.coerce.number().int().min(1).max(60),
   date: z.string().min(1),

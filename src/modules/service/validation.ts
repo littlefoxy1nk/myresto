@@ -1,6 +1,7 @@
 import { timeToMinutes } from "@/lib/time";
 
-export type ServiceInput = { name: string; startTime: string; endTime: string; days: number[] };
+/// Le nom d'un service n'est plus saisi : il est calculé à partir de ses horaires (voir lib/service-label.ts).
+export type ServiceInput = { name?: string; startTime: string; endTime: string; days: number[] };
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -9,10 +10,9 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 /// un même jour (ils peuvent se toucher : 18:00–20:30 puis 20:30–23:00).
 export function validateService(
   input: ServiceInput,
-  others: (ServiceInput & { id: string })[],
+  others: (ServiceInput & { id: string; name: string })[],
   selfId?: string
 ): string | null {
-  if (!input.name.trim()) return "Donne un nom au service (ex : « 18h »).";
   if (!HHMM.test(input.startTime) || !HHMM.test(input.endTime)) return "Les heures doivent être au format HH:MM.";
   const start = timeToMinutes(input.startTime);
   const end = timeToMinutes(input.endTime);

@@ -1,4 +1,5 @@
 import type { PermissionKey } from "@/lib/permissions";
+import { moduleKeyForHref, parseDisabledModules } from "@/lib/modules";
 
 export type NavItem = {
   href: string;
@@ -29,7 +30,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/planning", label: "Planning", icon: "CalendarDays", permission: "schedule.view", mobile: true, available: true },
   { href: "/reservations", label: "Réservations", mobileLabel: "Résa", icon: "CalendarClock", permission: "reservations.view", mobile: true, available: true },
   { href: "/plan-de-salle", label: "Plan de salle", mobileLabel: "Plan", icon: "LayoutGrid", permission: "floorplan.view", mobile: true, available: true },
-  { href: "/service", label: "Service", icon: "Utensils", permission: "service.run", mobile: true, available: true },
   { href: "/equipe", label: "Équipe", icon: "Users", permission: "staff.view", mobile: true, available: true },
 
   // Phase 2
@@ -43,9 +43,18 @@ export const NAV_ITEMS: NavItem[] = [
   // n'est pas une tâche opérationnelle du quotidien, elle ne doit pas se mêler aux
   // modules qu'on utilise pour faire tourner le service. Reste `mobile: true` : sa
   // position dans la barre du bas n'est pas affectée (déjà filtrée séparément).
-  { href: "/parametres", label: "Paramètres", mobileLabel: "Réglages", icon: "Settings", permission: "settings.manage", mobile: true, available: true },
+  // Sans `permission` : chacun y règle son propre bonhomme, ses notifications et peut écrire au support ;
+  // les réglages de l'établissement n'y apparaissent que pour qui a `settings.manage`.
+  { href: "/parametres", label: "Paramètres", mobileLabel: "Réglages", icon: "Settings", mobile: true, available: true },
 ];
 
-export function visibleNavItems(can: (permission: PermissionKey) => boolean): NavItem[] {
-  return NAV_ITEMS.filter((item) => item.available && (!item.permission || can(item.permission)));
+/// `disabledModules` : les fonctionnalités que l'établissement a masquées (Paramètres → Fonctionnalités).
+export function visibleNavItems(can: (permission: PermissionKey) => boolean, disabledModules?: string | null): NavItem[] {
+  const disabled = parseDisabledModules(disabledModules);
+  return NAV_ITEMS.filter((item) => {
+    if (!item.available) return false;
+    if (item.permission && !can(item.permission)) return false;
+    const key = moduleKeyForHref(item.href);
+    return !(key && disabled.has(key));
+  });
 }

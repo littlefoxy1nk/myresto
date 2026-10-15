@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import { requireModule } from "@/lib/module-guard";
 import { getCurrentContext } from "@/lib/current-context";
 import { getMarketingPosts } from "@/modules/marketing/server/queries";
 import { PostsCalendarApp } from "@/modules/marketing/components/posts-calendar-app";
 
 export default async function MarketingPage() {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "marketing");
   if (!ctx.can("marketing.view")) redirect("/aujourdhui");
 
   const posts = await getMarketingPosts();

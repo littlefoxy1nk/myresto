@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireModule } from "@/lib/module-guard";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,7 @@ import { computeShiftDurationHours } from "@/modules/planning/compute";
 
 export default async function EquipePage() {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "staff");
   if (!ctx.can("staff.view")) redirect("/aujourdhui");
 
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });

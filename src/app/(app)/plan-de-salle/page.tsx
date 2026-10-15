@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { requireModule } from "@/lib/module-guard";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getCurrentContext } from "@/lib/current-context";
@@ -15,6 +16,7 @@ export default async function PlanDeSallePage({
   searchParams: Promise<{ date?: string; service?: string }>;
 }) {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "floorplan");
   if (!ctx.can("floorplan.view")) redirect("/aujourdhui");
 
   const { date: dateParam, service: serviceParam } = await searchParams;

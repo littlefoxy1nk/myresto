@@ -61,14 +61,50 @@ function sorted(services: ServiceWindow[]) {
   return [...services].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
 }
 
-/// La réservation occupe-t-elle une partie de ce service ? Même règle de chevauchement que
-/// partout ailleurs (début < fin du service et fin > début du service) — c'est ce qui fait
-/// apparaître une réservation "qui bloque les 2 services" sur les deux.
-export function overlapsService(
-  reservation: { time: string; durationMinutes: number },
-  service: ServiceWindow
-): boolean {
-  const start = timeToMinutes(reservation.time);
-  const end = start + reservation.durationMinutes;
-  return start < timeToMinutes(service.endTime) && end > timeToMinutes(service.startTime);
+/// Le service auquel appartient une réservation : celui qui CONTIENT son heure de début (début inclus, fin exclue),
+/// sans que personne ait à le choisir — 21h tombe dans « 20h30 à 22h ». Si l'heure est hors de tout service
+/// (entre deux services, après la fermeture), le plus proche l'emporte.
+export function assignService(services: ServiceWindow[], time: string): ServiceWindow | null {
+  const contained = serviceAt(services, time);
+  if (contained) return contained;
+  if (services.length === 0) return null;
+  const t = timeToMinutes(time);
+  const distance = (s: ServiceWindow) => {
+    const start = timeToMinutes(s.startTime);
+    const end = timeToMinutes(s.endTime);
+    return t < start ? start - t : t - end;
+  };
+  return sorted(services).reduce((best, s) => (distance(s) < distance(best) ? s : best));
+}
+
+/// Les services où une réservation apparaît : le sien (d'après son heure de début) et seulement ceux qu'elle
+/// BLOQUE explicitement ("bloquer aussi le service suivant", "toute la soirée"). Une réservation de 19h30 qui
+/// finit après le début du service suivant ne s'y compte pas pour autant : elle y occupe la table, mais elle
+/// appartient au premier service.
+export function servicesOfReservation(
+  services: ServiceWindow[],
+  r: { time: string; spansNextService: boolean; blocksEvening: boolean }
+): ServiceWindow[] {
+  const own = assignService(services, r.time);
+  if (!own) return [];
+  const result = [own];
+  const later = sorted(services).filter((s) => timeToMinutes(s.startTime) >= timeToMinutes(own.endTime));
+  if (r.blocksEvening && timeToMinutes(r.time) >= EVENING_START_MINUTES) result.push(...later);
+  else if (r.spansNextService && later[0]) result.push(later[0]);
+  return result;
+}
+
+/// Couverts par service : chaque réservation est comptée UNE fois, dans son propre service (annulations et
+/// absences exclues). Le total de tous les services est donc la somme exacte des lignes.
+export function coversPerService(
+  services: ServiceWindow[],
+  reservations: { time: string; partySize: number; status: string }[]
+): { service: ServiceWindow & {}; covers: number }[] {
+  const totals = new Map<string, number>(services.map((s) => [s.id, 0]));
+  for (const r of reservations) {
+    if (r.status === "cancelled" || r.status === "no_show") continue;
+    const own = assignService(services, r.time);
+    if (own) totals.set(own.id, (totals.get(own.id) ?? 0) + r.partySize);
+  }
+  return sorted(services).map((service) => ({ service, covers: totals.get(service.id) ?? 0 }));
 }

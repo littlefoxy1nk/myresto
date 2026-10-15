@@ -12,6 +12,8 @@ import { NotificationsList } from "@/modules/myspace/components/notifications-li
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, CalendarDays } from "lucide-react";
+import { AvatarFigure } from "@/components/ui/avatar-figure";
+import { parseAvatar } from "@/lib/avatar";
 import { toDateKey, formatDateRange } from "@/lib/utils";
 
 const TIMEOFF_STATUS_LABEL: Record<string, string> = { pending: "En attente", approved: "Acceptée", rejected: "Refusée" };
@@ -28,12 +30,15 @@ export default async function MonEspacePage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Bonjour {data.firstName}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {ctx.establishment.name}
-          {data.jobTitle ? ` · ${data.jobTitle}` : ""}
-        </p>
+      <div className="flex items-center gap-4">
+        <AvatarFigure config={parseAvatar(ctx.user.avatarJson, ctx.user.id)} size={64} title={`Avatar de ${data.firstName}`} />
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Bonjour {data.firstName}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {ctx.establishment.name}
+            {data.jobTitle ? ` · ${data.jobTitle}` : ""}
+          </p>
+        </div>
       </div>
 
       {/* Aujourd'hui — la première chose qu'on veut savoir en ouvrant son espace. */}

@@ -31,7 +31,7 @@ export function ServicesCard({ services }: { services: ServiceRow[] }) {
             <div className="min-w-0">
               <p className="text-sm font-medium">{s.name}</p>
               <p className="text-xs text-muted-foreground">
-                {s.startTime}–{s.endTime} · {daysLabel(s.days)}
+                {daysLabel(s.days)}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
@@ -84,7 +84,6 @@ export function ServicesCard({ services }: { services: ServiceRow[] }) {
 }
 
 function ServiceDialog({ initial, onOpenChange }: { initial: ServiceRow | null; onOpenChange: (open: boolean) => void }) {
-  const [name, setName] = useState(initial?.name ?? "");
   const [startTime, setStartTime] = useState(initial?.startTime ?? "18:00");
   const [endTime, setEndTime] = useState(initial?.endTime ?? "20:30");
   const [days, setDays] = useState<number[]>(initial?.days ?? ALL_DAYS);
@@ -99,8 +98,8 @@ function ServiceDialog({ initial, onOpenChange }: { initial: ServiceRow | null; 
       <DialogContent>
         <DialogTitle>{initial ? "Modifier le service" : "Nouveau service"}</DialogTitle>
         <DialogDescription>
-          Un service = une plage d&apos;accueil (ex : 12:00–14:30, 18:00–20:30, 20:30–23:00). Deux services ne se chevauchent
-          pas le même jour.
+          Un service = une plage d&apos;accueil (ex : de midi à 15h, de 18h à 20h30, de 20h30 à 22h). Il s&apos;appelle par son
+          horaire. Deux services ne se chevauchent pas le même jour.
         </DialogDescription>
         <form
           className="mt-4 space-y-3"
@@ -109,7 +108,7 @@ function ServiceDialog({ initial, onOpenChange }: { initial: ServiceRow | null; 
             setPending(true);
             setError(null);
             try {
-              const input = { name, startTime, endTime, days };
+              const input = { startTime, endTime, days };
               if (initial) await updateService(initial.id, input);
               else await createService(input);
               toast(initial ? "Service modifié" : "Service ajouté");
@@ -121,12 +120,6 @@ function ServiceDialog({ initial, onOpenChange }: { initial: ServiceRow | null; 
             }
           }}
         >
-          <div className="space-y-1.5">
-            <label htmlFor="svc-name" className="text-sm font-medium">
-              Nom
-            </label>
-            <input id="svc-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="ex : 18h" className={field} />
-          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label htmlFor="svc-start" className="text-sm font-medium">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireModule } from "@/lib/module-guard";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getCurrentContext } from "@/lib/current-context";
@@ -17,6 +18,7 @@ function formatDate(d: string) {
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "crm");
   if (!ctx.can("crm.view")) redirect("/aujourdhui");
 
   const { id } = await params;

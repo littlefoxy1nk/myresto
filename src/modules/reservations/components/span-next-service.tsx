@@ -1,6 +1,7 @@
 "use client";
 
 import { isoWeekday, timeToMinutes } from "@/lib/time";
+import { serviceRange } from "@/lib/service-label";
 import { nextServiceAfter, type ServiceWindow } from "@/modules/service/spans";
 
 export type ServiceWithDays = ServiceWindow & { days: number[] };
@@ -42,7 +43,7 @@ export function SpanNextService({
         className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
       />
       <span>
-        <span className="font-medium">Bloquer aussi le service « {next.name} » ({next.startTime})</span>
+        <span className="font-medium">Bloquer aussi le service {serviceRange(next.startTime, next.endTime)}</span>
         <span className="block text-xs text-muted-foreground">
           La table reste prise jusqu&apos;à {until} (≈ {hours} h) et s&apos;affiche sur les deux services.
         </span>

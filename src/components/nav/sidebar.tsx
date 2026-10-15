@@ -7,17 +7,23 @@ import { cn } from "@/lib/utils";
 import type { NavItem } from "@/lib/nav-items";
 import { logout } from "@/lib/actions/auth-actions";
 import { Badge } from "@/components/ui/badge";
+import { AvatarFigure } from "@/components/ui/avatar-figure";
+import type { AvatarConfig } from "@/lib/avatar";
 
 export function Sidebar({
   items,
   establishmentName,
   userName,
+  userRole,
+  avatar,
   isDemo,
   badges,
 }: {
   items: NavItem[];
   establishmentName: string;
   userName: string;
+  userRole?: string;
+  avatar?: AvatarConfig;
   isDemo?: boolean;
   badges?: Record<string, number>;
 }) {
@@ -69,6 +75,18 @@ export function Sidebar({
       </nav>
 
       <div className="px-3 py-4">
+        {avatar && (
+          <Link
+            href="/parametres?tab=profil"
+            className="mb-2 flex items-center gap-3 rounded-xl px-3 py-2 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <AvatarFigure config={avatar} size={36} />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">{userName}</span>
+              {userRole && <span className="block truncate text-xs text-muted-foreground">{userRole}</span>}
+            </span>
+          </Link>
+        )}
         <form action={logout}>
           <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card">
             <Icons.LogOut size={17} aria-hidden="true" />

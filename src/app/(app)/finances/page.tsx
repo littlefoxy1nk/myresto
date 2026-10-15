@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { requireModule } from "@/lib/module-guard";
 import { getCurrentContext } from "@/lib/current-context";
 import { getFinanceHistory, getFinanceSummary } from "@/modules/finance/server/queries";
 import { FinanceExplorer } from "@/modules/finance/components/finance-explorer";
@@ -8,6 +9,7 @@ import { formatCents } from "@/lib/utils";
 
 export default async function FinancesPage() {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "finance");
   if (!ctx.can("finance.view")) redirect("/aujourdhui");
 
   const canManageFinance = ctx.can("finance.manage");

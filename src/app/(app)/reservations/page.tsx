@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireModule } from "@/lib/module-guard";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
 import { prisma } from "@/lib/prisma";
@@ -21,7 +22,7 @@ import { fr } from "date-fns/locale";
 import { Plus } from "lucide-react";
 import { toDateKey } from "@/lib/utils";
 import { isoWeekday, timeToMinutes } from "@/lib/time";
-import { eveningEnd, overlapsService } from "@/modules/service/spans";
+import { assignService, eveningEnd, servicesOfReservation } from "@/modules/service/spans";
 import { BlockEveningToggle } from "@/modules/reservations/components/block-evening-toggle";
 import { RESERVATION_STATUS_LABEL, RESERVATION_STATUS_VARIANT } from "@/modules/reservations/status";
 
@@ -33,6 +34,7 @@ export default async function ReservationsPage({
   searchParams: Promise<{ date?: string; service?: string }>;
 }) {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "reservations");
   if (!ctx.can("reservations.view")) redirect("/aujourdhui");
 
   const { date: dateParam, service: serviceParam } = await searchParams;
@@ -59,8 +61,11 @@ export default async function ReservationsPage({
     .map((s) => ({ id: s.id, name: s.name, startTime: s.startTime, endTime: s.endTime }));
   const service = dayServices.find((s) => s.id === serviceParam) ?? null;
 
-  // Une réservation qui bloque deux services apparaît dans les deux (même règle de chevauchement que le plan).
-  const reservations = service ? allReservations.filter((r) => overlapsService(r, service)) : allReservations;
+  // Chaque réservation est rangée dans le service qui contient son heure de début (21h → « de 20h30 à 22h »),
+  // et n'apparaît dans les suivants que si on les a bloqués ("bloquer aussi le service suivant", "toute la soirée").
+  const reservations = service
+    ? allReservations.filter((r) => servicesOfReservation(dayServices, r).some((s) => s.id === service.id))
+    : allReservations;
   const active = reservations.filter((r) => r.status !== "cancelled" && r.status !== "no_show");
 
   const canEdit = ctx.can("reservations.edit");
@@ -158,6 +163,9 @@ export default async function ReservationsPage({
                 <span className="text-xs text-muted-foreground">{meta}</span>
                 <Badge variant={RESERVATION_STATUS_VARIANT[r.status]}>{RESERVATION_STATUS_LABEL[r.status]}</Badge>
                 {isRequest && <Badge variant="important">Demande en ligne</Badge>}
+                {dayServices.length > 1 && (
+                  <span className="text-xs text-muted-foreground">{assignService(dayServices, r.time)?.name}</span>
+                )}
                 {r.spansNextService && <Badge variant="neutral">2 services</Badge>}
                 {r.blocksEvening && <Badge variant="neutral">Toute la soirée</Badge>}
                 {!hasTables && isOpen && <span className="text-xs text-muted-foreground">sans table</span>}
@@ -225,7 +233,7 @@ export default async function ReservationsPage({
         {reservations.length === 0 && (
           <Card className="p-6 text-center text-sm text-muted-foreground">
             Aucune réservation {isToday ? "aujourd'hui" : `le ${dayLabel}`}
-            {service && ` pour le service ${service.name}`}.
+            {service && ` pour le ${service.name.toLowerCase()}`}.
           </Card>
         )}
       </div>

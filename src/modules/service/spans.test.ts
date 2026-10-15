@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { effectiveDuration, eveningEnd, nextServiceAfter, overlapsService, serviceAt, type ServiceWindow } from "./spans";
+import { assignService, coversPerService, effectiveDuration, eveningEnd, nextServiceAfter, serviceAt, servicesOfReservation, type ServiceWindow } from "./spans";
 
 const services: ServiceWindow[] = [
   { id: "midi", name: "12h", startTime: "12:00", endTime: "14:30" },
@@ -42,28 +42,51 @@ test("effectiveDuration : ne raccourcit jamais une durée déjà plus longue", (
   assert.equal(effectiveDuration(300, "19:00", true, services), 300);
 });
 
-test("overlapsService : 19h/90 min n'apparaît que sur le service de 18h", () => {
-  const r = { time: "19:00", durationMinutes: 90 };
-  assert.equal(overlapsService(r, services[1]), true);
-  assert.equal(overlapsService(r, services[2]), false);
+// Les trois services du restaurateur : midi à 15h, 18h à 20h30, 20h30 à 22h.
+const resto: ServiceWindow[] = [
+  { id: "m", name: "Service de midi à 15h", startTime: "12:00", endTime: "15:00" },
+  { id: "a", name: "Service de 18h à 20h30", startTime: "18:00", endTime: "20:30" },
+  { id: "b", name: "Service de 20h30 à 22h", startTime: "20:30", endTime: "22:00" },
+];
+
+test("assignService : une réservation à 21h va directement dans le service de 20h30 à 22h", () => {
+  assert.equal(assignService(resto, "21:00")?.id, "b");
+  assert.equal(assignService(resto, "19:30")?.id, "a");
+  assert.equal(assignService(resto, "12:30")?.id, "m");
 });
 
-test("overlapsService : 19h bloquant le service suivant apparaît sur les deux", () => {
-  const r = { time: "19:00", durationMinutes: effectiveDuration(90, "19:00", true, services) };
-  assert.equal(overlapsService(r, services[1]), true);
-  assert.equal(overlapsService(r, services[2]), true);
+test("assignService : la frontière appartient au service qui commence (20h30 → second service)", () => {
+  assert.equal(assignService(resto, "20:30")?.id, "b");
+  assert.equal(assignService(resto, "20:29")?.id, "a");
 });
 
-test("eveningEnd : fin du dernier service pour une réservation du soir, rien pour le midi", () => {
-  assert.equal(eveningEnd(services, "19:00"), "23:00");
-  assert.equal(eveningEnd(services, "12:30"), null);
-  assert.equal(eveningEnd(services, "23:00"), null);
+test("assignService : hors de tout service, le plus proche l'emporte", () => {
+  assert.equal(assignService(resto, "15:30")?.id, "m"); // 30 min après le midi, 2h30 avant 18h
+  assert.equal(assignService(resto, "17:30")?.id, "a");
+  assert.equal(assignService(resto, "22:30")?.id, "b"); // après la fermeture
+  assert.equal(assignService(resto, "09:00")?.id, "m");
+  assert.equal(assignService([], "19:00"), null);
 });
 
-test("effectiveDuration : bloquer toute la soirée à 19h → jusqu'à 23h", () => {
-  assert.equal(effectiveDuration(90, "19:00", false, services, true), 240);
+test("servicesOfReservation : sans blocage, uniquement son propre service (même si elle déborde sur le suivant)", () => {
+  const r = { time: "19:30", spansNextService: false, blocksEvening: false };
+  assert.deepEqual(servicesOfReservation(resto, r).map((s) => s.id), ["a"]);
 });
 
-test("effectiveDuration : bloquer la soirée ne s'applique pas à un déjeuner", () => {
-  assert.equal(effectiveDuration(90, "12:30", false, services, true), 90);
+test("servicesOfReservation : 'bloquer aussi le service suivant' ajoute le suivant, 'toute la soirée' ajoute les suivants", () => {
+  assert.deepEqual(servicesOfReservation(resto, { time: "19:00", spansNextService: true, blocksEvening: false }).map((s) => s.id), ["a", "b"]);
+  assert.deepEqual(servicesOfReservation(resto, { time: "19:00", spansNextService: false, blocksEvening: true }).map((s) => s.id), ["a", "b"]);
+  // le dernier service n'a pas de suivant
+  assert.deepEqual(servicesOfReservation(resto, { time: "21:00", spansNextService: true, blocksEvening: false }).map((s) => s.id), ["b"]);
+});
+
+test("coversPerService : chaque réservation comptée une seule fois, annulations et absences exclues", () => {
+  const out = coversPerService(resto, [
+    { time: "18:30", partySize: 4, status: "confirmed" },
+    { time: "19:30", partySize: 6, status: "seated" }, // déborde sur 20h30+ mais reste dans le service de 18h
+    { time: "21:00", partySize: 8, status: "new" },
+    { time: "21:30", partySize: 2, status: "cancelled" },
+    { time: "12:15", partySize: 5, status: "confirmed" },
+  ]);
+  assert.deepEqual(out.map((x) => [x.service.id, x.covers]), [["m", 5], ["a", 10], ["b", 8]]);
 });

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { requireModule } from "@/lib/module-guard";
 import { getCurrentContext } from "@/lib/current-context";
 import { getTimeOffRequests } from "@/modules/timeoff/server/queries";
 import { TimeOffActionButton } from "@/modules/timeoff/components/timeoff-action-button";
@@ -26,6 +27,7 @@ function formatPeriod(startDate: string, endDate: string) {
 
 export default async function CongesPage() {
   const ctx = await getCurrentContext();
+  requireModule(ctx, "timeoff");
   if (!ctx.can("timeoff.manage")) redirect("/aujourdhui");
 
   const { requests, canManage } = await getTimeOffRequests(ctx.establishment.id);

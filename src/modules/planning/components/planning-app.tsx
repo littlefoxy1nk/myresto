@@ -19,6 +19,8 @@ import { RequestCoverageDialog } from "@/modules/planning/components/request-cov
 import { createShift, updateShift, deleteShift, duplicateWeek, publishWeekSchedule } from "@/modules/planning/server/actions";
 import { SHIFT_POSITION_LABELS, POSITIONS_BY_ZONE } from "@/modules/planning/types";
 import { PlanningZoneTabs, type PlanningZoneFilter } from "@/modules/planning/components/planning-zone-tabs";
+import { PlanningViewTabs } from "@/modules/planning/components/planning-view-tabs";
+import { buildPlanningRows, defaultServiceForRow, worstGapsByPosition, type PlanningRow, type PlanningView } from "@/modules/planning/periods";
 import type { PlanningMember, PlanningShift, ShiftConflictLevel, ShiftPosition, WeekPlanningResult } from "@/modules/planning/types";
 
 function formatHours(h: number) {
@@ -69,7 +71,10 @@ export function PlanningApp({
   nextWeekHref,
   currentWeekHref,
   isCurrentWeek,
+  view,
 }: {
+  /// L'affichage choisi pour l'établissement : une ligne par service, ou juste Midi et Soir.
+  view: PlanningView;
   data: WeekPlanningResult;
   prevWeekHref: string;
   nextWeekHref: string;
@@ -98,6 +103,7 @@ export function PlanningApp({
     initialPosition: ShiftPosition;
   } | null>(null);
   const [zone, setZone] = useState<PlanningZoneFilter>("tous");
+  const [currentView, setCurrentView] = useState<PlanningView>(view);
   const activeDayTabRef = useRef<HTMLButtonElement>(null);
 
   // Le jour sélectionné (aujourd'hui par défaut) doit être visible sans que la
@@ -128,10 +134,7 @@ export function PlanningApp({
     shiftsByDateService.set(key, list);
   }
   const hasUnassignedServiceShifts = visibleShifts.some((s) => s.serviceId == null);
-  const serviceRows: { id: string; name: string; time: string | null; daysOfWeek: number[] | null }[] = [
-    ...data.services.map((s) => ({ id: s.id, name: s.name, time: `${s.startTime}–${s.endTime}`, daysOfWeek: s.daysOfWeek })),
-    ...(hasUnassignedServiceShifts ? [{ id: "none", name: "Sans service", time: null, daysOfWeek: null }] : []),
-  ];
+  const serviceRows = buildPlanningRows(data.services, currentView, hasUnassignedServiceShifts);
 
   // Creux de personnel (voir computeStaffingGapAlerts) et demandes de renfort en cours,
   // indexés par (jour, service) pour un lookup direct depuis chaque cellule de la grille.
@@ -263,19 +266,26 @@ export function PlanningApp({
   /// ligne par personne à parcourir. `active` = ce service a lieu ce jour-là (sinon un
   /// tiret, comme dans le panneau "Besoins en personnel") ; "Sans service" est toujours
   /// actif puisqu'il n'a pas de jours propres.
-  function renderServiceSlot(serviceId: string, date: string, active: boolean) {
+  function renderServiceSlot(row: PlanningRow, date: string, active: boolean) {
     if (!active) {
       return <div className="flex min-h-[3rem] items-center justify-center text-muted-foreground">—</div>;
     }
-    const shifts = shiftsByDateService.get(`${date}|${serviceId}`) ?? [];
-    const gaps = (gapsByDateService.get(`${date}|${serviceId}`) ?? []).filter((g) => g.assigned < g.required);
-    const pendingRequests = (coverageRequestsByDateService.get(`${date}|${serviceId}`) ?? []).filter((r) => r.status === "pending");
-    const service = serviceRows.find((sr) => sr.id === serviceId);
+    // Une ligne peut regrouper plusieurs services (mode Midi / Soir) : on réunit leurs shifts, leurs manques
+    // (le pire des services, jamais la somme) et leurs demandes de renfort.
+    const shifts = row.serviceIds
+      .flatMap((id) => shiftsByDateService.get(`${date}|${id}`) ?? [])
+      .sort((a, b) => (row.serviceIds.length > 1 ? a.startTime.localeCompare(b.startTime) : 0));
+    const gaps = worstGapsByPosition(row.serviceIds.flatMap((id) => gapsByDateService.get(`${date}|${id}`) ?? []));
+    const pendingRequests = row.serviceIds
+      .flatMap((id) => coverageRequestsByDateService.get(`${date}|${id}`) ?? [])
+      .filter((r) => r.status === "pending");
+    const defaultServiceId = defaultServiceForRow(row, data.services, isoDayOfWeek(date));
+    const service = data.services.find((s) => s.id === defaultServiceId) ?? null;
     return (
       <div className="flex min-h-[3rem] flex-col gap-1">
         {gaps.map((g) => (
           <div key={g.position} className="rounded-lg border border-urgent bg-urgent-soft px-2 py-1 text-[11px] font-medium text-urgent">
-            Manque {g.required - g.assigned} {SHIFT_POSITION_LABELS[g.position as keyof typeof SHIFT_POSITION_LABELS]?.toLowerCase() ?? g.position}
+            Manque {g.missing} {SHIFT_POSITION_LABELS[g.position as keyof typeof SHIFT_POSITION_LABELS]?.toLowerCase() ?? g.position}
           </div>
         ))}
         {pendingRequests.map((r) => (
@@ -336,14 +346,14 @@ export function PlanningApp({
         {data.canEdit && (
           <div className="flex gap-1">
             <button
-              onClick={() => setDialog({ mode: "create", membershipId: "", date, serviceId: serviceId === "none" ? null : serviceId })}
+              onClick={() => setDialog({ mode: "create", membershipId: "", date, serviceId: defaultServiceId })}
               aria-label="Ajouter un shift"
               title="Ajouter directement"
               className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border py-1.5 text-muted-foreground outline-none transition-colors hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent"
             >
               <Plus size={13} aria-hidden="true" />
             </button>
-            {service && service.id !== "none" && (
+            {service && (
               <button
                 onClick={() =>
                   setCoverageRequestFor({
@@ -351,8 +361,8 @@ export function PlanningApp({
                     dateLabel: data.dayLabels[date] ?? date,
                     serviceId: service.id,
                     serviceName: service.name,
-                    startTime: service.time?.split("–")[0] ?? "18:00",
-                    endTime: service.time?.split("–")[1] ?? "23:00",
+                    startTime: service.startTime,
+                    endTime: service.endTime,
                     initialPosition: (gaps[0]?.position as ShiftPosition) ?? "salle",
                   })
                 }
@@ -441,6 +451,7 @@ export function PlanningApp({
       <PlanningNotes notes={data.notes} canEdit={data.canEdit} />
       <PlanningAlerts alerts={data.alerts} />
       <FrequentationSummary days={data.dayFrequentation} />
+      {data.canEdit && data.services.length > 1 && <PlanningViewTabs value={currentView} onChange={setCurrentView} />}
       {data.members.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <PlanningZoneTabs value={zone} onChange={setZone} />
@@ -477,7 +488,7 @@ export function PlanningApp({
                     </td>
                     {data.weekDays.map((date) => (
                       <td key={date} className="p-1.5 align-top">
-                        {renderServiceSlot(service.id, date, service.daysOfWeek === null || service.daysOfWeek.includes(isoDayOfWeek(date)))}
+                        {renderServiceSlot(service, date, service.daysOfWeek === null || service.daysOfWeek.includes(isoDayOfWeek(date)))}
                       </td>
                     ))}
                   </tr>
@@ -511,7 +522,7 @@ export function PlanningApp({
                   <div key={service.id} className="rounded-2xl border border-border bg-card p-3">
                     <p className="text-sm font-medium">{service.name}</p>
                     {service.time && <p className="font-mono text-xs text-muted-foreground">{service.time}</p>}
-                    <div className="mt-2">{renderServiceSlot(service.id, selectedDay, true)}</div>
+                    <div className="mt-2">{renderServiceSlot(service, selectedDay, true)}</div>
                   </div>
                 );
               })}

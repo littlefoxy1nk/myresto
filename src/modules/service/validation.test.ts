@@ -28,7 +28,6 @@ test("se modifier soi-même n'est pas un chevauchement", () => {
 });
 
 test("entrées invalides", () => {
-  assert.match(validateService({ name: " ", startTime: "12:00", endTime: "14:00", days: all }, [])!, /nom/);
   assert.match(validateService({ name: "X", startTime: "12h", endTime: "14:00", days: all }, [])!, /HH:MM/);
   assert.match(validateService({ name: "X", startTime: "14:00", endTime: "12:00", days: all }, [])!, /après/);
   assert.match(validateService({ name: "X", startTime: "12:00", endTime: "14:00", days: [] }, [])!, /jour/);

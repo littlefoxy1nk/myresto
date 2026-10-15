@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isNotificationMuted } from "@/lib/notification-preferences";
 
 export type NotificationType =
   | "shift_changed"
@@ -28,6 +29,13 @@ export async function notifyMember(params: {
   body?: string;
   linkHref?: string;
 }) {
+  // La personne a coupé cette catégorie dans Paramètres → Notifications : on ne la crée même pas.
+  const member = await prisma.membership.findUnique({
+    where: { id: params.membershipId },
+    select: { mutedNotificationCategories: true },
+  });
+  if (member && isNotificationMuted(member.mutedNotificationCategories, params.type)) return;
+
   await prisma.notification.create({
     data: {
       establishmentId: params.establishmentId,
