@@ -246,7 +246,7 @@ export function FinanceExplorer({ title, description, measures }: { title: strin
       )}
 
       {!hasData ? (
-        <p className="rounded-xl bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-2xl bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
           {allYears.length === 0
             ? "Pas encore de chiffres : ils apparaissent ici dès qu'il y en a."
             : "Rien à afficher avec cette sélection : coche au moins une année (et un mois)."}
@@ -386,7 +386,7 @@ export function FinanceExplorer({ title, description, measures }: { title: strin
           {hoverIndex !== null && (
             <div
               role="status"
-              className="pointer-events-none absolute top-2 z-10 min-w-36 rounded-xl border border-border bg-card px-3 py-2 text-xs shadow-lg"
+              className="pointer-events-none absolute top-2 z-10 min-w-36 rounded-2xl border border-border bg-card px-3 py-2 text-xs shadow-lg"
               style={{ left: `${tooltipLeftPct}%`, transform: tooltipLeftPct > 60 ? "translateX(calc(-100% - 12px))" : "translateX(12px)" }}
             >
               <p className="mb-1 font-medium text-muted-foreground">{xLabels[hoverIndex]}</p>

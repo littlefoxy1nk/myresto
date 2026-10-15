@@ -25,7 +25,7 @@ export function ServicesCard({ services }: { services: ServiceRow[] }) {
 
   return (
     <div className="space-y-3">
-      <ul className="divide-y divide-border rounded-xl border border-border">
+      <ul className="divide-y divide-border rounded-2xl border border-border">
         {services.map((s) => (
           <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
@@ -122,13 +122,13 @@ function ServiceDialog({ initial, onOpenChange }: { initial: ServiceRow | null; 
         >
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="svc-start" className="text-sm font-medium">
+              <label htmlFor="svc-start" className="text-sm font-semibold">
                 Début
               </label>
               <input id="svc-start" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={field} />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="svc-end" className="text-sm font-medium">
+              <label htmlFor="svc-end" className="text-sm font-semibold">
                 Fin
               </label>
               <input id="svc-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={field} />

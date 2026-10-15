@@ -53,7 +53,7 @@ export function DeclareSickLeaveDialog({ open, onOpenChange }: { open: boolean; 
         >
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="sick-start" className="text-sm font-medium">
+              <label htmlFor="sick-start" className="text-sm font-semibold">
                 Du
               </label>
               <input
@@ -61,11 +61,11 @@ export function DeclareSickLeaveDialog({ open, onOpenChange }: { open: boolean; 
                 type="date"
                 value={startDate}
                 disabled
-                className="w-full rounded-xl border border-border bg-muted px-3 py-2 text-sm text-muted-foreground outline-none"
+                className="w-full rounded-2xl border border-border bg-muted px-3 py-2 text-sm text-muted-foreground outline-none"
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="sick-end" className="text-sm font-medium">
+              <label htmlFor="sick-end" className="text-sm font-semibold">
                 Au
               </label>
               <input
@@ -80,7 +80,7 @@ export function DeclareSickLeaveDialog({ open, onOpenChange }: { open: boolean; 
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="sick-reason" className="text-sm font-medium">
+            <label htmlFor="sick-reason" className="text-sm font-semibold">
               Précision (optionnel)
             </label>
             <input

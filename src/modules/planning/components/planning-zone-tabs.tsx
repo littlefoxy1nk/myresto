@@ -23,7 +23,7 @@ export function PlanningZoneTabs({ value, onChange }: { value: PlanningZoneFilte
           onClick={() => onChange(option.value)}
           aria-pressed={value === option.value}
           className={cn(
-            "rounded-xl border px-3 py-1.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+            "rounded-2xl border px-3 py-1.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
             value === option.value ? "border-accent bg-accent-soft text-accent" : "border-border bg-card text-foreground hover:bg-muted"
           )}
         >

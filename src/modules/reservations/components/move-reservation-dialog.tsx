@@ -211,7 +211,7 @@ export function MoveReservationDialog({
               ) as Record<string, string[]>;
               const afterOthers = applyMoves(bookings, others);
               return (
-                <div key={d.id} className="space-y-2 rounded-xl border border-border p-3">
+                <div key={d.id} className="space-y-2 rounded-2xl border border-border p-3">
                   <p className="text-sm">
                     <span className="font-medium">{d.customerName}</span>{" "}
                     <span className="text-muted-foreground">
@@ -320,7 +320,7 @@ function TableChip({
       onClick={onClick}
       aria-pressed={selected}
       className={cn(
-        "rounded-xl border px-3 py-1.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+        "rounded-2xl border px-3 py-1.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
         selected ? "border-accent bg-accent-soft text-accent" : "border-border bg-card hover:bg-muted",
         warn && !selected && "border-important/50",
         disabled && "cursor-not-allowed opacity-50 hover:bg-card"

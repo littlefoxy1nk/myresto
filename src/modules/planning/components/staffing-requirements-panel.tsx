@@ -136,7 +136,7 @@ export function StaffingRequirementsPanel({
                                   const next = Math.max(0, Math.min(20, Number(e.target.value) || 0));
                                   save(d.value, service.id, position, next);
                                 }}
-                                className="h-7 w-12 rounded-lg border border-border bg-background text-center outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                                className="h-7 w-12 rounded-xl border border-border bg-card text-center outline-none focus-visible:ring-2 focus-visible:ring-accent"
                               />
                             </td>
                           );

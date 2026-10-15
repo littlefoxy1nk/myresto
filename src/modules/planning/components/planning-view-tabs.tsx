@@ -37,7 +37,7 @@ export function PlanningViewTabs({ value, onChange }: { value: PlanningView; onC
             aria-pressed={value === v.key}
             onClick={() => choose(v.key)}
             className={cn(
-              "rounded-xl border px-3 py-1.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+              "rounded-2xl border px-3 py-1.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
               value === v.key ? "border-accent bg-accent-soft text-accent" : "border-border bg-card hover:bg-muted"
             )}
           >

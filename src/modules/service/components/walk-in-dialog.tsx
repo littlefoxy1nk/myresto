@@ -54,7 +54,7 @@ export function WalkInDialog({
           }}
         >
           <div className="space-y-1.5">
-            <label htmlFor="walkin-name" className="text-sm font-medium">
+            <label htmlFor="walkin-name" className="text-sm font-semibold">
               Nom
             </label>
             <input
@@ -68,7 +68,7 @@ export function WalkInDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="walkin-phone" className="text-sm font-medium">
+              <label htmlFor="walkin-phone" className="text-sm font-semibold">
                 Téléphone (optionnel)
               </label>
               <input
@@ -80,7 +80,7 @@ export function WalkInDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="walkin-size" className="text-sm font-medium">
+              <label htmlFor="walkin-size" className="text-sm font-semibold">
                 Personnes
               </label>
               <input

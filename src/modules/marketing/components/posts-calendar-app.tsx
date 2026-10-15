@@ -1,5 +1,7 @@
 "use client";
 
+import { Megaphone } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useState } from "react";
 import { Camera, Share2, Mail, MessageSquare, Plus, Pencil, Trash2, CheckCircle2, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -78,7 +80,7 @@ export function PostsCalendarApp({ posts, canManage }: { posts: MarketingPostIte
         </div>
         {post.mediaUrl && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={post.mediaUrl} alt="" className="h-16 w-16 shrink-0 rounded-xl border border-border object-cover" />
+          <img src={post.mediaUrl} alt="" className="h-16 w-16 shrink-0 rounded-2xl border border-border object-cover" />
         )}
         {post.mediaUrl && (
           <Button size="sm" variant="ghost" asChild>
@@ -121,7 +123,7 @@ export function PostsCalendarApp({ posts, canManage }: { posts: MarketingPostIte
       <section className="space-y-3">
         <h2 className="text-lg font-bold tracking-tight">À venir</h2>
         {upcoming.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">Aucune publication prévue pour le moment.</Card>
+          <EmptyState icon={Megaphone} title="Aucune publication prévue" description="Prépare ta prochaine publication : une photo, un texte, une date." />
         ) : (
           <div className="space-y-2">{upcoming.map(renderPost)}</div>
         )}

@@ -144,7 +144,7 @@ function ListCard({
                 setRenaming(false);
               }
             }}
-            className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2 py-1 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="min-w-0 flex-1 rounded-xl border border-border bg-card px-2 py-1 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-accent"
           />
         ) : (
           <h2 className="min-w-0 truncate text-base font-semibold">{list.name}</h2>
@@ -241,7 +241,7 @@ function ItemRow({
               setEditing(false);
             }
           }}
-          className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-0.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-0.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
         />
       ) : (
         <span

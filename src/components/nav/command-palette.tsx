@@ -123,7 +123,7 @@ export function CommandPalette({ entries }: { entries: PaletteEntry[] }) {
                       active ? "bg-accent-soft text-accent" : "text-foreground"
                     )}
                   >
-                    <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-xl", active ? "bg-card" : "bg-muted")}>
+                    <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl", active ? "bg-card" : "bg-muted")}>
                       {Icon && <Icon size={16} aria-hidden="true" />}
                     </span>
                     <span className="flex-1">{entry.label}</span>

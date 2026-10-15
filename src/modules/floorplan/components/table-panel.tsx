@@ -55,7 +55,7 @@ export function TablePanel({
   const style = LIVE_STATE_STYLE[table.liveState];
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 max-h-[75vh] overflow-y-auto rounded-t-2xl border-t border-border bg-card p-5 shadow-xl md:static md:z-auto md:max-h-none md:w-80 md:shrink-0 md:overflow-visible md:rounded-2xl md:border md:shadow-sm">
+    <div className="fixed inset-x-0 bottom-0 z-50 max-h-[75vh] overflow-y-auto sheet-mobile rounded-t-[28px] border-t border-border bg-card p-5 pb-8 shadow-pop md:static md:z-auto md:max-h-none md:w-80 md:shrink-0 md:overflow-visible md:rounded-3xl md:border md:pb-5 md:shadow-card">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-lg font-semibold">{table.label}</p>
@@ -92,7 +92,7 @@ export function TablePanel({
       )}
 
       {(table.dayReservations ?? (table.activeReservation ? [table.activeReservation] : [])).map((r) => (
-        <div key={r.id} className="mt-4 rounded-xl border border-border bg-muted p-3 text-sm">
+        <div key={r.id} className="mt-4 rounded-2xl border border-border bg-muted/70 p-3 text-sm">
           <Link
             href="/reservations"
             className="block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -117,7 +117,7 @@ export function TablePanel({
       ))}
 
       {table.group && (
-        <div className="mt-4 rounded-xl border border-accent/30 bg-accent-soft/40 p-3 text-sm">
+        <div className="mt-4 rounded-2xl border border-accent/30 bg-accent-soft/40 p-3 text-sm">
           <p className="flex items-center gap-1.5 font-medium text-accent">
             <Link2 size={14} aria-hidden="true" />
             Fusionnée · {table.group.combinedCapacity} pers.

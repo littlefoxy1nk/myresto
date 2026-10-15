@@ -135,7 +135,7 @@ export function EditEmployeeButton({
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="edit-role" className="text-sm font-medium">
+              <label htmlFor="edit-role" className="text-sm font-semibold">
                 Rôle de base
               </label>
               <select
@@ -204,7 +204,7 @@ function TextField({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-sm font-medium">{label}</label>
+      <label className="text-sm font-semibold">{label}</label>
       <input
         type={type}
         value={value}

@@ -9,7 +9,7 @@ import { getMonthFigures, saveDayFigures, saveMonthFigure, type MonthFiguresData
 import { MONTH_LABELS, WEEKDAY_LABELS } from "@/modules/finance/chart-data";
 
 const field =
-  "w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "w-full rounded-xl border border-border bg-card px-2.5 py-1.5 text-sm tabular-nums outline-none focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15";
 
 /// "1234,5" → 123450 ; vide → null ; invalide → undefined.
 function parseEuros(text: string): number | null | undefined {
@@ -58,7 +58,7 @@ export function FigureEntry({ initialYear, initialMonth }: { initialYear: number
       active ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
     );
   const arrow =
-    "rounded-lg p-2 text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent";
+    "rounded-lg p-2 text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15";
 
   const ready = loaded?.key === key;
 
@@ -267,13 +267,13 @@ function MonthTotalForm({
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <label htmlFor="month-revenue" className="text-sm font-medium">
+          <label htmlFor="month-revenue" className="text-sm font-semibold">
             CA du mois (€)
           </label>
           <input id="month-revenue" inputMode="decimal" value={rev} onChange={(e) => setRev(e.target.value)} className={field} placeholder="ex : 42 500" />
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="month-covers" className="text-sm font-medium">
+          <label htmlFor="month-covers" className="text-sm font-semibold">
             Couverts du mois (facultatif)
           </label>
           <input id="month-covers" inputMode="numeric" value={cov} onChange={(e) => setCov(e.target.value)} className={field} placeholder="ex : 1 850" />

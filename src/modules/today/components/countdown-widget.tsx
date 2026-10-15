@@ -135,13 +135,13 @@ export function CountdownWidget({ events, canManage }: { events: EventWithDays[]
             <DialogDescription>Choisis un nom et une date : le décompte se fait tout seul.</DialogDescription>
             <form className="mt-4 space-y-3" onSubmit={add}>
               <div className="space-y-1.5">
-                <label htmlFor="cd-title" className="text-sm font-medium">
+                <label htmlFor="cd-title" className="text-sm font-semibold">
                   Événement
                 </label>
                 <input id="cd-title" autoFocus value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} placeholder="ex : Saint-Valentin" className={field} />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="cd-date" className="text-sm font-medium">
+                <label htmlFor="cd-date" className="text-sm font-semibold">
                   Date
                 </label>
                 <input id="cd-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} />

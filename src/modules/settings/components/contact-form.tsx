@@ -23,7 +23,7 @@ export function ContactForm() {
   if (result) {
     const mailto = `mailto:${DEFAULT_SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
     return (
-      <div className="space-y-3 rounded-xl border border-border p-5">
+      <div className="space-y-3 rounded-2xl border border-border p-5">
         <div className={cn("flex items-center gap-2 text-sm font-medium", result.emailed ? "text-good" : "text-important")}>
           <CheckCircle2 size={18} aria-hidden="true" />
           {result.emailed ? "Message envoyé. On te répond dès que possible." : "Message enregistré, mais pas encore envoyé par email."}
@@ -98,13 +98,13 @@ export function ContactForm() {
         </div>
       </div>
       <div className="space-y-1.5">
-        <label htmlFor="contact-subject" className="text-sm font-medium">
+        <label htmlFor="contact-subject" className="text-sm font-semibold">
           Titre
         </label>
         <input id="contact-subject" value={subject} maxLength={120} onChange={(e) => setSubject(e.target.value)} placeholder="ex : Je n'arrive plus à ouvrir le planning" className={field} />
       </div>
       <div className="space-y-1.5">
-        <label htmlFor="contact-message" className="text-sm font-medium">
+        <label htmlFor="contact-message" className="text-sm font-semibold">
           Ton message
         </label>
         <textarea

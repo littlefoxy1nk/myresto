@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { CheckCircle2, Sparkles, ChevronLeft } from "lucide-react";
+import { Check, Sparkles, ChevronLeft, Users } from "lucide-react";
+import { NumberStepper } from "@/components/ui/number-stepper";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -158,14 +160,17 @@ export function NewReservationFlow({
 
   if (createdReservation) {
     return (
-      <Card className="space-y-4 p-6">
-        <div className="flex items-center gap-2 text-good">
-          <CheckCircle2 size={20} aria-hidden="true" />
-          <p className="text-sm font-medium">
-            Réservation créée pour {createdReservation.customerName} à {createdReservation.time}.
+      <Card className="page-in mx-auto max-w-md space-y-5 p-8 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-good-soft text-good">
+          <Check size={32} strokeWidth={3} aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-2xl font-bold tracking-tight">Réservation créée</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {createdReservation.customerName} · {createdReservation.time}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
           <Button asChild>
             <Link href="/reservations">Voir les réservations</Link>
           </Button>
@@ -179,13 +184,28 @@ export function NewReservationFlow({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Étape {step} sur 3</p>
+      <div className="space-y-4">
         <h1 className="text-3xl font-bold tracking-tight">Nouvelle réservation</h1>
+        <ol className="flex gap-2" aria-label="Étapes">
+          {["Le client", "La table", "Confirmer"].map((label, i) => {
+            const n = i + 1;
+            const done = step > n;
+            const current = step === n;
+            return (
+              <li key={label} className="flex-1" aria-current={current ? "step" : undefined}>
+                <div className={cn("h-1.5 rounded-full transition-colors", done || current ? "bg-accent" : "bg-border")} />
+                <p className={cn("mt-1.5 flex items-center gap-1 text-xs font-semibold", current ? "text-foreground" : "text-muted-foreground")}>
+                  {done && <Check size={12} aria-hidden="true" className="text-accent" />}
+                  {n}. {label}
+                </p>
+              </li>
+            );
+          })}
+        </ol>
       </div>
 
       {step === 1 && (
-        <Card className="space-y-4 p-5">
+        <Card className="space-y-4 p-6">
           {formError && (
             <p className="rounded-lg bg-urgent-soft px-3 py-2 text-sm text-urgent" role="alert">
               {formError}
@@ -196,8 +216,16 @@ export function NewReservationFlow({
             <Field label="Téléphone (optionnel)" value={customerPhone} onChange={setCustomerPhone} type="tel" />
             <Field label="Email (optionnel)" value={customerEmail} onChange={setCustomerEmail} type="email" />
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Field label="Personnes" value={String(partySize)} onChange={(v) => setPartySize(Number(v) || 1)} type="number" />
+          <div className="flex items-center justify-between gap-4 rounded-2xl bg-muted/60 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-accent" aria-hidden="true">
+                <Users size={17} />
+              </span>
+              <p className="text-sm font-semibold">Personnes</p>
+            </div>
+            <NumberStepper value={partySize} onChange={setPartySize} min={1} max={40} label="Nombre de personnes" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <Field label="Date" value={date} onChange={setDate} type="date" />
             <Field label="Heure" value={time} onChange={setTime} type="time" />
           </div>
@@ -236,8 +264,8 @@ export function NewReservationFlow({
                     <button
                       key={s.tableIds.join("-")}
                       onClick={() => chooseSuggestion(s)}
-                      className={`rounded-xl border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
-                        isSelected ? "border-accent bg-accent-soft" : "border-border bg-card hover:bg-muted"
+                      className={`rounded-2xl border p-3.5 text-left outline-none transition-all focus-visible:ring-2 focus-visible:ring-accent ${
+                        isSelected ? "border-accent bg-accent-soft shadow-sm" : "border-border bg-card hover:bg-muted"
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -263,6 +291,9 @@ export function NewReservationFlow({
                 onDeleteZone={() => {}}
               />
               <FloorPlanCanvas
+                key={activeZone.id}
+                fit
+                fitMaxHeight={520}
                 tables={activeZone.tables}
                 canEdit={false}
                 selectedTableId={null}
@@ -276,7 +307,7 @@ export function NewReservationFlow({
 
           <Card className="flex items-center justify-between p-4">
             <div>
-              <p className="text-sm font-medium">
+              <p className="text-sm font-semibold">
                 {selectedTables.length === 0
                   ? "Aucune table sélectionnée"
                   : `${selectedTables.map((t) => t.label).join(" + ")} · ${selectedCapacity} places`}
@@ -307,8 +338,8 @@ export function NewReservationFlow({
       )}
 
       {step === 3 && (
-        <Card className="space-y-4 p-5">
-          <h2 className="text-sm font-semibold">Récapitulatif</h2>
+        <Card className="space-y-4 p-6">
+          <h2 className="text-lg font-bold tracking-tight">Récapitulatif</h2>
           <div className="space-y-2 text-sm">
             <Row label="Client" value={customerName} />
             {customerPhone && <Row label="Téléphone" value={customerPhone} />}
@@ -357,7 +388,7 @@ function Field({
   const id = `res-field-${label}`;
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
+      <label htmlFor={id} className="text-sm font-semibold">
         {label}
       </label>
       <input
@@ -366,7 +397,7 @@ function Field({
         value={value}
         autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
+        className="w-full rounded-2xl border border-border bg-card/80 px-4 py-2.5 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
       />
     </div>
   );

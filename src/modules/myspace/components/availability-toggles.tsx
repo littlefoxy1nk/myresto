@@ -98,7 +98,7 @@ function OneOffAvailabilitySection({
                     key={service.id}
                     type="button"
                     onClick={() => remove(entry)}
-                    className="inline-flex items-center gap-1 rounded-xl border border-accent bg-accent-soft px-3 py-2 text-xs font-medium text-accent"
+                    className="inline-flex items-center gap-1 rounded-2xl border border-accent bg-accent-soft px-3 py-2 text-xs font-medium text-accent"
                   >
                     {service.name}
                     <X size={12} aria-hidden="true" />
@@ -111,7 +111,7 @@ function OneOffAvailabilitySection({
                   type="button"
                   disabled={pending}
                   onClick={() => add(date, service.id)}
-                  className="rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent"
+                  className="rounded-2xl border border-border bg-card px-3 py-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   {pending ? "…" : `+ ${service.name}`}
                 </button>

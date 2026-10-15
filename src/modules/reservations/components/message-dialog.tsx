@@ -111,7 +111,7 @@ export function MessageDialog({
               aria-selected={kind === k}
               onClick={() => selectKind(k)}
               className={cn(
-                "flex-1 rounded-xl border px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+                "flex-1 rounded-2xl border px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
                 kind === k ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
               )}
             >
@@ -121,7 +121,7 @@ export function MessageDialog({
         </div>
 
         <div className="mt-3 space-y-1.5">
-          <label htmlFor="message-template" className="text-sm font-medium">
+          <label htmlFor="message-template" className="text-sm font-semibold">
             Message (modifiable)
           </label>
           <textarea
@@ -176,7 +176,7 @@ export function MessageDialog({
               <div
                 key={r.id}
                 className={cn(
-                  "rounded-xl border p-3",
+                  "rounded-2xl border p-3",
                   isSelected && hasContact ? "border-accent/40 bg-accent-soft/20" : "border-border",
                   !hasContact && "opacity-60"
                 )}
@@ -260,7 +260,7 @@ function ChannelLink({
       target={external ? "_blank" : undefined}
       rel={external ? "noopener noreferrer" : undefined}
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-muted px-3 text-xs font-medium outline-none transition-colors hover:bg-border focus-visible:ring-2 focus-visible:ring-accent"
+      className="inline-flex h-8 items-center gap-1.5 rounded-2xl bg-muted px-3 text-xs font-medium outline-none transition-colors hover:bg-border focus-visible:ring-2 focus-visible:ring-accent"
     >
       {icon}
       {label}

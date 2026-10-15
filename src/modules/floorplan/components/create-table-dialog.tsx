@@ -62,7 +62,7 @@ export function CreateTableDialog({
           }}
         >
           <div className="space-y-1.5">
-            <label htmlFor="table-count" className="text-sm font-medium">
+            <label htmlFor="table-count" className="text-sm font-semibold">
               Nombre de tables
             </label>
             <input
@@ -77,7 +77,7 @@ export function CreateTableDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="table-label" className="text-sm font-medium">
+              <label htmlFor="table-label" className="text-sm font-semibold">
                 {bulk ? "Préfixe" : "Nom / numéro"}
               </label>
               <input
@@ -91,7 +91,7 @@ export function CreateTableDialog({
               {bulk && <p className="text-xs text-muted-foreground">Donnera {label || "T"}1, {label || "T"}2…</p>}
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="table-capacity" className="text-sm font-medium">
+              <label htmlFor="table-capacity" className="text-sm font-semibold">
                 Capacité {bulk ? "(chacune)" : ""}
               </label>
               <input
@@ -113,7 +113,7 @@ export function CreateTableDialog({
                   type="button"
                   key={s}
                   onClick={() => setShape(s)}
-                  className={`flex-1 rounded-xl border px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
+                  className={`flex-1 rounded-2xl border px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
                     shape === s ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
                   }`}
                 >

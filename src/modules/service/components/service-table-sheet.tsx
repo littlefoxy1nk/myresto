@@ -29,7 +29,7 @@ export function ServiceTableSheet({
   const reservation = table.activeReservation;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 max-h-[75vh] overflow-y-auto rounded-t-2xl border-t border-border bg-card p-5 shadow-xl md:static md:z-auto md:max-h-none md:w-80 md:shrink-0 md:overflow-visible md:rounded-2xl md:border md:shadow-sm">
+    <div className="fixed inset-x-0 bottom-0 z-50 max-h-[75vh] overflow-y-auto sheet-mobile rounded-t-[28px] border-t border-border bg-card p-5 pb-8 shadow-pop md:static md:z-auto md:max-h-none md:w-80 md:shrink-0 md:overflow-visible md:rounded-3xl md:border md:pb-5 md:shadow-card">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-lg font-semibold">{table.label}</p>
@@ -48,7 +48,7 @@ export function ServiceTableSheet({
       </div>
 
       {reservation ? (
-        <div className="mt-4 rounded-xl border border-border bg-muted p-3 text-sm">
+        <div className="mt-4 rounded-2xl border border-border bg-muted/70 p-3 text-sm">
           <p className="font-medium">{reservation.customerName}</p>
           <p className="text-xs text-muted-foreground">
             {reservation.partySize} pers. · {reservation.time}

@@ -1,3 +1,5 @@
+import { Palmtree } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getCurrentContext } from "@/lib/current-context";
 import { getMyDashboard } from "@/modules/myspace/server/queries";
 import { RequestTimeOffButton } from "@/modules/myspace/components/request-timeoff-button";
@@ -14,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, CalendarDays } from "lucide-react";
 import { AvatarFigure } from "@/components/ui/avatar-figure";
 import { parseAvatar } from "@/lib/avatar";
-import { toDateKey, formatDateRange } from "@/lib/utils";
+import { cn, toDateKey, formatDateRange } from "@/lib/utils";
 
 const TIMEOFF_STATUS_LABEL: Record<string, string> = { pending: "En attente", approved: "Acceptée", rejected: "Refusée" };
 const TIMEOFF_STATUS_VARIANT: Record<string, "watch" | "good" | "neutral"> = {
@@ -87,18 +89,28 @@ export default async function MonEspacePage() {
 
       {/* Mon planning */}
       <section className="space-y-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold">
+        <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight">
           <CalendarDays size={16} aria-hidden="true" />
           Mon planning cette semaine
         </h2>
         {data.weekShifts.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">Aucun service planifié cette semaine.</Card>
+          <EmptyState icon={CalendarDays} title="Aucun service planifié cette semaine" description="Dès que ton planning est publié, tu le retrouves ici." />
         ) : (
-          <div className="space-y-2">
+          <div className="grid gap-2 md:grid-cols-2">
             {data.weekShifts.map((s) => (
-              <Card key={s.id} className="flex items-center justify-between gap-3 p-3">
+              <Card
+                key={s.id}
+                className={cn(
+                  "flex items-center justify-between gap-3 p-4",
+                  s.date === todayKey && "border-accent/40 bg-accent-soft/40",
+                  s.date < todayKey && "opacity-60"
+                )}
+              >
                 <div>
-                  <p className="text-sm font-medium">{s.dateLabel}</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold">
+                    {s.dateLabel}
+                    {s.date === todayKey && <Badge variant="accent">Aujourd&apos;hui</Badge>}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {s.startTime}–{s.endTime}
                     {s.serviceName ? ` · ${s.serviceName}` : ""}
@@ -129,7 +141,7 @@ export default async function MonEspacePage() {
           </div>
         </div>
         {data.timeOffRequests.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">Aucune demande pour le moment.</Card>
+          <EmptyState icon={Palmtree} title="Aucune demande pour le moment" />
         ) : (
           <div className="space-y-2">
             {data.timeOffRequests.map((r) => (

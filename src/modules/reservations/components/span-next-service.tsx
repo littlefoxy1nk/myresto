@@ -35,7 +35,7 @@ export function SpanNextService({
   const hours = Math.round(((timeToMinutes(until) - fromMinutes) / 60) * 10) / 10;
 
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-muted/40 p-3 text-sm">
+    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-muted/40 p-3 text-sm">
       <input
         type="checkbox"
         checked={checked}

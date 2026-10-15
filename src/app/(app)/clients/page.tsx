@@ -1,3 +1,5 @@
+import { Heart, SearchX } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { requireModule } from "@/lib/module-guard";
 import { redirect } from "next/navigation";
@@ -110,9 +112,11 @@ export default async function ClientsPage({
           </Link>
         ))}
         {customers.length === 0 && (
-          <Card className="p-6 text-center text-sm text-muted-foreground">
-            {q ? "Aucun client ne correspond à cette recherche." : "Aucun client pour le moment — ils apparaissent automatiquement dès qu'une réservation renseigne un téléphone ou un email."}
-          </Card>
+          <EmptyState
+            icon={q ? SearchX : Heart}
+            title={q ? "Aucun client ne correspond à cette recherche" : "Aucun client pour le moment"}
+            description={q ? undefined : "Ils apparaissent automatiquement dès qu'une réservation renseigne un téléphone ou un email."}
+          />
         )}
       </div>
     </div>

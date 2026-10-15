@@ -6,6 +6,7 @@ import { toast } from "@/lib/toast-bus";
 import { cn } from "@/lib/utils";
 import { ZONE_ICON } from "@/modules/floorplan/components/zone-tabs";
 import { FloorPlanCanvas } from "@/modules/floorplan/components/floor-plan-canvas";
+import { zoneColumns } from "@/modules/floorplan/layout";
 import { LIVE_STATE_STYLE } from "@/modules/floorplan/live-state-style";
 import { ServiceTableSheet } from "@/modules/service/components/service-table-sheet";
 import { useAutoRefresh } from "@/modules/service/components/use-auto-refresh";
@@ -83,7 +84,10 @@ export function TodayServicePlan({ plan }: { plan: TodayServicePlan }) {
       {plan.zones.length === 0 ? (
         <Card className="p-6 text-center text-sm text-muted-foreground">Aucune salle n&apos;est encore dessinée dans le plan de salle.</Card>
       ) : (
-        <div className={cn("grid grid-cols-1 gap-4", plan.zones.length > 1 && "md:grid-cols-2", plan.zones.length > 2 && "xl:grid-cols-3")}>
+        <div
+          className="grid grid-cols-1 gap-4 md:[grid-template-columns:var(--zone-cols)]"
+          style={{ "--zone-cols": zoneColumns(plan.zones) } as React.CSSProperties}
+        >
           {plan.zones.map((zone) => {
             const free = zone.tables.filter((t) => t.liveState === "available").length;
             return (
@@ -96,7 +100,7 @@ export function TodayServicePlan({ plan }: { plan: TodayServicePlan }) {
                   </span>
                 </div>
                 {zone.tables.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">Aucune table dans cette salle.</p>
+                  <p className="rounded-2xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">Aucune table dans cette salle.</p>
                 ) : (
                   <FloorPlanCanvas
                     fit

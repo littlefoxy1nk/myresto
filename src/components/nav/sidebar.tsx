@@ -54,7 +54,7 @@ export function Sidebar({
           </div>
         </div>
 
-        <nav className="flex-1 space-y-3 overflow-y-auto px-1 pb-2 [scrollbar-width:none]">
+        <nav className="nav-compact flex-1 space-y-3 overflow-y-auto px-1 pb-2 [scrollbar-width:none]">
           {groups.map((group) => {
             const label = NAV_GROUP_LABELS[group.key];
             return (
@@ -103,7 +103,7 @@ export function Sidebar({
           {avatar && (
             <Link
               href="/parametres?tab=profil"
-              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl p-1 outline-none transition-colors hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-white/60"
+              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl p-1 outline-none transition-colors hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <AvatarFigure config={avatar} size={36} />
               <span className="min-w-0">
@@ -116,7 +116,7 @@ export function Sidebar({
             <button
               aria-label="Se déconnecter"
               title="Se déconnecter"
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-white/55 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
+              className="flex h-9 w-9 items-center justify-center rounded-2xl text-white/55 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <Icons.LogOut size={17} aria-hidden="true" />
             </button>

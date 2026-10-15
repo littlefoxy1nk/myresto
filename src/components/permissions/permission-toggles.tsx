@@ -58,7 +58,7 @@ export function PermissionToggles({
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {CATEGORY_LABELS[category] ?? category}
           </p>
-          <div className="divide-y divide-border rounded-xl border border-border">
+          <div className="divide-y divide-border rounded-2xl border border-border">
             {PERMISSIONS.filter((p) => p.category === category).map((perm) => (
               <div key={perm.key} className="flex items-center justify-between gap-3 px-3 py-2.5">
                 <span className="text-sm">{perm.label}</span>

@@ -56,6 +56,8 @@ export default async function PlanDeSallePage({
       <PlanDayPicker dateKey={dateKey} todayKey={todayKey} services={services} serviceId={day?.service?.id ?? null} />
 
       <FloorPlanApp
+        // Repart de zéro en passant de l'éditeur (maintenant) à l'aperçu d'un jour, pour que « Toutes les salles » s'affiche tout de suite.
+        key={dayView ? "day" : "live"}
         zones={zones}
         canEdit={!dayView && ctx.can("floorplan.edit")}
         canCreateReservation={ctx.can("reservations.edit")}

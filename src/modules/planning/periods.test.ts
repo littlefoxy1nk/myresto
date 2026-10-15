@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildPlanningRows, defaultServiceForRow, isPlanningView, worstGapsByPosition } from "./periods";
+import { buildPlanningRows, defaultServiceForRow, describeDays, hasUsualHours, isPlanningView, worstGapsByPosition } from "./periods";
 
 const ALL = [1, 2, 3, 4, 5, 6, 7];
 const services = [
@@ -63,4 +63,28 @@ test("isPlanningView", () => {
   assert.equal(isPlanningView("service"), true);
   assert.equal(isPlanningView("periode"), true);
   assert.equal(isPlanningView("autre"), false);
+});
+
+test("des horaires habituels : début et fin de services de la ligne", () => {
+  assert.equal(hasUsualHours({ startTime: "18:00", endTime: "20:30" }, ["a", "b"], services), true);
+  assert.equal(hasUsualHours({ startTime: "20:30", endTime: "22:00" }, ["a", "b"], services), true);
+  // toute la soirée, du début du premier service à la fin du dernier
+  assert.equal(hasUsualHours({ startTime: "18:00", endTime: "22:00" }, ["a", "b"], services), true);
+  assert.equal(hasUsualHours({ startTime: "19:00", endTime: "23:00" }, ["a", "b"], services), false);
+  assert.equal(hasUsualHours({ startTime: "18:00", endTime: "23:00" }, ["a", "b"], services), false);
+  assert.equal(hasUsualHours({ startTime: "12:00", endTime: "15:00" }, ["none"], services), false);
+});
+
+test("les jours : fermé quand aucune ligne n'a lieu, aujourd'hui et passé repérés", () => {
+  const isoDayOf = (key: string) => ({ "2026-10-12": 1, "2026-10-13": 2, "2026-10-14": 3 })[key as "2026-10-12"] ?? 7;
+  const rows = [{ daysOfWeek: [2, 3] }, { daysOfWeek: [3] }];
+  const days = describeDays(["2026-10-12", "2026-10-13", "2026-10-14"], rows, "2026-10-13", isoDayOf);
+  assert.deepEqual(days.map((d) => d.closed), [true, false, false]);
+  assert.deepEqual(days.map((d) => d.isToday), [false, true, false]);
+  assert.deepEqual(days.map((d) => d.isPast), [true, false, false]);
+});
+
+test("une ligne « sans service » (toujours active) garde tous les jours ouverts", () => {
+  const days = describeDays(["2026-10-12"], [{ daysOfWeek: [3] }, { daysOfWeek: null }], "2026-10-13", () => 1);
+  assert.equal(days[0].closed, false);
 });

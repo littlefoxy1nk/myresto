@@ -1,5 +1,7 @@
 "use client";
 
+import { BellOff } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
@@ -47,7 +49,7 @@ export function NotificationsList({ notifications }: { notifications: MyNotifica
   }
 
   if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">Aucune notification pour le moment.</p>;
+    return <EmptyState icon={BellOff} title="Aucune notification" description="Tout est calme : tu es à jour." />;
   }
 
   return (

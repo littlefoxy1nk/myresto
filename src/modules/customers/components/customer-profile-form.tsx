@@ -47,7 +47,7 @@ export function CustomerProfileForm({
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <label htmlFor="customer-phone" className="text-sm font-medium">
+          <label htmlFor="customer-phone" className="text-sm font-semibold">
             GSM
           </label>
           <input
@@ -60,7 +60,7 @@ export function CustomerProfileForm({
           />
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="customer-birthday" className="text-sm font-medium">
+          <label htmlFor="customer-birthday" className="text-sm font-semibold">
             Date d&apos;anniversaire
           </label>
           <input
@@ -75,7 +75,7 @@ export function CustomerProfileForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <label htmlFor="customer-preferences" className="text-sm font-medium">
+          <label htmlFor="customer-preferences" className="text-sm font-semibold">
             Préférences
           </label>
           <textarea
@@ -88,7 +88,7 @@ export function CustomerProfileForm({
           />
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="customer-allergies" className="text-sm font-medium">
+          <label htmlFor="customer-allergies" className="text-sm font-semibold">
             Allergies
           </label>
           <textarea
@@ -103,7 +103,7 @@ export function CustomerProfileForm({
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="customer-table" className="text-sm font-medium">
+        <label htmlFor="customer-table" className="text-sm font-semibold">
           Table préférée
         </label>
         <select
@@ -122,7 +122,7 @@ export function CustomerProfileForm({
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="customer-notes" className="text-sm font-medium">
+        <label htmlFor="customer-notes" className="text-sm font-semibold">
           Notes internes
         </label>
         <textarea

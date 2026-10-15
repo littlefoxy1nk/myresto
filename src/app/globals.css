@@ -256,6 +256,21 @@ body {
 .dialog-pop {
   animation: pop-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1) both;
 }
+/* Panneau qui monte du bas sur téléphone, posé à côté du plan sur ordinateur. */
+@media (max-width: 767px) {
+  .sheet-mobile {
+    animation: sheet-up 0.28s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  }
+}
+/* Écrans peu hauts : le menu se resserre pour que tout reste visible sans défiler. */
+@media (max-height: 800px) {
+  .nav-compact {
+    row-gap: 0.5rem;
+  }
+  .nav-compact a {
+    padding-block: 0.4rem;
+  }
+}
 .dialog-drop {
   animation: drop-in 0.2s cubic-bezier(0.2, 0.9, 0.3, 1) both;
 }

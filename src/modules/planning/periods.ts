@@ -74,3 +74,28 @@ export function defaultServiceForRow(row: PlanningRow, services: ServiceLike[], 
     .find((s): s is ServiceLike => !!s && s.daysOfWeek.includes(isoDay));
   return (active ?? services.find((s) => s.id === row.serviceIds[0]))?.id ?? null;
 }
+
+/// Un shift aux horaires « habituels » d'une ligne n'a pas besoin de les répéter : il commence quand un des services de
+/// la ligne commence et finit quand un des services de la ligne finit (donc aussi toute la soirée, d'un service au
+/// suivant). Seuls les horaires qui sortent de l'ordinaire s'affichent sur la pastille.
+export function hasUsualHours(
+  shift: { startTime: string; endTime: string },
+  rowServiceIds: string[],
+  services: { id: string; startTime: string; endTime: string }[]
+): boolean {
+  const row = rowServiceIds.map((id) => services.find((x) => x.id === id)).filter((s): s is NonNullable<typeof s> => !!s);
+  return row.some((s) => s.startTime === shift.startTime) && row.some((s) => s.endTime === shift.endTime);
+}
+
+export type DayColumn = { date: string; closed: boolean; isToday: boolean; isPast: boolean };
+
+/// L'état de chaque jour de la grille : « fermé » quand aucune ligne n'a lieu ce jour-là (la colonne se replie au lieu
+/// de prendre de la place pour rien), aujourd'hui mis en avant, les jours passés atténués.
+export function describeDays(weekDays: string[], rows: { daysOfWeek: number[] | null }[], todayKey: string, isoDayOf: (dateKey: string) => number): DayColumn[] {
+  return weekDays.map((date) => ({
+    date,
+    closed: rows.length > 0 && rows.every((r) => r.daysOfWeek !== null && !r.daysOfWeek.includes(isoDayOf(date))),
+    isToday: date === todayKey,
+    isPast: date < todayKey,
+  }));
+}

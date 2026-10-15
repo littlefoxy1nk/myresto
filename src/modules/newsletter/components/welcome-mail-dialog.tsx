@@ -80,7 +80,7 @@ export function WelcomeMailDialog({
 
         <div className="mt-4 space-y-3">
           <div className="space-y-1.5">
-            <label htmlFor="mail-subject" className="text-sm font-medium">
+            <label htmlFor="mail-subject" className="text-sm font-semibold">
               Objet
             </label>
             <input
@@ -94,7 +94,7 @@ export function WelcomeMailDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="mail-body" className="text-sm font-medium">
+            <label htmlFor="mail-body" className="text-sm font-semibold">
               Message (modifiable)
             </label>
             <textarea
@@ -135,7 +135,7 @@ export function WelcomeMailDialog({
             Destinataires ({[...selected].length}/{recipients.length})
           </p>
           {recipients.length === 0 && (
-            <p className="rounded-xl bg-muted px-3 py-2.5 text-sm text-muted-foreground">
+            <p className="rounded-2xl bg-muted px-3 py-2.5 text-sm text-muted-foreground">
               Aucun abonné pour le moment : ils apparaissent quand un client coche la case à la réservation en ligne.
             </p>
           )}
@@ -144,7 +144,7 @@ export function WelcomeMailDialog({
             return (
               <div
                 key={r.id}
-                className={cn("rounded-xl border p-3", isSelected ? "border-accent/40 bg-accent-soft/20" : "border-border")}
+                className={cn("rounded-2xl border p-3", isSelected ? "border-accent/40 bg-accent-soft/20" : "border-border")}
               >
                 <div className="flex items-start gap-3">
                   <input
@@ -177,7 +177,7 @@ export function WelcomeMailDialog({
                             setOpened((prev) => new Set(prev).add(r.id));
                             void markWelcomeMailSent(r.id);
                           }}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-muted px-3 text-xs font-medium outline-none transition-colors hover:bg-border focus-visible:ring-2 focus-visible:ring-accent"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-2xl bg-muted px-3 text-xs font-medium outline-none transition-colors hover:bg-border focus-visible:ring-2 focus-visible:ring-accent"
                         >
                           <Mail size={13} aria-hidden="true" />
                           Ouvrir dans ma messagerie

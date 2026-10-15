@@ -45,7 +45,7 @@ export function RequestTimeOffDialog({ open, onOpenChange }: { open: boolean; on
         >
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="timeoff-start" className="text-sm font-medium">
+              <label htmlFor="timeoff-start" className="text-sm font-semibold">
                 Du
               </label>
               <input
@@ -57,7 +57,7 @@ export function RequestTimeOffDialog({ open, onOpenChange }: { open: boolean; on
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="timeoff-end" className="text-sm font-medium">
+              <label htmlFor="timeoff-end" className="text-sm font-semibold">
                 Au
               </label>
               <input
@@ -71,7 +71,7 @@ export function RequestTimeOffDialog({ open, onOpenChange }: { open: boolean; on
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="timeoff-reason" className="text-sm font-medium">
+            <label htmlFor="timeoff-reason" className="text-sm font-semibold">
               Motif (optionnel)
             </label>
             <input

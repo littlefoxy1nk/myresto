@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/lib/toast-bus";
-import { ZoneTabs } from "@/modules/floorplan/components/zone-tabs";
+import { ALL_ZONES, ZONE_ICON, ZoneTabs } from "@/modules/floorplan/components/zone-tabs";
 import { FloorPlanCanvas } from "@/modules/floorplan/components/floor-plan-canvas";
 import { TablePanel } from "@/modules/floorplan/components/table-panel";
 import { CreateZoneDialog } from "@/modules/floorplan/components/create-zone-dialog";
@@ -26,6 +26,7 @@ import {
   dissolveTableGroup,
 } from "@/modules/floorplan/server/actions";
 import { toDateKey } from "@/lib/utils";
+import { zoneColumns } from "@/modules/floorplan/layout";
 import type { ZoneWithTables } from "@/modules/floorplan/types";
 
 function reserveHref(
@@ -57,7 +58,8 @@ export function FloorPlanApp({
   /// Aperçu en lecture seule d'un autre jour / d'un service (voir getFloorPlanForDay).
   dayView?: { label: string; serviceName: string | null; isToday: boolean; dateKey: string; startTime: string | null } | null;
 }) {
-  const [activeZoneId, setActiveZoneId] = useState<string | null>(zones[0]?.id ?? null);
+  // En lecture (pas d'édition) avec plusieurs salles, on les montre toutes d'un coup : plus besoin de cliquer d'une salle à l'autre.
+  const [activeZoneId, setActiveZoneId] = useState<string | null>(!canEdit && zones.length > 1 ? ALL_ZONES : (zones[0]?.id ?? null));
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [mergeMode, setMergeMode] = useState(false);
   const [mergeSelection, setMergeSelection] = useState<Set<string>>(new Set());
@@ -72,18 +74,24 @@ export function FloorPlanApp({
   const canMerge = canEdit || canMergeDay;
   const todayKey = toDateKey(new Date());
 
-  const activeZone = zones.find((z) => z.id === activeZoneId) ?? zones[0] ?? null;
-  const selectedTable = activeZone?.tables.find((t) => t.id === selectedTableId) ?? null;
+  const viewAll = activeZoneId === ALL_ZONES && zones.length > 1 && !canEdit;
+  const allTables = zones.flatMap((z) => z.tables);
+  const selectedTable = (viewAll ? allTables : (zones.find((z) => z.id === activeZoneId) ?? zones[0])?.tables ?? []).find((t) => t.id === selectedTableId) ?? null;
+  // En vue « toutes les salles », les boîtes de dialogue (fusion, walk-in…) s'appuient sur la salle de la table choisie.
+  const activeZone =
+    (viewAll ? zones.find((z) => z.id === selectedTable?.zoneId) : zones.find((z) => z.id === activeZoneId)) ?? zones[0] ?? null;
 
   const freeSuffix = dayView ? (dayView.serviceName ? "sur ce service" : "sur la journée") : "en ce moment";
 
   const zoneTotals = useMemo(() => {
-    if (!activeZone) return { capacity: 0, free: 0 };
+    const tables = viewAll ? allTables : (activeZone?.tables ?? []);
     return {
-      capacity: activeZone.tables.reduce((s, t) => s + t.capacity, 0),
-      free: activeZone.tables.filter((t) => t.liveState === "available").length,
+      count: tables.length,
+      capacity: tables.reduce((s, t) => s + t.capacity, 0),
+      free: tables.filter((t) => t.liveState === "available").length,
     };
-  }, [activeZone]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeZone, viewAll, zones]);
 
   async function guarded(action: () => Promise<unknown>, successMessage?: string) {
     try {
@@ -161,7 +169,8 @@ export function FloorPlanApp({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ZoneTabs
           zones={zones}
-          activeZoneId={activeZone.id}
+          showAll={!canEdit && zones.length > 1}
+          activeZoneId={viewAll ? ALL_ZONES : activeZone.id}
           canEdit={canEdit}
           onSelect={(id) => {
             setActiveZoneId(id);
@@ -197,7 +206,7 @@ export function FloorPlanApp({
       </div>
 
       {dayView && (
-        <p className="rounded-xl border border-accent/30 bg-accent-soft/40 px-4 py-2.5 text-sm">
+        <p className="rounded-2xl border border-accent/30 bg-accent-soft/40 px-4 py-2.5 text-sm">
           <span className="font-medium text-accent">
             Aperçu · {dayView.label}
             {dayView.serviceName && ` · ${dayView.serviceName}`}
@@ -207,12 +216,45 @@ export function FloorPlanApp({
       )}
 
       <p className="text-sm text-muted-foreground">
-        {activeZone.tables.length} table{activeZone.tables.length > 1 ? "s" : ""} · {zoneTotals.capacity} places ·{" "}
+        {zoneTotals.count} table{zoneTotals.count > 1 ? "s" : ""} · {zoneTotals.capacity} places ·{" "}
         {zoneTotals.free} libre{zoneTotals.free > 1 ? "s" : ""} {freeSuffix}
       </p>
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start">
-        {activeZone.tables.length === 0 ? (
+        {viewAll ? (
+          <div
+            className="grid w-full min-w-0 flex-1 grid-cols-1 gap-4 md:[grid-template-columns:var(--zone-cols)]"
+            style={{ "--zone-cols": zoneColumns(zones) } as React.CSSProperties}
+          >
+            {zones.map((zone) => (
+              <Card key={zone.id} className="min-w-0 space-y-3 p-4">
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                  <span aria-hidden="true">{ZONE_ICON[zone.type] ?? "📍"}</span>
+                  {zone.name}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {zone.tables.filter((t) => t.liveState === "available").length}/{zone.tables.length} libres
+                  </span>
+                </div>
+                {zone.tables.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">Aucune table dans cette salle.</p>
+                ) : (
+                  <FloorPlanCanvas
+                    fit
+                    fitMaxHeight={640}
+                    tables={zone.tables}
+                    canEdit={false}
+                    showReservations={!!dayView}
+                    selectedTableId={selectedTableId}
+                    mergeSelection={mergeSelection}
+                    onSelectTable={handleSelectTable}
+                    onMoveTable={() => {}}
+                    onResizeTable={() => {}}
+                  />
+                )}
+              </Card>
+            ))}
+          </div>
+        ) : activeZone.tables.length === 0 ? (
           <Card className="flex flex-1 flex-col items-center gap-3 p-10 text-center">
             <p className="text-sm font-medium">Cette zone est vide</p>
             <p className="text-sm text-muted-foreground">Ajoutez votre première table pour commencer à dessiner le plan.</p>
@@ -226,6 +268,9 @@ export function FloorPlanApp({
         ) : (
           <div className="w-full min-w-0 flex-1">
             <FloorPlanCanvas
+              key={activeZone.id}
+              fit={!canEdit}
+              fitMaxHeight={640}
               tables={activeZone.tables}
               canEdit={canEdit}
               showReservations={!!dayView}
@@ -251,7 +296,7 @@ export function FloorPlanApp({
             key={selectedTable.id}
             table={selectedTable}
             canEdit={canEdit}
-            canMerge={canMerge}
+            canMerge={canMerge && !viewAll}
             canCreateReservation={canCreateReservation}
             reserveHref={reserveHref(selectedTable, dayView)}
             onWalkIn={canWalkIn && !dayView ? () => setWalkInTableId(selectedTable.id) : undefined}

@@ -1,3 +1,5 @@
+import { CalendarDays, Palmtree } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { AvatarFigure } from "@/components/ui/avatar-figure";
 import { parseAvatar } from "@/lib/avatar";
 import Link from "next/link";
@@ -140,7 +142,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       <section className="space-y-3">
         <h2 className="text-lg font-bold tracking-tight">Planning cette semaine</h2>
         {profile.weekShifts.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">Aucun service planifié cette semaine.</Card>
+          <EmptyState icon={CalendarDays} title="Aucun service planifié cette semaine" />
         ) : (
           <div className="space-y-2">
             {profile.weekShifts.map((s) => (
@@ -162,7 +164,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       <section className="space-y-3">
         <h2 className="text-lg font-bold tracking-tight">Congés & absences</h2>
         {profile.timeOffRequests.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">Aucune demande pour le moment.</Card>
+          <EmptyState icon={Palmtree} title="Aucune demande pour le moment" />
         ) : (
           <div className="space-y-2">
             {profile.timeOffRequests.map((r) => (

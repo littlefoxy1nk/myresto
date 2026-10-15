@@ -162,7 +162,7 @@ function EditReservationDialog({
         >
           <div>
             <div className="space-y-1.5">
-              <label htmlFor="edit-party-size" className="text-sm font-medium">
+              <label htmlFor="edit-party-size" className="text-sm font-semibold">
                 Personnes
               </label>
               <input
@@ -178,7 +178,7 @@ function EditReservationDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="edit-date" className="text-sm font-medium">
+              <label htmlFor="edit-date" className="text-sm font-semibold">
                 Date
               </label>
               <input
@@ -190,7 +190,7 @@ function EditReservationDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="edit-time" className="text-sm font-medium">
+              <label htmlFor="edit-time" className="text-sm font-semibold">
                 Heure
               </label>
               <input
@@ -210,7 +210,7 @@ function EditReservationDialog({
             onChange={setSpansNextService}
           />
           <div className="space-y-1.5">
-            <label htmlFor="edit-special" className="text-sm font-medium">
+            <label htmlFor="edit-special" className="text-sm font-semibold">
               Demandes spéciales
             </label>
             <input
@@ -221,7 +221,7 @@ function EditReservationDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="edit-notes" className="text-sm font-medium">
+            <label htmlFor="edit-notes" className="text-sm font-semibold">
               Notes internes
             </label>
             <input

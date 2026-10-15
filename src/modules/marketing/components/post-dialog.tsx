@@ -101,7 +101,7 @@ export function PostDialog({
           }}
         >
           <div className="space-y-1.5">
-            <label htmlFor="post-title" className="text-sm font-medium">
+            <label htmlFor="post-title" className="text-sm font-semibold">
               Titre
             </label>
             <input
@@ -116,7 +116,7 @@ export function PostDialog({
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="post-content" className="text-sm font-medium">
+            <label htmlFor="post-content" className="text-sm font-semibold">
               Texte de la publication
             </label>
             <textarea
@@ -150,7 +150,7 @@ export function PostDialog({
             {currentPhoto ? (
               <div className="flex items-center gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={currentPhoto} alt="Photo de la publication" className="h-20 w-20 rounded-xl border border-border object-cover" />
+                <img src={currentPhoto} alt="Photo de la publication" className="h-20 w-20 rounded-2xl border border-border object-cover" />
                 <div className="flex flex-col items-start gap-1">
                   <button type="button" onClick={() => fileRef.current?.click()} className="text-sm font-medium text-accent hover:underline">
                     Changer la photo
@@ -173,7 +173,7 @@ export function PostDialog({
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-4 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border px-3 py-4 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <ImagePlus size={16} aria-hidden="true" />
                 Ajouter une photo
@@ -183,7 +183,7 @@ export function PostDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="post-date" className="text-sm font-medium">
+              <label htmlFor="post-date" className="text-sm font-semibold">
                 Date
               </label>
               <input
@@ -195,7 +195,7 @@ export function PostDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="post-time" className="text-sm font-medium">
+              <label htmlFor="post-time" className="text-sm font-semibold">
                 Heure
               </label>
               <input
@@ -216,7 +216,7 @@ export function PostDialog({
                   type="button"
                   key={c}
                   onClick={() => setChannel(c)}
-                  className={`rounded-xl border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
+                  className={`rounded-2xl border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
                     channel === c ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
                   }`}
                 >
@@ -232,7 +232,7 @@ export function PostDialog({
               <button
                 type="button"
                 onClick={() => setStatus("draft")}
-                className={`rounded-xl border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
+                className={`rounded-2xl border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
                   status === "draft" ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
                 }`}
               >
@@ -241,7 +241,7 @@ export function PostDialog({
               <button
                 type="button"
                 onClick={() => setStatus("scheduled")}
-                className={`rounded-xl border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
+                className={`rounded-2xl border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
                   status === "scheduled" ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
                 }`}
               >

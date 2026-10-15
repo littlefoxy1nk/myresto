@@ -1,3 +1,5 @@
+import { Palmtree } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { redirect } from "next/navigation";
 import { requireModule } from "@/lib/module-guard";
 import { getCurrentContext } from "@/lib/current-context";
@@ -78,7 +80,7 @@ export default async function CongesPage() {
           </Card>
         ))}
         {requests.length === 0 && (
-          <Card className="p-6 text-center text-sm text-muted-foreground">Aucune demande pour le moment.</Card>
+          <EmptyState icon={Palmtree} title="Aucune demande pour le moment" description="Les demandes de congé et d'absence de l'équipe arrivent ici." />
         )}
       </div>
     </div>

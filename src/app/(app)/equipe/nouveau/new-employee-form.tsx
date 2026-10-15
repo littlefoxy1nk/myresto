@@ -75,7 +75,7 @@ export function NewEmployeeForm({ roles, services }: { roles: RoleOption[]; serv
           <CheckCircle2 size={20} aria-hidden="true" />
           <p className="text-sm font-medium">{state.success.name} a été ajouté(e) à l&apos;équipe.</p>
         </div>
-        <div className="rounded-xl bg-muted p-4">
+        <div className="rounded-2xl bg-muted p-4">
           <p className="text-xs text-muted-foreground">Identifiant</p>
           <p className="mt-1 font-mono text-lg font-semibold tracking-wide">{state.success.username}</p>
           <p className="mt-3 text-xs text-muted-foreground">Code d&apos;accès</p>
@@ -138,7 +138,7 @@ export function NewEmployeeForm({ roles, services }: { roles: RoleOption[]; serv
       <Field label="Téléphone" name="phone" type="tel" defaultValue={v.phone} error={errors.phone} />
 
       <div className="space-y-1.5">
-        <label htmlFor="roleId" className="text-sm font-medium">
+        <label htmlFor="roleId" className="text-sm font-semibold">
           Rôle
         </label>
         <select
@@ -290,7 +290,7 @@ function Field({
   const id = `employee-field-${name}`;
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
+      <label htmlFor={id} className="text-sm font-semibold">
         {label}
       </label>
       <input

@@ -56,7 +56,7 @@ export function ClosingDialog({
           }}
         >
           <div className="space-y-1.5">
-            <label htmlFor="closing-revenue" className="text-sm font-medium">
+            <label htmlFor="closing-revenue" className="text-sm font-semibold">
               CA du jour (€)
             </label>
             <input
@@ -72,7 +72,7 @@ export function ClosingDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="closing-covers" className="text-sm font-medium">
+            <label htmlFor="closing-covers" className="text-sm font-semibold">
               Couverts
             </label>
             <input

@@ -31,7 +31,7 @@ export function NotificationPreferencesCard({ categories, muted }: { categories:
 
   return (
     <div className="space-y-3">
-      <ul className="divide-y divide-border rounded-xl border border-border">
+      <ul className="divide-y divide-border rounded-2xl border border-border">
         {categories.map((c) => {
           const receive = !mutedSet.has(c.key);
           return (

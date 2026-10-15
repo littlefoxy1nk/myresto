@@ -102,7 +102,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         </CardHeader>
         <CardContent className="space-y-2 pt-0">
           {customer.history.map((h) => (
-            <div key={h.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2.5 text-sm">
+            <div key={h.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border px-3 py-2.5 text-sm">
               <div>
                 <span className="font-medium">{formatDate(h.date)}</span>{" "}
                 <span className="text-muted-foreground">

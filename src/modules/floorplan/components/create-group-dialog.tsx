@@ -59,7 +59,7 @@ export function CreateGroupDialog({
                   role="radio"
                   aria-checked={permanent === o.value}
                   onClick={() => setPermanent(o.value)}
-                  className={`rounded-xl border px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
+                  className={`rounded-2xl border px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
                     permanent === o.value ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
                   }`}
                 >
@@ -70,7 +70,7 @@ export function CreateGroupDialog({
             </div>
           )}
           <div className="space-y-1.5">
-            <label htmlFor="group-capacity" className="text-sm font-medium">
+            <label htmlFor="group-capacity" className="text-sm font-semibold">
               Capacité combinée
             </label>
             <input
@@ -88,7 +88,7 @@ export function CreateGroupDialog({
             </p>
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="group-label" className="text-sm font-medium">
+            <label htmlFor="group-label" className="text-sm font-semibold">
               Nom (optionnel)
             </label>
             <input

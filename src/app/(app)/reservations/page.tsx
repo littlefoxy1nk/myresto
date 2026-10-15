@@ -1,3 +1,5 @@
+import { CalendarX2 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { requireModule } from "@/lib/module-guard";
 import { redirect } from "next/navigation";
@@ -231,10 +233,21 @@ export default async function ReservationsPage({
           );
         })}
         {reservations.length === 0 && (
-          <Card className="p-6 text-center text-sm text-muted-foreground">
-            Aucune réservation {isToday ? "aujourd'hui" : `le ${dayLabel}`}
-            {service && ` pour le ${service.name.toLowerCase()}`}.
-          </Card>
+          <EmptyState
+            icon={CalendarX2}
+            title={`Aucune réservation ${isToday ? "aujourd'hui" : `le ${dayLabel}`}${service ? ` pour le ${service.name.toLowerCase()}` : ""}`}
+            description={canEdit ? "Une réservation par téléphone ? Ajoute-la en deux clics." : undefined}
+            action={
+              canEdit ? (
+                <Button asChild size="sm">
+                  <Link href={isToday ? "/reservations/nouvelle" : `/reservations/nouvelle?date=${dateKey}`}>
+                    <Plus size={15} aria-hidden="true" />
+                    Nouvelle réservation
+                  </Link>
+                </Button>
+              ) : undefined
+            }
+          />
         )}
       </div>
     </div>

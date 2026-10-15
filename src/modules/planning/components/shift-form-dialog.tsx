@@ -143,7 +143,7 @@ export function ShiftFormDialog({
           }}
         >
           <div className="space-y-1.5">
-            <label htmlFor="shift-member" className="text-sm font-medium">
+            <label htmlFor="shift-member" className="text-sm font-semibold">
               Membre
             </label>
             <select
@@ -173,7 +173,7 @@ export function ShiftFormDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="shift-date" className="text-sm font-medium">
+              <label htmlFor="shift-date" className="text-sm font-semibold">
                 Date
               </label>
               <input
@@ -185,7 +185,7 @@ export function ShiftFormDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="shift-service" className="text-sm font-medium">
+              <label htmlFor="shift-service" className="text-sm font-semibold">
                 Service
               </label>
               <select
@@ -206,7 +206,7 @@ export function ShiftFormDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="shift-start" className="text-sm font-medium">
+              <label htmlFor="shift-start" className="text-sm font-semibold">
                 Début
               </label>
               <input
@@ -218,7 +218,7 @@ export function ShiftFormDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="shift-end" className="text-sm font-medium">
+              <label htmlFor="shift-end" className="text-sm font-semibold">
                 Fin
               </label>
               <input
@@ -239,7 +239,7 @@ export function ShiftFormDialog({
                   type="button"
                   key={p}
                   onClick={() => setPosition(p)}
-                  className={`rounded-xl border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
+                  className={`rounded-2xl border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
                     position === p ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
                   }`}
                 >
@@ -254,7 +254,7 @@ export function ShiftFormDialog({
               {liveWarnings.map((w) => (
                 <div
                   key={w.message}
-                  className={`flex items-start gap-2 rounded-xl p-3 text-sm ${
+                  className={`flex items-start gap-2 rounded-2xl p-3 text-sm ${
                     w.level === "conflict" ? "bg-urgent-soft text-urgent" : "bg-important-soft text-important"
                   }`}
                 >

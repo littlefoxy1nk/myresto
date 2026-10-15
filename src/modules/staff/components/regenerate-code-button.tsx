@@ -34,7 +34,7 @@ export function RegenerateCodeButton({ membershipId, name }: { membershipId: str
               <DialogDescription>
                 Communiquez ce code à {name} — il ne sera plus affiché ensuite. L&apos;ancien code ne fonctionne plus.
               </DialogDescription>
-              <div className="mt-4 rounded-xl bg-muted p-4">
+              <div className="mt-4 rounded-2xl bg-muted p-4">
                 <p className="text-xs text-muted-foreground">Code d&apos;accès</p>
                 <p className="mt-1 font-mono text-lg font-semibold tracking-wide">{code}</p>
               </div>

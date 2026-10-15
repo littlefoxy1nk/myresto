@@ -25,6 +25,8 @@ export const PRESSURE_LABEL: Record<ZonePressureLevel, string> = {
   pleine: "Pleine",
 };
 
+export const ALL_ZONES = "__all__";
+
 export function ZoneTabs({
   zones,
   activeZoneId,
@@ -33,6 +35,7 @@ export function ZoneTabs({
   onCreateZone,
   onDeleteZone,
   pressureByZoneId,
+  showAll = false,
 }: {
   zones: ZoneWithTables[];
   activeZoneId: string | null;
@@ -43,9 +46,24 @@ export function ZoneTabs({
   /// Fourni uniquement par le Mode Service — une tension "en ce moment" n'a pas de sens
   /// sur l'écran de configuration du Plan de salle.
   pressureByZoneId?: Record<string, ZonePressureLevel>;
+  /// Propose « Toutes les salles » : toutes les salles à l'écran en même temps (lecture).
+  showAll?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {showAll && (
+        <button
+          onClick={() => onSelect(ALL_ZONES)}
+          aria-pressed={activeZoneId === ALL_ZONES}
+          className={cn(
+            "flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+            activeZoneId === ALL_ZONES ? "border-accent bg-accent-soft text-accent" : "border-border bg-card text-foreground hover:bg-muted"
+          )}
+        >
+          <span aria-hidden="true">🗺️</span>
+          Toutes les salles
+        </button>
+      )}
       {zones.map((zone) => {
         const active = zone.id === activeZoneId;
         const capacity = zone.tables.reduce((s, t) => s + t.capacity, 0);
@@ -55,7 +73,7 @@ export function ZoneTabs({
           <div
             key={zone.id}
             className={cn(
-              "flex items-center gap-2 rounded-xl border pl-3.5 pr-2 py-2 text-sm font-medium transition-colors",
+              "flex items-center gap-2 rounded-2xl border pl-3.5 pr-2 py-2 text-sm font-medium transition-colors",
               active ? "border-accent bg-accent-soft text-accent" : "border-border bg-card text-foreground"
             )}
           >
@@ -91,7 +109,7 @@ export function ZoneTabs({
       {canEdit && (
         <button
           onClick={onCreateZone}
-          className="flex items-center gap-1.5 rounded-xl border border-dashed border-border px-3.5 py-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent"
+          className="flex items-center gap-1.5 rounded-2xl border border-dashed border-border px-3.5 py-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-accent"
         >
           <Plus size={15} aria-hidden="true" />
           Zone

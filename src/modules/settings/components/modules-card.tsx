@@ -30,7 +30,7 @@ export function ModulesCard({ disabledModules }: { disabledModules: string }) {
 
   return (
     <div className="space-y-3">
-      <ul className="divide-y divide-border rounded-xl border border-border">
+      <ul className="divide-y divide-border rounded-2xl border border-border">
         {MODULES.map((m) => {
           const enabled = !disabled.has(m.key);
           return (

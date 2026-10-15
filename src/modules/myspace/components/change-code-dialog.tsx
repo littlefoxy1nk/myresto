@@ -40,7 +40,7 @@ export function ChangeCodeDialog({ open, onOpenChange }: { open: boolean; onOpen
           }}
         >
           <div className="space-y-1.5">
-            <label htmlFor="current-code" className="text-sm font-medium">
+            <label htmlFor="current-code" className="text-sm font-semibold">
               Code actuel
             </label>
             <input
@@ -53,7 +53,7 @@ export function ChangeCodeDialog({ open, onOpenChange }: { open: boolean; onOpen
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="new-code" className="text-sm font-medium">
+            <label htmlFor="new-code" className="text-sm font-semibold">
               Nouveau code
             </label>
             <input

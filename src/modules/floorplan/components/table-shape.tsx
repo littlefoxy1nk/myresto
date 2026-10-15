@@ -10,6 +10,7 @@ export function TableShape({
   dragging,
   mergeTarget,
   showReservation,
+  labelScale = 1,
   onPointerDownCapture,
 }: {
   table: TableWithLiveState;
@@ -21,6 +22,8 @@ export function TableShape({
   mergeTarget?: boolean;
   /// Aperçu d'un jour : affiche l'heure et le nom de la réservation sur la table.
   showReservation?: boolean;
+  /// Quand le plan est réduit pour tenir à l'écran, on grossit un peu le texte pour qu'il reste lisible (1 = taille normale).
+  labelScale?: number;
   onPointerDownCapture?: (e: React.PointerEvent) => void;
 }) {
   const style = LIVE_STATE_STYLE[table.liveState];
@@ -41,14 +44,14 @@ export function TableShape({
       style={{ left: table.posX, top: table.posY, width: table.width, height: table.height }}
       data-table-id={table.id}
     >
-      <span className="text-sm font-semibold">{table.label}</span>
+      <span className="font-semibold" style={{ fontSize: 14 * labelScale }}>{table.label}</span>
       {showReservation && table.activeReservation ? (
-        <span className="max-w-full truncate px-1 text-[11px] opacity-90">
+        <span className="max-w-full truncate px-1 opacity-90" style={{ fontSize: 11 * labelScale }}>
           {table.activeReservation.time} · {table.activeReservation.customerName}
           {(table.dayReservations?.length ?? 0) > 1 && ` +${table.dayReservations!.length - 1}`}
         </span>
       ) : (
-        <span className="opacity-80">{table.capacity} pers.</span>
+        <span className="opacity-80" style={{ fontSize: 12 * labelScale }}>{table.capacity} pers.</span>
       )}
     </div>
   );

@@ -21,6 +21,7 @@ function clampZoom(z: number) {
 
 const FIT_MARGIN = 40;
 const FIT_MAX_HEIGHT = 460;
+const FIT_MAX_ZOOM = 1.15;
 
 function tablesBounds(tables: TableWithLiveState[], margin = FIT_MARGIN) {
   return {
@@ -41,6 +42,7 @@ export function FloorPlanCanvas({
   onResizeTable,
   onDropOnTable,
   fit = false,
+  fitMaxHeight = FIT_MAX_HEIGHT,
   showReservations = false,
 }: {
   tables: TableWithLiveState[];
@@ -57,6 +59,8 @@ export function FloorPlanCanvas({
   /// Mode lecture "tout d'un coup d'œil" (Mode Service) : le plan est cadré sur ses tables
   /// et mis à l'échelle de la largeur disponible — pas de défilement, pas de boutons de zoom.
   fit?: boolean;
+  /// Hauteur maximale du plan cadré (en pixels) : plus grande sur la page Plan de salle que dans la carte d'Aujourd'hui.
+  fitMaxHeight?: number;
   showReservations?: boolean;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -76,12 +80,12 @@ export function FloorPlanCanvas({
     const el = scrollRef.current;
     if (!fit || !el) return;
     const update = () =>
-      setFitZoom(Math.min(1, Math.max(ZOOM_MIN, Math.min(el.clientWidth / fitWidth, FIT_MAX_HEIGHT / fitHeight))));
+      setFitZoom(Math.min(FIT_MAX_ZOOM, Math.max(ZOOM_MIN, Math.min(el.clientWidth / fitWidth, fitMaxHeight / fitHeight))));
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [fit, fitWidth, fitHeight]);
+  }, [fit, fitWidth, fitHeight, fitMaxHeight]);
 
   // Cadre toutes les tables de la zone d'un coup : zoom calculé sur leur boîte englobante,
   // puis défilement pour que son coin haut-gauche soit en haut-gauche de la vue.
@@ -93,6 +97,15 @@ export function FloorPlanCanvas({
     setZoom(next);
     requestAnimationFrame(() => el.scrollTo({ left: x1 * next, top: y1 * next }));
   }
+
+  // En édition, le plan s'ouvre déjà cadré sur ses tables (plutôt qu'à 100 % avec du défilement à deviner).
+  const didAutoFit = useRef(false);
+  useEffect(() => {
+    if (fit || didAutoFit.current || tables.length === 0) return;
+    didAutoFit.current = true;
+    fitToTables();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fit, tables.length]);
 
   // Pincement au trackpad / Ctrl+molette : le navigateur envoie un wheel avec ctrlKey.
   // Écouteur natif non passif, sinon la page entière zoomerait à la place du plan.
@@ -217,7 +230,7 @@ export function FloorPlanCanvas({
 
   return (
     <div className="relative rounded-3xl border border-border/70 bg-muted/50">
-      {!fit && <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">
+      {!fit && <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-2xl border border-border bg-card p-1 shadow-sm">
         <button
           type="button"
           onClick={fitToTables}
@@ -268,7 +281,7 @@ export function FloorPlanCanvas({
         {[...groupBounds.entries()].map(([id, b]) => (
           <div
             key={id}
-            className="absolute rounded-xl border border-dashed border-accent/40 bg-accent-soft/30"
+            className="absolute rounded-2xl border border-dashed border-accent/40 bg-accent-soft/30"
             style={{ left: b.x1, top: b.y1, width: b.x2 - b.x1, height: b.y2 - b.y1 }}
           >
             <span className="absolute -top-3 left-2 rounded-full bg-card px-2 py-0.5 text-[10px] font-semibold text-accent shadow-sm">
@@ -297,6 +310,7 @@ export function FloorPlanCanvas({
                 dragging={isDragging}
                 mergeTarget={dropTargetId === t.id}
                 showReservation={showReservations}
+                labelScale={fit ? Math.min(1.5, Math.max(1, 1 / zoom)) : 1}
                 onPointerDownCapture={(e) => startDrag(e, t)}
               />
               {canEdit && selected && !isDragging && (

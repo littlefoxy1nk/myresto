@@ -47,7 +47,9 @@ export default async function PlanningPage({
   if (!data.canEdit) {
     return (
       <div className="stagger mx-auto max-w-6xl space-y-6">
-        <WorkerPlanningView data={data} {...weekNavProps} />
+        <WorkerPlanningView data={data}
+        {...weekNavProps}
+      />
       </div>
     );
   }
@@ -58,41 +60,47 @@ export default async function PlanningPage({
 
   return (
     <div className="stagger mx-auto max-w-6xl space-y-6">
-      {ctx.can("settings.manage") && serviceCount <= 1 && (
-        <p className="rounded-xl border border-accent/30 bg-accent-soft/40 px-4 py-2.5 text-sm">
-          <span className="font-medium text-accent">Définis tes services</span>{" "}
-          <span className="text-muted-foreground">
-            (ex : 12h, 18h, 20h30) pour que le planning, le plan de salle et les réservations suivent tes vrais horaires.
-          </span>{" "}
-          <Link href="/parametres?tab=etablissement#services" className="font-medium text-accent underline underline-offset-2">
-            Ouvrir les paramètres
-          </Link>
-        </p>
-      )}
-      {replacementRequests.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold tracking-tight">Remplacements en attente</h2>
-          <div className="space-y-2">
-            {replacementRequests.map((r) => (
-              <Card key={r.id} className="space-y-2 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium">{r.requestedByName}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {r.dateLabel} · {r.startTime}–{r.endTime}
-                  </span>
-                  <Badge variant="neutral">
-                    {r.candidates.filter((c) => c.hasVolunteered).length} volontaire
-                    {r.candidates.filter((c) => c.hasVolunteered).length > 1 ? "s" : ""}
-                  </Badge>
-                  {r.reason && <span className="text-xs text-muted-foreground">· {r.reason}</span>}
+      <PlanningApp
+        afterHeader={
+          <>
+            {ctx.can("settings.manage") && serviceCount <= 1 && (
+              <p className="rounded-2xl border border-accent/30 bg-accent-soft/40 px-4 py-2.5 text-sm">
+                <span className="font-medium text-accent">Définis tes services</span>{" "}
+                <span className="text-muted-foreground">
+                  (ex : 12h, 18h, 20h30) pour que le planning, le plan de salle et les réservations suivent tes vrais horaires.
+                </span>{" "}
+                <Link href="/parametres?tab=etablissement#services" className="font-medium text-accent underline underline-offset-2">
+                  Ouvrir les paramètres
+                </Link>
+              </p>
+            )}
+            {replacementRequests.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-lg font-bold tracking-tight">Remplacements en attente</h2>
+                <div className="space-y-2">
+                  {replacementRequests.map((r) => (
+                    <Card key={r.id} className="space-y-2 p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium">{r.requestedByName}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {r.dateLabel} · {r.startTime}–{r.endTime}
+                        </span>
+                        <Badge variant="neutral">
+                          {r.candidates.filter((c) => c.hasVolunteered).length} volontaire
+                          {r.candidates.filter((c) => c.hasVolunteered).length > 1 ? "s" : ""}
+                        </Badge>
+                        {r.reason && <span className="text-xs text-muted-foreground">· {r.reason}</span>}
+                      </div>
+                      <AssignReplacementControl requestId={r.id} candidates={r.candidates} />
+                    </Card>
+                  ))}
                 </div>
-                <AssignReplacementControl requestId={r.id} candidates={r.candidates} />
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-      <PlanningApp data={data} view={isPlanningView(ctx.establishment.planningView) ? ctx.establishment.planningView : "service"} {...weekNavProps} />
+              </section>
+            )}
+          </>
+        }
+        data={data}
+        view={isPlanningView(ctx.establishment.planningView) ? ctx.establishment.planningView : "service"} {...weekNavProps} />
     </div>
   );
 }

@@ -53,8 +53,8 @@ function ServiceGridRows({
                   onClick={() => onToggle(day.value, service.id, !checked)}
                   aria-pressed={checked}
                   className={cn(
-                    "rounded-xl border px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
-                    checked ? "border-good bg-good-soft text-good" : "border-border bg-background text-foreground hover:bg-muted"
+                    "rounded-2xl border px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+                    checked ? "border-good bg-good-soft text-good" : "border-border bg-card text-foreground hover:bg-muted"
                   )}
                 >
                   {service.name}
@@ -67,7 +67,7 @@ function ServiceGridRows({
                 onClick={() => onToggleDay(day.value, servicesToday, !allChecked)}
                 aria-pressed={allChecked}
                 className={cn(
-                  "rounded-xl border border-dashed px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+                  "rounded-2xl border border-dashed px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
                   allChecked ? "border-good bg-good-soft text-good" : "border-border text-muted-foreground hover:bg-muted"
                 )}
               >
@@ -230,7 +230,7 @@ export function ReadOnlyServiceGrid({
           <div key={day.value} className="flex flex-wrap items-center gap-2">
             <span className="w-9 shrink-0 text-xs font-medium text-muted-foreground">{day.label}</span>
             {servicesToday.map((service) => (
-              <span key={service.id} className="rounded-xl border border-good bg-good-soft px-3 py-2 text-xs font-medium text-good">
+              <span key={service.id} className="rounded-2xl border border-good bg-good-soft px-3 py-2 text-xs font-medium text-good">
                 {service.name}
               </span>
             ))}

@@ -62,14 +62,14 @@ export function PlanningNotes({ notes, canEdit }: { notes: PlanningNoteItem[]; c
       </div>
 
       {open && (
-        <div className="flex flex-wrap items-end gap-2 rounded-xl bg-muted p-3">
+        <div className="flex flex-wrap items-end gap-2 rounded-2xl bg-muted p-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Date</label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="rounded-xl border border-border bg-card px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </div>
           <div className="space-y-1">
@@ -78,7 +78,7 @@ export function PlanningNotes({ notes, canEdit }: { notes: PlanningNoteItem[]; c
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="rounded-xl border border-border bg-card px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </div>
           <div className="min-w-[180px] flex-1 space-y-1">
@@ -89,7 +89,7 @@ export function PlanningNotes({ notes, canEdit }: { notes: PlanningNoteItem[]; c
               onChange={(e) => setMessage(e.target.value)}
               placeholder="ex : entretien des fûts"
               maxLength={200}
-              className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-xl border border-border bg-card px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </div>
           <Button size="sm" disabled={pending || !date || !message.trim()} onClick={submit}>

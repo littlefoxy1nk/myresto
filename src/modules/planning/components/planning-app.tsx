@@ -21,7 +21,7 @@ import { createShift, updateShift, deleteShift, duplicateWeek, publishWeekSchedu
 import { SHIFT_POSITION_LABELS, POSITIONS_BY_ZONE } from "@/modules/planning/types";
 import { PlanningZoneTabs, type PlanningZoneFilter } from "@/modules/planning/components/planning-zone-tabs";
 import { PlanningViewTabs } from "@/modules/planning/components/planning-view-tabs";
-import { buildPlanningRows, defaultServiceForRow, worstGapsByPosition, type PlanningRow, type PlanningView } from "@/modules/planning/periods";
+import { buildPlanningRows, defaultServiceForRow, describeDays, hasUsualHours, worstGapsByPosition, type PlanningRow, type PlanningView } from "@/modules/planning/periods";
 import type { PlanningMember, PlanningShift, ShiftConflictLevel, ShiftPosition, WeekPlanningResult } from "@/modules/planning/types";
 
 function formatHours(h: number) {
@@ -73,7 +73,10 @@ export function PlanningApp({
   currentWeekHref,
   isCurrentWeek,
   view,
+  afterHeader,
 }: {
+  /// Bandeaux à afficher juste sous le titre (services à définir, remplacements en attente).
+  afterHeader?: React.ReactNode;
   /// L'affichage choisi pour l'établissement : une ligne par service, ou juste Midi et Soir.
   view: PlanningView;
   data: WeekPlanningResult;
@@ -136,6 +139,11 @@ export function PlanningApp({
   }
   const hasUnassignedServiceShifts = visibleShifts.some((s) => s.serviceId == null);
   const serviceRows = buildPlanningRows(data.services, currentView, hasUnassignedServiceShifts);
+  const dayColumns = describeDays(data.weekDays, serviceRows, todayKey, isoDayOfWeek);
+  const dayColumnByDate = new Map(dayColumns.map((d) => [d.date, d]));
+  const shiftCountByDate = new Map<string, number>();
+  for (const sh of visibleShifts) shiftCountByDate.set(sh.date, (shiftCountByDate.get(sh.date) ?? 0) + 1);
+  const gapDates = new Set(data.staffingGaps.filter((g) => g.required > g.assigned).map((g) => g.date));
 
   // Creux de personnel (voir computeStaffingGapAlerts) et demandes de renfort en cours,
   // indexés par (jour, service) pour un lookup direct depuis chaque cellule de la grille.
@@ -298,7 +306,7 @@ export function PlanningApp({
           const member = memberById.get(s.membershipId);
           const isDraft = s.status === "planned";
           const chipClass = cn(
-            "rounded-xl border px-2.5 py-1.5 text-left text-[11px] leading-tight",
+            "rounded-2xl border px-2.5 py-1.5 text-left text-[11px] leading-tight",
             isDraft && "border-dashed",
             s.conflictLevel === "conflict"
               ? "border-urgent bg-urgent-soft text-urgent"
@@ -312,12 +320,16 @@ export function PlanningApp({
           // le détail complet reste disponible en un clic (la modale d'édition l'affiche
           // via le même aperçu en temps réel — voir shift-form-dialog.tsx).
           const warningSummary = s.warnings.length === 0 ? null : s.conflictLevel === "conflict" ? "Conflit" : "À vérifier";
-          const titleText = s.warnings.map((w) => w.message).join(" · ") || undefined;
+          // Les horaires habituels du service ne sont pas répétés sur chaque pastille : seuls ceux qui s'en écartent s'affichent.
+          const usual = hasUsualHours(s, row.serviceIds, data.services);
+          const detail = `${member ? member.firstName : "?"} · ${s.startTime}–${s.endTime} · ${SHIFT_POSITION_LABELS[s.position as keyof typeof SHIFT_POSITION_LABELS] ?? s.position}`;
+          const titleText = [detail, ...s.warnings.map((w) => w.message)].join(" · ");
           const content = (
             <>
-              <div className="truncate font-medium">{member ? member.firstName : "?"}</div>
-              <div className={cn("truncate", s.conflictLevel === "ok" && "opacity-75")}>
-                {s.startTime}–{s.endTime} · {SHIFT_POSITION_LABELS[s.position as keyof typeof SHIFT_POSITION_LABELS] ?? s.position}
+              <div className="truncate font-semibold">{member ? member.firstName : "?"}</div>
+              <div className={cn("truncate", s.conflictLevel === "ok" && "opacity-75", !usual && "font-semibold opacity-100")}>
+                {usual ? "" : `${s.startTime}–${s.endTime} · `}
+                {SHIFT_POSITION_LABELS[s.position as keyof typeof SHIFT_POSITION_LABELS] ?? s.position}
               </div>
               {warningSummary && (
                 <div className="mt-0.5 flex items-center gap-1 font-medium">
@@ -436,6 +448,8 @@ export function PlanningApp({
         </div>
       </div>
 
+      {afterHeader}
+
       {data.alerts.length > 0 && (
         <a
           href="#alertes"
@@ -464,15 +478,41 @@ export function PlanningApp({
       ) : (
         <>
           {/* Vue semaine — desktop : par service (lignes) × jour (colonnes), pour voir
-              directement qui travaille sans parcourir une ligne par personne. */}
+              directement qui travaille sans parcourir une ligne par personne. Les colonnes ont
+              toutes la même largeur ; un jour où rien n'a lieu se replie, aujourd'hui est mis en avant. */}
           <div className="hidden overflow-x-auto rounded-3xl border border-border/70 bg-card shadow-card md:block">
-            <table className="w-full min-w-[900px] border-collapse text-sm">
+            <table
+              className="w-full table-fixed border-collapse text-sm"
+              style={{ minWidth: `${9 + dayColumns.filter((d) => !d.closed).length * 8.5 + dayColumns.filter((d) => d.closed).length * 3}rem` }}
+            >
+              <colgroup>
+                <col style={{ width: "9rem" }} />
+                {dayColumns.map((d) => (
+                  <col key={d.date} style={d.closed ? { width: "3rem" } : undefined} />
+                ))}
+              </colgroup>
               <thead>
                 <tr className="border-b border-border">
-                  <th className="w-36 shrink-0 p-3 text-left text-xs font-medium text-muted-foreground">Service</th>
-                  {data.weekDays.map((date) => (
-                    <th key={date} className="p-3 text-left text-xs font-medium text-muted-foreground">
-                      {data.dayLabels[date]}
+                  <th className="sticky left-0 z-10 bg-card p-3 text-left text-xs font-semibold text-muted-foreground">Service</th>
+                  {dayColumns.map((d) => (
+                    <th
+                      key={d.date}
+                      className={cn("p-3 text-left align-bottom", d.isToday && "bg-accent-soft/60", d.isPast && !d.isToday && "opacity-60")}
+                    >
+                      {d.closed ? (
+                        <span className="block text-[11px] font-semibold text-muted-foreground [writing-mode:vertical-rl]">{data.dayLabels[d.date]} · fermé</span>
+                      ) : (
+                        <>
+                          <span className={cn("flex items-center gap-1.5 text-xs font-semibold", d.isToday ? "text-accent" : "text-foreground")}>
+                            {data.dayLabels[d.date]}
+                            {gapDates.has(d.date) && <span className="h-1.5 w-1.5 rounded-full bg-urgent" title="Il manque du personnel ce jour-là" />}
+                          </span>
+                          <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
+                            {d.isToday ? "Aujourd'hui · " : ""}
+                            {shiftCountByDate.get(d.date) ?? 0} shift{(shiftCountByDate.get(d.date) ?? 0) > 1 ? "s" : ""}
+                          </span>
+                        </>
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -480,13 +520,16 @@ export function PlanningApp({
               <tbody>
                 {serviceRows.map((service) => (
                   <tr key={service.id} className="border-b border-border last:border-0">
-                    <td className="p-3 align-top">
-                      <p className="text-sm font-medium">{service.name}</p>
-                      {service.time && <p className="font-mono text-xs text-muted-foreground">{service.time}</p>}
+                    <td className="sticky left-0 z-10 bg-card p-3 align-top">
+                      <p className="text-sm font-semibold">{service.name}</p>
+                      {service.time && <p className="text-xs tabular-nums text-muted-foreground">{service.time.replace("–", " – ")}</p>}
                     </td>
-                    {data.weekDays.map((date) => (
-                      <td key={date} className="p-1.5 align-top">
-                        {renderServiceSlot(service, date, service.daysOfWeek === null || service.daysOfWeek.includes(isoDayOfWeek(date)))}
+                    {dayColumns.map((d) => (
+                      <td
+                        key={d.date}
+                        className={cn("p-1.5 align-top", d.isToday && "bg-accent-soft/40", d.isPast && !d.isToday && "opacity-70", d.closed && "bg-muted/40")}
+                      >
+                        {d.closed ? null : renderServiceSlot(service, d.date, service.daysOfWeek === null || service.daysOfWeek.includes(isoDayOfWeek(d.date)))}
                       </td>
                     ))}
                   </tr>
@@ -504,11 +547,15 @@ export function PlanningApp({
                   ref={date === selectedDay ? activeDayTabRef : undefined}
                   onClick={() => setSelectedDay(date)}
                   className={cn(
-                    "shrink-0 rounded-xl border px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+                    "shrink-0 rounded-2xl border px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
                     date === selectedDay ? "border-accent bg-accent-soft text-accent" : "border-border bg-card text-foreground"
                   )}
                 >
-                  {data.dayLabels[date]}
+                  <span className="flex items-center gap-1.5">
+                    {data.dayLabels[date]}
+                    {gapDates.has(date) && <span className="h-1.5 w-1.5 rounded-full bg-urgent" aria-label="Il manque du personnel" />}
+                    {dayColumnByDate.get(date)?.isToday && <span className="rounded-full bg-accent px-1.5 text-[9px] font-bold text-accent-foreground">auj.</span>}
+                  </span>
                 </button>
               ))}
             </div>
@@ -534,7 +581,7 @@ export function PlanningApp({
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Équipe</p>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {visibleMembers.map((m) => (
-                  <div key={m.membershipId} className="rounded-xl border border-border p-3">
+                  <div key={m.membershipId} className="rounded-2xl border border-border p-3">
                     <p className="flex items-center gap-1.5 text-sm font-medium">
                       <ConflictDot level={data.memberWeekStatus[m.membershipId] ?? "ok"} />
                       {m.firstName} {m.lastName}

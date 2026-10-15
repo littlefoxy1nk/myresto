@@ -51,7 +51,7 @@ export function ObjectiveDialog({
           }}
         >
           <div className="space-y-1.5">
-            <label htmlFor="objective-count" className="text-sm font-medium">
+            <label htmlFor="objective-count" className="text-sm font-semibold">
               Services visés
             </label>
             <input

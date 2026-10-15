@@ -52,7 +52,7 @@ export function CreateZoneDialog({
           }}
         >
           <div className="space-y-1.5">
-            <label htmlFor="zone-name" className="text-sm font-medium">
+            <label htmlFor="zone-name" className="text-sm font-semibold">
               Nom
             </label>
             <input
@@ -65,7 +65,7 @@ export function CreateZoneDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="zone-type" className="text-sm font-medium">
+            <label htmlFor="zone-type" className="text-sm font-semibold">
               Type
             </label>
             <select

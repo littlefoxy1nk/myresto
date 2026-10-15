@@ -159,7 +159,7 @@ export function WorkerPlanningView({
                   ref={date === selectedDay ? activeDayTabRef : undefined}
                   onClick={() => setSelectedDay(date)}
                   className={cn(
-                    "shrink-0 rounded-xl border px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+                    "shrink-0 rounded-2xl border px-3 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
                     date === selectedDay ? "border-accent bg-accent-soft text-accent" : "border-border bg-card text-foreground"
                   )}
                 >

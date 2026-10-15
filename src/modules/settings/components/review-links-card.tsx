@@ -30,13 +30,13 @@ export function ReviewLinksCard({ google, tripadvisor }: { google: string | null
       }}
     >
       <div className="space-y-1.5">
-        <label htmlFor="review-google" className="text-sm font-medium">
+        <label htmlFor="review-google" className="text-sm font-semibold">
           Lien d&apos;avis Google
         </label>
         <input id="review-google" value={googleUrl} onChange={(e) => setGoogleUrl(e.target.value)} placeholder="https://g.page/r/…" className={field} />
       </div>
       <div className="space-y-1.5">
-        <label htmlFor="review-tripadvisor" className="text-sm font-medium">
+        <label htmlFor="review-tripadvisor" className="text-sm font-semibold">
           Lien d&apos;avis TripAdvisor
         </label>
         <input

@@ -89,7 +89,7 @@ export function RequestCoverageDialog({
                     setPosition(p);
                     setMembershipId("");
                   }}
-                  className={`rounded-xl border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
+                  className={`rounded-2xl border px-2 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
                     position === p ? "border-accent bg-accent-soft text-accent" : "border-border hover:bg-muted"
                   }`}
                 >
@@ -105,7 +105,7 @@ export function RequestCoverageDialog({
             </p>
           ) : (
             <div className="space-y-1.5">
-              <label htmlFor="coverage-member" className="text-sm font-medium">
+              <label htmlFor="coverage-member" className="text-sm font-semibold">
                 Qui solliciter ?
               </label>
               <select
