@@ -72,7 +72,7 @@ export function CreateTableDialog({
               max={50}
               value={count}
               onChange={(e) => setCount(Math.max(1, Number(e.target.value)))}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -86,7 +86,7 @@ export function CreateTableDialog({
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder={bulk ? "ex: T" : "ex: T14"}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
               />
               {bulk && <p className="text-xs text-muted-foreground">Donnera {label || "T"}1, {label || "T"}2…</p>}
             </div>
@@ -101,7 +101,7 @@ export function CreateTableDialog({
                 max={30}
                 value={capacity}
                 onChange={(e) => setCapacity(Number(e.target.value))}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
               />
             </div>
           </div>

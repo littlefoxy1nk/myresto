@@ -65,7 +65,7 @@ export function FigureEntry({ initialYear, initialMonth }: { initialYear: number
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5" aria-label="Saisie des chiffres">
       <div>
-        <h2 className="text-base font-semibold">Saisie des chiffres</h2>
+        <h2 className="text-lg font-bold tracking-tight">Saisie des chiffres</h2>
         <p className="text-xs text-muted-foreground">
           Renseigne les jours d&apos;un mois, ou directement le total du mois. Un champ vide = rien de saisi.
         </p>
@@ -81,7 +81,7 @@ export function FigureEntry({ initialYear, initialMonth }: { initialYear: number
             aria-label="Mois"
             value={month}
             onChange={(e) => setMonth(Number(e.target.value))}
-            className="rounded-xl border border-border bg-background px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="rounded-2xl border border-border bg-card/80 px-3 py-1.5 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
           >
             {MONTH_LABELS.map((l, i) => (
               <option key={l} value={i + 1}>
@@ -96,7 +96,7 @@ export function FigureEntry({ initialYear, initialMonth }: { initialYear: number
             max={2100}
             value={year}
             onChange={(e) => Number(e.target.value) >= 2000 && setYear(Number(e.target.value))}
-            className="w-24 rounded-xl border border-border bg-background px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="w-24 rounded-2xl border border-border bg-card/80 px-3 py-1.5 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
           />
           <button type="button" onClick={() => shiftMonth(1)} className={arrow}>
             <ChevronRight size={16} aria-hidden="true" />

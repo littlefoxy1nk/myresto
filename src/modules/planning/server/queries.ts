@@ -415,6 +415,19 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
 
   const weekSummary = computeWeekSummaryParts(alerts, members, objectivesByMember);
 
+  // Les alertes que la personne a rangées (« c'est OK pour moi ») pour cette semaine ne sont plus affichées ;
+  // elles restent comptées à part pour pouvoir les rétablir.
+  const dismissedKeys = new Set(
+    (
+      await prisma.planningAlertDismissal.findMany({
+        where: { membershipId: ctx.membership.id, weekStart: toDateKey(weekStart) },
+        select: { alertKey: true },
+      })
+    ).map((d) => d.alertKey)
+  );
+  const visibleAlerts = alerts.filter((a) => !dismissedKeys.has(a.id));
+  const dismissedAlertCount = alerts.length - visibleAlerts.length;
+
   return {
     weekStart: toDateKey(weekStart),
     weekDays,
@@ -424,7 +437,8 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
     services: planningServices,
     dayServices,
     dayFrequentation,
-    alerts,
+    alerts: visibleAlerts,
+    dismissedAlertCount,
     weekSummary,
     totalHoursByMember,
     shiftsCountByMember,

@@ -181,7 +181,7 @@ export function NewReservationFlow({
     <div className="space-y-6">
       <div>
         <p className="text-sm text-muted-foreground">Étape {step} sur 3</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Nouvelle réservation</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Nouvelle réservation</h1>
       </div>
 
       {step === 1 && (
@@ -366,7 +366,7 @@ function Field({
         value={value}
         autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
       />
     </div>
   );

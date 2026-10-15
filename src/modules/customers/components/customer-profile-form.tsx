@@ -56,7 +56,7 @@ export function CustomerProfileForm({
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="0475 12 34 56"
-            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
           />
         </div>
         <div className="space-y-1.5">
@@ -68,7 +68,7 @@ export function CustomerProfileForm({
             type="date"
             value={birthday}
             onChange={(e) => setBirthday(e.target.value)}
-            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
           />
         </div>
       </div>
@@ -84,7 +84,7 @@ export function CustomerProfileForm({
             onChange={(e) => setPreferences(e.target.value)}
             rows={2}
             placeholder="ex: aime être près de la fenêtre"
-            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
           />
         </div>
         <div className="space-y-1.5">
@@ -97,7 +97,7 @@ export function CustomerProfileForm({
             onChange={(e) => setAllergies(e.target.value)}
             rows={2}
             placeholder="ex: fruits à coque"
-            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
           />
         </div>
       </div>
@@ -110,7 +110,7 @@ export function CustomerProfileForm({
           id="customer-table"
           value={favoriteTableId}
           onChange={(e) => setFavoriteTableId(e.target.value)}
-          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent sm:w-64"
+          className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15 sm:w-64"
         >
           <option value="">Aucune</option>
           {tables.map((t) => (
@@ -131,7 +131,7 @@ export function CustomerProfileForm({
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           placeholder="ex: habitué du vendredi soir avec des collègues"
-          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
         />
       </div>
 

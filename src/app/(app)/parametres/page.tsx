@@ -61,9 +61,9 @@ export default async function ParametresPage({ searchParams }: { searchParams: P
   const active = requested && allowed.includes(requested) ? requested : allowed[0];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="stagger mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Paramètres</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Paramètres</h1>
         <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
           {ctx.establishment.name}
           {ctx.establishment.isDemo && <Badge variant="accent">Données de démonstration</Badge>}

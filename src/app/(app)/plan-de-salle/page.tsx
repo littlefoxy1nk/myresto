@@ -47,9 +47,9 @@ export default async function PlanDeSallePage({
     : null;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="stagger mx-auto max-w-6xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Plan de salle</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Plan de salle</h1>
         <p className="mt-1 text-sm text-muted-foreground">{ctx.establishment.name}</p>
       </div>
 

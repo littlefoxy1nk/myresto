@@ -63,7 +63,7 @@ export function WalkInDialog({
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="ex: Famille Dupont"
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -76,7 +76,7 @@ export function WalkInDialog({
                 type="tel"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
               />
             </div>
             <div className="space-y-1.5">
@@ -90,7 +90,7 @@ export function WalkInDialog({
                 max={60}
                 value={partySize}
                 onChange={(e) => setPartySize(Number(e.target.value))}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
               />
             </div>
           </div>

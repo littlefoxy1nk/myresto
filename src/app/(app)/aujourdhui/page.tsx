@@ -8,6 +8,11 @@ import { TodaySummaryCard } from "@/modules/today/components/today-summary-card"
 import { CountdownWidget } from "@/modules/today/components/countdown-widget";
 import { upcomingEvents } from "@/modules/today/countdown";
 
+function greeting(now: Date): string {
+  const hour = now.getHours();
+  return hour >= 5 && hour < 18 ? "Bonjour" : "Bonsoir";
+}
+
 /// Aujourd'hui : la date, le(s) prochain(s) service(s) avec couverts et équipe, un compte à rebours au choix,
 /// puis le plan de toutes les salles du service.
 export default async function AujourdhuiPage() {
@@ -26,13 +31,15 @@ export default async function AujourdhuiPage() {
   const canSeePlanning = ctx.can("schedule.view") && isModuleEnabled(ctx.establishment.disabledModules, "planning");
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="stagger mx-auto max-w-6xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{dateLabel}</h1>
-        <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-          {ctx.establishment.name}
+        <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground">
+          {dateLabel}
           {ctx.establishment.isDemo && <Badge variant="accent">Données de démonstration</Badge>}
         </p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight md:text-4xl">
+          {greeting(now)} {ctx.user.firstName}
+        </h1>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

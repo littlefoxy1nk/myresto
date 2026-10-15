@@ -147,7 +147,7 @@ export function NewEmployeeForm({ roles, services }: { roles: RoleOption[]; serv
           value={roleId}
           onChange={(e) => selectRole(e.target.value)}
           className={cn(
-            "w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent",
+            "w-full rounded-2xl border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15",
             errors.roleId ? "border-urgent" : "border-border"
           )}
         >
@@ -301,7 +301,7 @@ function Field({
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
         className={cn(
-          "w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent",
+          "w-full rounded-2xl border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15",
           error ? "border-urgent" : "border-border"
         )}
         {...rest}

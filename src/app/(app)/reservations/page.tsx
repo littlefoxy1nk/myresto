@@ -95,10 +95,10 @@ export default async function ReservationsPage({
   const pendingRequests = allReservations.filter((r) => r.source === "online" && r.status === "new").length;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="stagger mx-auto max-w-4xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Réservations</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Réservations</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {active.length} réservation{active.length > 1 ? "s" : ""} {isToday ? "aujourd'hui" : `le ${dayLabel}`}
             {service && ` · ${service.name}`} · {active.reduce((s, r) => s + r.partySize, 0)} couverts
@@ -127,7 +127,7 @@ export default async function ReservationsPage({
       />
 
       {pendingRequests > 0 && (
-        <p className="rounded-xl border border-important/30 bg-important-soft/60 px-4 py-2.5 text-sm text-important">
+        <p className="rounded-2xl border border-important/30 bg-important-soft/60 px-4 py-3 text-sm text-important">
           {pendingRequests} demande{pendingRequests > 1 ? "s" : ""} en ligne à traiter ce jour-là : choisis une table puis
           confirme.
         </p>
@@ -146,10 +146,10 @@ export default async function ReservationsPage({
           const eveningUntil = eveningEnd(dayServices, r.time);
 
           return (
-            <Card key={r.id} className="p-4">
+            <Card key={r.id} className="p-4 transition-shadow hover:shadow-pop">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex items-baseline gap-2 sm:w-48 sm:shrink-0">
-                <span className="shrink-0 text-sm font-semibold tabular-nums">{r.time}</span>
+              <div className="flex items-center gap-3 sm:w-52 sm:shrink-0">
+                <span className="flex h-11 min-w-[3.75rem] shrink-0 items-center justify-center rounded-2xl bg-accent-soft px-2 text-sm font-bold tabular-nums text-accent">{r.time}</span>
                 {r.customerId ? (
                   <Link href={`/clients/${r.customerId}`} className="truncate text-sm font-medium text-accent hover:underline">
                     {r.customerName}
@@ -219,7 +219,7 @@ export default async function ReservationsPage({
               </div>
               </div>
               {canEdit && isOpen && hasTables && (eveningUntil || r.blocksEvening) && (
-                <div className="mt-2 border-t border-border pt-2 sm:pl-[12.5rem]">
+                <div className="mt-2 border-t border-border pt-2 sm:pl-[13.5rem]">
                   <BlockEveningToggle
                     reservationId={r.id}
                     checked={r.blocksEvening}

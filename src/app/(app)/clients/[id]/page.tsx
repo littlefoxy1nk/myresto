@@ -1,3 +1,4 @@
+import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import Link from "next/link";
 import { requireModule } from "@/lib/module-guard";
 import { notFound, redirect } from "next/navigation";
@@ -32,21 +33,24 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   });
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="stagger mx-auto max-w-3xl space-y-6">
       <Link href="/clients" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft size={14} aria-hidden="true" />
         Clients
       </Link>
 
-      <div>
-        <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-          {customer.firstName} {customer.lastName}
-          {customer.newsletterConsent && <Badge variant="good">Newsletter</Badge>}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {[customer.phone, customer.email].filter(Boolean).join(" · ") || "Pas de coordonnées"}
-          {customer.birthday && ` · Né(e) le ${formatDate(customer.birthday)}`}
-        </p>
+      <div className="flex items-center gap-4">
+        <InitialsAvatar firstName={customer.firstName} lastName={customer.lastName} className="h-16 w-16 text-xl" />
+        <div className="min-w-0">
+          <h1 className="flex flex-wrap items-center gap-2 text-3xl font-bold tracking-tight">
+            {customer.firstName} {customer.lastName}
+            {customer.newsletterConsent && <Badge variant="good">Newsletter</Badge>}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {[customer.phone, customer.email].filter(Boolean).join(" · ") || "Pas de coordonnées"}
+            {customer.birthday && ` · Né(e) le ${formatDate(customer.birthday)}`}
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">

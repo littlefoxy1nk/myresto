@@ -30,7 +30,7 @@ export function Toaster() {
           <Toast.Root
             key={item.id}
             className={cn(
-              "flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg transition-all duration-200",
+              "flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-pop backdrop-blur transition-all duration-200",
               "data-[state=open]:translate-y-0 data-[state=open]:opacity-100",
               "data-[state=closed]:translate-y-1 data-[state=closed]:opacity-0",
               STYLES[item.variant]

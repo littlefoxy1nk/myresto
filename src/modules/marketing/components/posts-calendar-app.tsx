@@ -119,7 +119,7 @@ export function PostsCalendarApp({ posts, canManage }: { posts: MarketingPostIte
       )}
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">À venir</h2>
+        <h2 className="text-lg font-bold tracking-tight">À venir</h2>
         {upcoming.length === 0 ? (
           <Card className="p-6 text-center text-sm text-muted-foreground">Aucune publication prévue pour le moment.</Card>
         ) : (
@@ -129,7 +129,7 @@ export function PostsCalendarApp({ posts, canManage }: { posts: MarketingPostIte
 
       {published.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">Déjà publiées</h2>
+          <h2 className="text-lg font-bold tracking-tight">Déjà publiées</h2>
           <div className="space-y-2">{published.map(renderPost)}</div>
         </section>
       )}

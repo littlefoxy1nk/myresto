@@ -23,23 +23,27 @@ export function UnsubscribeForm({
 
   if (done) {
     return (
-      <Card className="space-y-3 p-6 text-center">
-        <CheckCircle2 size={28} className="mx-auto text-good" aria-hidden="true" />
-        <p className="text-base font-semibold">Tu es désinscrit(e)</p>
+      <Card className="page-in space-y-3 p-8 text-center shadow-pop">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-good-soft text-good">
+          <CheckCircle2 size={28} aria-hidden="true" />
+        </span>
+        <p className="text-xl font-bold tracking-tight">Tu es désinscrit(e)</p>
         <p className="text-sm text-muted-foreground">{restaurantName} ne t&apos;enverra plus d&apos;infos par email.</p>
       </Card>
     );
   }
 
   return (
-    <Card className="space-y-4 p-6 text-center">
-      <p className="text-base font-semibold">Ne plus recevoir les infos de {restaurantName} ?</p>
+    <Card className="space-y-5 p-8 text-center shadow-pop">
+      <p className="text-xl font-bold tracking-tight">Ne plus recevoir les infos de {restaurantName} ?</p>
+      <p className="text-sm text-muted-foreground">Un clic suffit : tu pourras te réinscrire en réservant à nouveau.</p>
       {error && (
         <p className="text-sm text-urgent" role="alert">
           {error}
         </p>
       )}
       <Button
+        size="lg"
         className="w-full"
         disabled={pending}
         onClick={async () => {

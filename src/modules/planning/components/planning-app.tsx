@@ -1,5 +1,6 @@
 "use client";
 
+import { positionTint } from "@/modules/planning/position-tint";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { addDays, format } from "date-fns";
@@ -297,13 +298,13 @@ export function PlanningApp({
           const member = memberById.get(s.membershipId);
           const isDraft = s.status === "planned";
           const chipClass = cn(
-            "rounded-lg border px-2 py-1 text-left text-[11px] leading-tight",
+            "rounded-xl border px-2.5 py-1.5 text-left text-[11px] leading-tight",
             isDraft && "border-dashed",
             s.conflictLevel === "conflict"
               ? "border-urgent bg-urgent-soft text-urgent"
               : s.conflictLevel === "warning"
                 ? "border-important bg-important-soft text-important"
-                : "border-border bg-muted"
+                : positionTint(s.position)
           );
           // Le détail complet d'un avertissement (texte long) ne s'affiche plus dans la
           // cellule — il alourdissait la grille et le répétait déjà écrit dans le
@@ -315,7 +316,7 @@ export function PlanningApp({
           const content = (
             <>
               <div className="truncate font-medium">{member ? member.firstName : "?"}</div>
-              <div className={cn("truncate", s.conflictLevel === "ok" && "text-muted-foreground")}>
+              <div className={cn("truncate", s.conflictLevel === "ok" && "opacity-75")}>
                 {s.startTime}–{s.endTime} · {SHIFT_POSITION_LABELS[s.position as keyof typeof SHIFT_POSITION_LABELS] ?? s.position}
               </div>
               {warningSummary && (
@@ -397,7 +398,7 @@ export function PlanningApp({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Planning</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Planning</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {data.totalTeamHours > 0
               ? `${formatHours(data.totalTeamHours)} planifiées cette semaine pour l'équipe`
@@ -435,22 +436,19 @@ export function PlanningApp({
         </div>
       </div>
 
-      {/* Résumé factuel de la semaine — un compte de ce que le bandeau d'alertes détaille
-          déjà plus bas, jamais une recommandation ("planning optimal", "il faut X
-          serveurs"). Absent si la semaine est calme : pas de carte vide à lire. */}
-      {data.weekSummary.length > 0 && (
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cette semaine</p>
-          <p className="mt-1 text-sm">{data.weekSummary.join(" · ")}</p>
-        </Card>
+      {data.alerts.length > 0 && (
+        <a
+          href="#alertes"
+          className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card px-3.5 py-1.5 text-sm font-semibold shadow-sm outline-none transition-shadow hover:shadow-card focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <span aria-hidden="true" className={cn("h-2 w-2 rounded-full", data.alerts.some((a) => a.severity === "urgent") ? "bg-urgent" : "bg-important")} />
+          {data.alerts.length} alerte{data.alerts.length > 1 ? "s" : ""} à voir
+          {data.alerts.some((a) => a.severity === "urgent") && (
+            <span className="text-urgent">· {data.alerts.filter((a) => a.severity === "urgent").length} urgente{data.alerts.filter((a) => a.severity === "urgent").length > 1 ? "s" : ""}</span>
+          )}
+          <span aria-hidden="true" className="text-muted-foreground">↓</span>
+        </a>
       )}
-
-      {data.canEdit && (
-        <StaffingRequirementsPanel requirements={data.requirements} services={data.services} weekStart={data.weekStart} />
-      )}
-      <PlanningNotes notes={data.notes} canEdit={data.canEdit} />
-      <PlanningAlerts alerts={data.alerts} />
-      <FrequentationSummary days={data.dayFrequentation} />
       {data.canEdit && data.services.length > 1 && <PlanningViewTabs value={currentView} onChange={setCurrentView} />}
       {data.members.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -467,7 +465,7 @@ export function PlanningApp({
         <>
           {/* Vue semaine — desktop : par service (lignes) × jour (colonnes), pour voir
               directement qui travaille sans parcourir une ligne par personne. */}
-          <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card md:block">
+          <div className="hidden overflow-x-auto rounded-3xl border border-border/70 bg-card shadow-card md:block">
             <table className="w-full min-w-[900px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border">
@@ -554,6 +552,23 @@ export function PlanningApp({
           )}
         </>
       )}
+
+      {/* Résumé factuel de la semaine — un compte de ce que le bandeau d'alertes détaille
+          déjà plus bas, jamais une recommandation ("planning optimal", "il faut X
+          serveurs"). Absent si la semaine est calme : pas de carte vide à lire. */}
+      {data.weekSummary.length > 0 && (
+        <Card className="p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cette semaine</p>
+          <p className="mt-1 text-sm">{data.weekSummary.join(" · ")}</p>
+        </Card>
+      )}
+
+      {data.canEdit && (
+        <StaffingRequirementsPanel requirements={data.requirements} services={data.services} weekStart={data.weekStart} />
+      )}
+      <PlanningNotes notes={data.notes} canEdit={data.canEdit} />
+      <PlanningAlerts alerts={data.alerts} weekStart={data.weekStart} dismissedCount={data.dismissedAlertCount} />
+      <FrequentationSummary days={data.dayFrequentation} />
 
       {dialog && (
         <ShiftFormDialog

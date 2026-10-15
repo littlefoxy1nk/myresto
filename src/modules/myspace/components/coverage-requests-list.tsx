@@ -55,7 +55,7 @@ export function CoverageRequestsList({ requests }: { requests: MyCoverageRequest
 
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold">Le patron vous demande un renfort</h2>
+      <h2 className="text-lg font-bold tracking-tight">Le patron vous demande un renfort</h2>
       <div className="space-y-2">
         {items.map((r) => (
           <CoverageRequestRow key={r.id} request={r} onResolved={(id) => setItems((prev) => prev.filter((x) => x.id !== id))} />

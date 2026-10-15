@@ -29,8 +29,8 @@ export function TableShape({
     <div
       onPointerDownCapture={onPointerDownCapture}
       className={cn(
-        "absolute flex select-none flex-col items-center justify-center border-2 text-xs font-medium shadow-sm transition-shadow",
-        table.shape === "round" ? "rounded-full" : "rounded-lg",
+        "absolute flex select-none flex-col items-center justify-center border-[1.5px] text-xs font-medium shadow-card transition-all duration-150 hover:-translate-y-px",
+        table.shape === "round" ? "rounded-full" : "rounded-2xl",
         style.fill,
         style.border,
         style.text,

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { signIn } from "@/lib/auth";
 import { provisionSystemRoles } from "@/lib/provision-establishment";
+import { serviceLabel } from "@/lib/service-label";
 
 const OnboardingSchema = z.object({
   firstName: z.string().min(1, "Le prénom est requis."),
@@ -127,7 +128,7 @@ export async function createEstablishment(
   await prisma.serviceDefinition.create({
     data: {
       establishmentId: establishment.id,
-      name: "Service",
+      name: serviceLabel(data.openTime, data.closeTime),
       startTime: data.openTime,
       endTime: data.closeTime,
       daysOfWeek: "1,2,3,4,5,6,7",
@@ -151,6 +152,7 @@ export async function createEstablishment(
     });
   }
 
-  await signIn("credentials", { email: data.email, password: data.password, redirect: false });
+  // Les champs attendus par la connexion sont `identifier` et `secret` (voir lib/auth.ts).
+  await signIn("credentials", { identifier: data.email, secret: data.password, redirect: false });
   redirect("/aujourdhui");
 }

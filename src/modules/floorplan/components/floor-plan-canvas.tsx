@@ -216,7 +216,7 @@ export function FloorPlanCanvas({
   }
 
   return (
-    <div className="relative rounded-2xl border border-border bg-muted/40">
+    <div className="relative rounded-3xl border border-border/70 bg-muted/50">
       {!fit && <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">
         <button
           type="button"
@@ -243,7 +243,7 @@ export function FloorPlanCanvas({
           <Plus size={15} aria-hidden="true" />
         </button>
       </div>}
-      <div ref={scrollRef} className={fit ? "overflow-hidden rounded-2xl" : "h-[70vh] min-h-[420px] overflow-auto rounded-2xl"}>
+      <div ref={scrollRef} className={fit ? "overflow-hidden rounded-3xl" : "h-[70vh] min-h-[420px] overflow-auto rounded-3xl"}>
         <div
           style={
             fit

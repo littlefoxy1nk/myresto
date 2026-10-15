@@ -159,6 +159,7 @@ model Membership {
   timeOffRequests TimeOffRequest[]
   documents       EmployeeDocument[]
   notifications   Notification[]
+  planningAlertDismissals PlanningAlertDismissal[]
   replacementRequestsMade ReplacementRequest[] @relation("ReplacementRequestedBy")
   replacementsResolvedFor ReplacementRequest[] @relation("ReplacementResolvedFor")
   replacementVolunteers   ReplacementVolunteer[]
@@ -874,4 +875,17 @@ model CountdownEvent {
   /// Le jour de l'événement (00:00 locale) : le décompte se fait en jours entiers.
   date            DateTime
   createdAt       DateTime      @default(now())
+}
+
+/// « C'est OK pour moi » : une alerte du planning qu'une personne a rangée pour une semaine donnée.
+/// Personnel (jamais partagé avec le reste de l'équipe) ; l'alerte reste calculée, on ne la masque qu'à l'affichage.
+model PlanningAlertDismissal {
+  id           String     @id @default(cuid())
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  weekStart    String // "yyyy-MM-dd" (le lundi)
+  alertKey     String
+  createdAt    DateTime   @default(now())
+
+  @@unique([membershipId, weekStart, alertKey])
 }

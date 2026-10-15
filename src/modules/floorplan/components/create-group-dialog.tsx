@@ -80,7 +80,7 @@ export function CreateGroupDialog({
               max={60}
               value={capacity}
               onChange={(e) => setCapacity(Number(e.target.value))}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
             <p className="text-xs text-muted-foreground">
               Par défaut, la somme des tables sélectionnées — ajustez si deux petites tables collées n&apos;accueillent pas
@@ -96,7 +96,7 @@ export function CreateGroupDialog({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder={tableLabels.join(" + ")}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
           </div>
           <Button type="submit" className="w-full" disabled={pending}>

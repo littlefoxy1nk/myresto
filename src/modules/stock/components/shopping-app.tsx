@@ -21,7 +21,7 @@ import {
 import type { ShoppingListView } from "@/modules/stock/server/queries";
 
 const inputClass =
-  "w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15";
 
 async function run(action: () => Promise<unknown>) {
   try {
@@ -49,7 +49,7 @@ export function ShoppingApp({ lists, canEdit }: { lists: ShoppingListView[]; can
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Stock</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Stock</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Tes listes de courses, par rubrique (fournisseur, commerçant…). Coche ce que tu as acheté.
         </p>

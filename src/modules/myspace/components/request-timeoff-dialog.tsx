@@ -53,7 +53,7 @@ export function RequestTimeOffDialog({ open, onOpenChange }: { open: boolean; on
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
               />
             </div>
             <div className="space-y-1.5">
@@ -65,7 +65,7 @@ export function RequestTimeOffDialog({ open, onOpenChange }: { open: boolean; on
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
               />
             </div>
           </div>
@@ -80,7 +80,7 @@ export function RequestTimeOffDialog({ open, onOpenChange }: { open: boolean; on
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="ex: rendez-vous médical"
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
           </div>
 

@@ -12,7 +12,7 @@ import { createCountdownEvent, deleteCountdownEvent } from "@/modules/today/serv
 type EventWithDays = { id: string; title: string; date: string; days: number };
 
 const field =
-  "w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15";
 
 function formatDate(dateKey: string) {
   return new Intl.DateTimeFormat("fr-BE", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(
@@ -59,9 +59,10 @@ export function CountdownWidget({ events, canManage }: { events: EventWithDays[]
   }
 
   return (
-    <Card className="flex h-full flex-col p-5">
+    <Card className="relative flex h-full flex-col overflow-hidden border-0 bg-gradient-to-br from-[#c0451f] via-[#b13a2c] to-[#9f1f4d] p-6 text-white shadow-pop">
+      <div aria-hidden="true" className="pointer-events-none absolute -bottom-16 -right-10 h-48 w-48 rounded-full bg-white/15 blur-2xl" />
       <div className="flex items-center justify-between gap-2">
-        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="relative flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-white/70">
           <CalendarClock size={13} aria-hidden="true" />
           Compte à rebours
         </p>
@@ -69,7 +70,7 @@ export function CountdownWidget({ events, canManage }: { events: EventWithDays[]
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-accent outline-none hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent"
+            className="relative flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white outline-none transition-colors hover:bg-white/25 focus-visible:ring-2 focus-visible:ring-white"
           >
             <Plus size={13} aria-hidden="true" />
             Ajouter
@@ -78,35 +79,35 @@ export function CountdownWidget({ events, canManage }: { events: EventWithDays[]
       </div>
 
       {main ? (
-        <div className="mt-3 flex-1">
-          <p className="text-base font-semibold">{main.title}</p>
-          <p className="mt-0.5 text-xs capitalize text-muted-foreground">{formatDate(main.date)}</p>
-          <p className="mt-3 text-4xl font-semibold tabular-nums tracking-tight text-accent" aria-live="polite">
+        <div className="relative mt-3 flex-1">
+          <p className="text-lg font-semibold tracking-tight">{main.title}</p>
+          <p className="mt-0.5 text-xs capitalize text-white/70">{formatDate(main.date)}</p>
+          <p className="mt-3 text-6xl font-bold tabular-nums leading-none tracking-tight" aria-live="polite">
             {describeDays(main.days).big}
           </p>
-          <p className="text-sm text-muted-foreground">{describeDays(main.days).unit}</p>
+          <p className="mt-1 text-sm text-white/80">{describeDays(main.days).unit}</p>
         </div>
       ) : (
-        <div className="mt-3 flex-1 text-sm text-muted-foreground">
+        <div className="relative mt-3 flex-1 text-sm text-white/80">
           <p>Aucun événement à décompter.</p>
           {canManage && <p className="mt-1">Ajoute ce que tu veux (Saint-Valentin, soirée privée, fermeture…) : l&apos;appli compte les jours.</p>}
         </div>
       )}
 
       {others.length > 0 && (
-        <ul className="mt-4 space-y-1 border-t border-border pt-3 text-sm">
+        <ul className="relative mt-4 space-y-1 border-t border-white/20 pt-3 text-sm">
           {others.map((e) => (
             <li key={e.id} className="flex items-center justify-between gap-2">
               <span className="min-w-0 truncate">{e.title}</span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">{e.days === 1 ? "demain" : `dans ${e.days} j`}</span>
+              <span className="shrink-0 tabular-nums text-white/70">{e.days === 1 ? "demain" : `dans ${e.days} j`}</span>
             </li>
           ))}
         </ul>
       )}
 
       {canManage && events.length > 0 && (
-        <details className="mt-3 text-xs text-muted-foreground">
-          <summary className="cursor-pointer select-none outline-none hover:text-foreground focus-visible:underline">Gérer les événements</summary>
+        <details className="relative mt-3 text-xs text-white/70">
+          <summary className="cursor-pointer select-none outline-none hover:text-white focus-visible:underline">Gérer les événements</summary>
           <ul className="mt-2 space-y-1">
             {events.map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-2">
@@ -117,7 +118,7 @@ export function CountdownWidget({ events, canManage }: { events: EventWithDays[]
                   type="button"
                   onClick={() => remove(e.id)}
                   aria-label={`Supprimer ${e.title}`}
-                  className="rounded-md p-1 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent"
+                  className="rounded-md p-1 outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white"
                 >
                   <Trash2 size={13} aria-hidden="true" />
                 </button>

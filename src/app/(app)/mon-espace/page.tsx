@@ -29,11 +29,11 @@ export default async function MonEspacePage() {
   const todayKey = toDateKey(new Date());
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="stagger mx-auto max-w-3xl space-y-6">
       <div className="flex items-center gap-4">
         <AvatarFigure config={parseAvatar(ctx.user.avatarJson, ctx.user.id)} size={64} title={`Avatar de ${data.firstName}`} />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Bonjour {data.firstName}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Bonjour {data.firstName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {ctx.establishment.name}
             {data.jobTitle ? ` · ${data.jobTitle}` : ""}
@@ -122,7 +122,7 @@ export default async function MonEspacePage() {
       {/* Mes congés & absences */}
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold">Mes congés & absences</h2>
+          <h2 className="text-lg font-bold tracking-tight">Mes congés & absences</h2>
           <div className="flex flex-wrap gap-2">
             <DeclareSickLeaveButton />
             <RequestTimeOffButton />
@@ -151,7 +151,7 @@ export default async function MonEspacePage() {
 
       {/* Mes disponibilités */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Mes disponibilités</h2>
+        <h2 className="text-lg font-bold tracking-tight">Mes disponibilités</h2>
         {data.employmentType === "flexijob" && (
           <p className="text-sm text-muted-foreground">
             Déclarez les services où vous travaillez habituellement — votre manager en est informé à chaque
@@ -169,13 +169,13 @@ export default async function MonEspacePage() {
 
       {/* Notifications */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Notifications</h2>
+        <h2 className="text-lg font-bold tracking-tight">Notifications</h2>
         <NotificationsList notifications={data.notifications} />
       </section>
 
       {/* Mon profil */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Mon profil</h2>
+        <h2 className="text-lg font-bold tracking-tight">Mon profil</h2>
         <Card className="space-y-2 p-4 text-sm">
           {data.username && (
             <p>

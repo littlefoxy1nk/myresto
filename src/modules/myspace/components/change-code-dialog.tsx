@@ -48,7 +48,7 @@ export function ChangeCodeDialog({ open, onOpenChange }: { open: boolean; onOpen
               type="password"
               value={currentCode}
               onChange={(e) => setCurrentCode(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
               autoFocus
             />
           </div>
@@ -61,7 +61,7 @@ export function ChangeCodeDialog({ open, onOpenChange }: { open: boolean; onOpen
               type="password"
               value={newCode}
               onChange={(e) => setNewCode(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
           </div>
 

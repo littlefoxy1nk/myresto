@@ -149,7 +149,7 @@ export function TablePanel({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               onBlur={() => label.trim() && label !== table.label && onPatch({ label: label.trim() })}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
           </div>
 
@@ -168,7 +168,7 @@ export function TablePanel({
                   const v = Number(e.target.value);
                   if (v && v !== table.capacity) onPatch({ capacity: v });
                 }}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
               />
             </div>
             <div className="space-y-1.5">
@@ -179,7 +179,7 @@ export function TablePanel({
                 id="panel-shape"
                 value={table.shape}
                 onChange={(e) => onPatch({ shape: e.target.value as TableShape })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
               >
                 {TABLE_SHAPES.map((s) => (
                   <option key={s} value={s}>
@@ -198,7 +198,7 @@ export function TablePanel({
               id="panel-zone"
               value={table.zoneId}
               onChange={(e) => onPatch({ zoneId: e.target.value })}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             >
               {zones.map((z) => (
                 <option key={z.id} value={z.id}>
@@ -216,7 +216,7 @@ export function TablePanel({
               id="panel-status"
               value={table.manualStatus}
               onChange={(e) => onPatch({ status: e.target.value as TableManualStatus })}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             >
               {TABLE_MANUAL_STATUSES.map((s) => (
                 <option key={s} value={s}>

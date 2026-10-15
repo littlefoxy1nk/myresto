@@ -166,6 +166,8 @@ export type WeekPlanningResult = {
   /// cette granularité) — un signal de demande, jamais croisé ici avec le personnel.
   dayFrequentation: { date: string; dateLabel: string; signal: FrequentationSignal }[];
   alerts: PlanningAlert[];
+  /// Combien d'alertes la personne a rangées pour cette semaine (elles ne sont plus dans `alerts`).
+  dismissedAlertCount: number;
   /// Résumé factuel de la semaine en quelques fragments courts (ex. "2 conflits à
   /// vérifier", "Chloé : 6/8 services") — jamais une recommandation, juste un compte
   /// de ce que le bandeau d'alertes détaille déjà plus bas.

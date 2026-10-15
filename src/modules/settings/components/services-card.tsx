@@ -91,7 +91,7 @@ function ServiceDialog({ initial, onOpenChange }: { initial: ServiceRow | null; 
   const [pending, setPending] = useState(false);
 
   const field =
-    "w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent";
+    "w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15";
 
   return (
     <Dialog open onOpenChange={onOpenChange}>

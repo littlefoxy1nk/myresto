@@ -27,7 +27,7 @@ export function Switch({
         "relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full border border-transparent outline-none transition-colors duration-200",
         "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-good" : "bg-border"
+        checked ? "bg-good" : "bg-muted-foreground/25"
       )}
     >
       <span

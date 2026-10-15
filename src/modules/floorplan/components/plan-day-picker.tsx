@@ -61,7 +61,7 @@ export function PlanDayPicker({
           aria-label="Date du plan"
           value={dateKey}
           onChange={(e) => e.target.value && go(e.target.value, null)}
-          className="rounded-xl border border-border bg-background px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="rounded-2xl border border-border bg-card/80 px-3 py-1.5 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
         />
         <button
           type="button"

@@ -34,9 +34,9 @@ export default async function CongesPage() {
   const pendingCount = requests.filter((r) => r.status === "pending").length;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="stagger mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Congés & absences</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Congés & absences</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {requests.length} demande{requests.length > 1 ? "s" : ""}
           {pendingCount > 0 ? ` · ${pendingCount} en attente` : ""}

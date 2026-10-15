@@ -51,7 +51,7 @@ export function ReplacementOpportunities({ opportunities }: { opportunities: MyR
 
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold">Remplacements à couvrir</h2>
+      <h2 className="text-lg font-bold tracking-tight">Remplacements à couvrir</h2>
       <div className="space-y-2">
         {opportunities.map((o) => (
           <VolunteerRow key={o.requestId} opportunity={o} />

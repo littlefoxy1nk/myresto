@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { Bell, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { markNotificationRead, markAllNotificationsRead } from "@/modules/myspace/server/actions";
+import { markNotificationRead, markAllNotificationsRead, deleteNotification, clearReadNotifications } from "@/modules/myspace/server/actions";
 import type { MyNotification } from "@/modules/myspace/types";
 
 function formatWhen(iso: string): string {
@@ -54,6 +54,18 @@ export function NotificationBell({
     startTransition(() => markAllNotificationsRead());
   }
 
+  function deleteOne(id: string) {
+    const target = items.find((n) => n.id === id);
+    setItems((prev) => prev.filter((n) => n.id !== id));
+    if (target && !target.isRead) setUnreadCount((c) => Math.max(c - 1, 0));
+    startTransition(() => deleteNotification(id));
+  }
+
+  function clearRead() {
+    setItems((prev) => prev.filter((n) => !n.isRead));
+    startTransition(() => clearReadNotifications());
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -61,18 +73,18 @@ export function NotificationBell({
         onClick={() => setOpen((o) => !o)}
         aria-label="Notifications"
         aria-expanded={open}
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl text-foreground/80 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-card/70 text-foreground/80 shadow-sm outline-none backdrop-blur transition-all hover:bg-card hover:shadow-card focus-visible:ring-2 focus-visible:ring-accent"
       >
         <Bell size={18} aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-urgent px-1 text-[9px] font-semibold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-urgent px-1 text-[9px] font-semibold text-white">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-80 max-w-[90vw] rounded-2xl border border-border bg-card p-2 shadow-lg">
+        <div className="dialog-overlay absolute right-0 z-50 mt-3 w-80 max-w-[90vw] rounded-3xl border border-border/70 bg-card p-2 shadow-pop">
           <div className="flex items-center justify-between px-2 py-1.5">
             <p className="text-sm font-semibold">Notifications</p>
             {unreadCount > 0 && (
@@ -87,7 +99,7 @@ export function NotificationBell({
             ) : (
               items.map((n) => {
                 const content = (
-                  <div className="flex items-start gap-2 rounded-xl p-2 hover:bg-muted">
+                  <div className="flex min-w-0 flex-1 items-start gap-2 rounded-2xl p-2.5 hover:bg-muted">
                     <span
                       className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", n.isRead ? "bg-transparent" : SEVERITY_DOT[n.severity])}
                       aria-hidden="true"
@@ -99,10 +111,10 @@ export function NotificationBell({
                     </div>
                   </div>
                 );
-                return n.linkHref ? (
+                const main = n.linkHref ? (
                   <Link
-                    key={n.id}
                     href={n.linkHref}
+                    className="min-w-0 flex-1"
                     onClick={() => {
                       setOpen(false);
                       if (!n.isRead) markOneRead(n.id);
@@ -111,17 +123,36 @@ export function NotificationBell({
                     {content}
                   </Link>
                 ) : (
-                  <button key={n.id} type="button" className="w-full text-left" onClick={() => !n.isRead && markOneRead(n.id)}>
+                  <button type="button" className="min-w-0 flex-1 text-left" onClick={() => !n.isRead && markOneRead(n.id)}>
                     {content}
                   </button>
+                );
+                return (
+                  <div key={n.id} className="flex items-center gap-0.5">
+                    {main}
+                    <button
+                      type="button"
+                      onClick={() => deleteOne(n.id)}
+                      aria-label="Supprimer cette notification"
+                      title="Supprimer"
+                      className="shrink-0 rounded-full p-2 text-muted-foreground outline-none transition-colors hover:bg-urgent-soft hover:text-urgent focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                    </button>
+                  </div>
                 );
               })
             )}
           </div>
-          <div className="border-t border-border px-2 pt-1.5">
-            <Link href="/mon-espace" onClick={() => setOpen(false)} className="block py-1.5 text-center text-xs font-medium text-accent hover:underline">
+          <div className="flex items-center justify-between border-t border-border px-2 pt-1.5">
+            <Link href="/mon-espace" onClick={() => setOpen(false)} className="py-1.5 text-xs font-medium text-accent hover:underline">
               Voir tout
             </Link>
+            {items.some((n) => n.isRead) && (
+              <button type="button" onClick={clearRead} className="py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
+                Effacer les lues
+              </button>
+            )}
           </div>
         </div>
       )}

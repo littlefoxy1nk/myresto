@@ -61,7 +61,7 @@ export function CreateZoneDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="ex: Terrasse arrière"
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
           </div>
           <div className="space-y-1.5">
@@ -72,7 +72,7 @@ export function CreateZoneDialog({
               id="zone-type"
               value={type}
               onChange={(e) => setType(e.target.value as ZoneType)}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             >
               {ZONE_TYPES.map((t) => (
                 <option key={t} value={t}>

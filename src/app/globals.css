@@ -1,27 +1,63 @@
 @import "tailwindcss";
 
+/* ───────────────────────────────────────────────────────────────────────────
+   Design tokens — tout le produit passe par ces variables : changer une teinte ici
+   la change partout. Clair par défaut, sombre selon la préférence du système.
+   ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  --background: #faf8f5;
-  --foreground: #1c1917;
+  --background: #faf5f0;
+  --foreground: #1f1612;
   --card: #ffffff;
-  --card-foreground: #1c1917;
-  --muted: #f2ede5;
-  --muted-foreground: #78716c;
-  --border: #e7e0d4;
-  --accent: #b5651d;
-  --accent-foreground: #fffaf3;
-  --accent-soft: #f6e7d8;
+  --card-foreground: #1f1612;
+  --muted: #f6efe8;
+  --muted-foreground: #7a6a60;
+  --border: #eadfd3;
+  --accent: #c0451f;
+  --accent-foreground: #ffffff;
+  --accent-soft: #fde8de;
+  /* Deux teintes voisines pour les dégradés : une plus claire, une plus profonde (bordeaux). */
+  --accent-2: #9f1f4d;
+  --accent-3: #ee7d4b;
 
-  --urgent: #c2483c;
-  --urgent-soft: #fbe9e7;
-  --important: #c8811f;
-  --important-soft: #faf0dc;
-  --watch: #a68b1f;
-  --watch-soft: #f8f3dc;
-  --good: #3f7a53;
-  --good-soft: #e7f2ea;
+  /* « Encre » : la couleur des boutons principaux et des éléments forts. */
+  --ink: #1f1612;
+  --ink-foreground: #ffffff;
+  --lime: #d6f26a;
+  --lime-foreground: #1e2a02;
 
-  --radius: 0.75rem;
+  --urgent: #d93a45;
+  --urgent-soft: #fde8ea;
+  --important: #c26a0a;
+  --important-soft: #fdf0dd;
+  --watch: #94760a;
+  --watch-soft: #faf3cd;
+  --good: #1f8a5b;
+  --good-soft: #def5ea;
+
+  /* Menu latéral : toujours sombre, en clair comme en sombre. */
+  --sidebar: #1f1612;
+  --sidebar-foreground: #f4f1fa;
+
+  /* Teintes pastel des postes (salle, cuisine, bar, plonge, direction) : repères de couleur douce. */
+  --salle-soft: #dbeafe;
+  --salle: #1d4ed8;
+  --cuisine-soft: #ffe4d1;
+  --cuisine: #b45309;
+  --bar-soft: #d5f5e3;
+  --bar: #15803d;
+  --plonge-soft: #ece8fd;
+  --plonge: #6246ea;
+  --direction-soft: #fde2ee;
+  --direction: #be185d;
+
+  --glow-1: #ffdcc7;
+  --glow-2: #ffecc2;
+  --glow-3: #f9cfd6;
+
+  --elev-card: 0 1px 2px rgb(31 22 18 / 0.04), 0 10px 30px -14px rgb(150 70 30 / 0.2);
+  --elev-pop: 0 2px 6px rgb(31 22 18 / 0.06), 0 24px 48px -16px rgb(120 50 20 / 0.3);
+
+  --radius: 1rem;
 }
 
 @theme inline {
@@ -35,6 +71,12 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-2: var(--accent-2);
+  --color-accent-3: var(--accent-3);
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-lime: var(--lime);
+  --color-lime-foreground: var(--lime-foreground);
   --color-urgent: var(--urgent);
   --color-urgent-soft: var(--urgent-soft);
   --color-important: var(--important);
@@ -43,36 +85,222 @@
   --color-watch-soft: var(--watch-soft);
   --color-good: var(--good);
   --color-good-soft: var(--good-soft);
-  --font-sans: var(--font-inter);
+  --color-salle: var(--salle);
+  --color-salle-soft: var(--salle-soft);
+  --color-cuisine: var(--cuisine);
+  --color-cuisine-soft: var(--cuisine-soft);
+  --color-bar: var(--bar);
+  --color-bar-soft: var(--bar-soft);
+  --color-plonge: var(--plonge);
+  --color-plonge-soft: var(--plonge-soft);
+  --color-direction: var(--direction);
+  --color-direction-soft: var(--direction-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --shadow-card: var(--elev-card);
+  --shadow-pop: var(--elev-pop);
+  --font-sans: var(--font-jakarta);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #161310;
-    --foreground: #f3ede3;
-    --card: #201c17;
-    --card-foreground: #f3ede3;
-    --muted: #241f19;
-    --muted-foreground: #a89f92;
-    --border: #332c23;
-    --accent: #d68a3f;
-    --accent-foreground: #1c1410;
-    --accent-soft: #3a2a19;
+    --background: #14100d;
+    --foreground: #f7f0ea;
+    --card: #1e1814;
+    --card-foreground: #f7f0ea;
+    --muted: #28211b;
+    --muted-foreground: #aa9d92;
+    --border: #352c24;
+    --accent: #f08a5d;
+    --accent-foreground: #2a1208;
+    --accent-soft: #3d2216;
+    --accent-2: #f0709a;
+    --accent-3: #f6a77f;
 
-    --urgent-soft: #3a201d;
-    --important-soft: #3a2d16;
-    --watch-soft: #35301a;
-    --good-soft: #1f2f24;
+    --ink: #f7f0ea;
+    --ink-foreground: #1f1612;
+
+    --urgent: #ff6b74;
+    --urgent-soft: #3a1d22;
+    --important: #f0a24a;
+    --important-soft: #3a2a14;
+    --watch: #d6bb4a;
+    --watch-soft: #342f15;
+    --good: #4fcf94;
+    --good-soft: #17301f;
+
+    --sidebar: #100c0a;
+
+    --salle-soft: #172554;
+    --salle: #93c5fd;
+    --cuisine-soft: #3a2312;
+    --cuisine: #fdba74;
+    --bar-soft: #12301f;
+    --bar: #86efac;
+    --plonge-soft: #2b2352;
+    --plonge: #b9acff;
+    --direction-soft: #3a1630;
+    --direction: #f9a8d4;
+
+    --glow-1: #2e1a12;
+    --glow-2: #2b1f0f;
+    --glow-3: #2e1420;
+
+    --elev-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px -14px rgb(0 0 0 / 0.6);
+    --elev-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 24px 48px -16px rgb(0 0 0 / 0.7);
   }
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(60rem 38rem at 8% -8%, var(--glow-1), transparent 62%),
+    radial-gradient(50rem 38rem at 98% 2%, var(--glow-2), transparent 58%),
+    radial-gradient(54rem 40rem at 55% 112%, var(--glow-3), transparent 62%);
+  background-attachment: fixed;
   color: var(--foreground);
+  font-feature-settings: "ss01", "cv11";
+  letter-spacing: -0.005em;
 }
 
 * {
   border-color: var(--border);
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--foreground);
+}
+
+/* Barres de défilement discrètes. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 35%, transparent) transparent;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Mouvement — doux et court ; désactivé si la personne le demande.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.page-in {
+  animation: page-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.dialog-pop {
+  animation: pop-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.dialog-drop {
+  animation: drop-in 0.2s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.dialog-overlay {
+  animation: fade 0.2s ease both;
+}
+.sheet-up {
+  animation: sheet-up 0.28s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+/* Les blocs d'une page apparaissent en cascade, l'un après l'autre. */
+.stagger > * {
+  animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.stagger > *:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.stagger > *:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.stagger > *:nth-child(4) {
+  animation-delay: 0.15s;
+}
+.stagger > *:nth-child(5) {
+  animation-delay: 0.2s;
+}
+.stagger > *:nth-child(n + 6) {
+  animation-delay: 0.25s;
+}
+
+.skeleton {
+  background: linear-gradient(100deg, var(--muted) 30%, color-mix(in srgb, var(--card) 70%, var(--muted)) 50%, var(--muted) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Graphiques : 8 teintes catégorielles dans un ordre fixe (validées claires et sombres). */

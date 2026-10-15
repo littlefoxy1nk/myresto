@@ -67,7 +67,7 @@ export function ClosingDialog({
               inputMode="decimal"
               value={revenue}
               onChange={(e) => setRevenue(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
               autoFocus
             />
           </div>
@@ -83,7 +83,7 @@ export function ClosingDialog({
               inputMode="numeric"
               value={covers}
               onChange={(e) => setCovers(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
           </div>
 

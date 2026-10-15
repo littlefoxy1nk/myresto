@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { startOfWeek, endOfWeek } from "date-fns";
 import { CalendarDays, UserPlus } from "lucide-react";
+import { AvatarFigure } from "@/components/ui/avatar-figure";
+import { parseAvatar } from "@/lib/avatar";
 import { computeShiftDurationHours } from "@/modules/planning/compute";
 
 export default async function EquipePage() {
@@ -29,10 +31,10 @@ export default async function EquipePage() {
   });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="stagger mx-auto max-w-4xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Équipe</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Équipe</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {memberships.length} membre{memberships.length > 1 ? "s" : ""}
           </p>
@@ -63,33 +65,37 @@ export default async function EquipePage() {
           const target = m.weeklyHoursTarget ?? 0;
 
           return (
-            <Link key={m.id} href={`/equipe/${m.id}`}>
-              <Card className="p-4 transition-colors hover:bg-muted/50">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent">
-                    {m.user.firstName.charAt(0)}
-                    {m.user.lastName.charAt(0)}
-                  </div>
+            <Link key={m.id} href={`/equipe/${m.id}`} className="group rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-accent">
+              <Card className="p-5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-pop">
+                <div className="flex items-center gap-3.5">
+                  <AvatarFigure config={parseAvatar(m.user.avatarJson, m.user.id)} size={52} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
+                    <p className="truncate text-[15px] font-semibold tracking-tight">
                       {m.user.firstName} {m.user.lastName}
                     </p>
-                    {m.jobTitle && m.jobTitle !== m.role.label && (
-                      <p className="truncate text-xs text-muted-foreground">{m.jobTitle}</p>
-                    )}
+                    <p className="truncate text-xs text-muted-foreground">
+                      {m.jobTitle && m.jobTitle !== m.role.label ? `${m.jobTitle} · ` : ""}
+                      {m.shifts.length} service{m.shifts.length > 1 ? "s" : ""} cette semaine
+                    </p>
                   </div>
-                  <Badge variant="neutral">{m.role.label}</Badge>
+                  <Badge variant="accent">{m.role.label}</Badge>
                 </div>
-                <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>
-                    {m.shifts.length} service{m.shifts.length > 1 ? "s" : ""} cette semaine
-                  </span>
-                  {target > 0 && (
-                    <span>
-                      {hoursThisWeek.toFixed(0)}h / {target}h
-                    </span>
-                  )}
-                </div>
+                {target > 0 && (
+                  <div className="mt-4">
+                    <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Heures cette semaine</span>
+                      <span className="font-semibold text-foreground tabular-nums">
+                        {hoursThisWeek.toFixed(0)}h / {target}h
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={target} aria-valuenow={Math.round(hoursThisWeek)}>
+                      <div
+                        className={hoursThisWeek > target ? "h-full rounded-full bg-important" : "h-full rounded-full bg-accent"}
+                        style={{ width: `${Math.min(100, (hoursThisWeek / target) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </Card>
             </Link>
           );

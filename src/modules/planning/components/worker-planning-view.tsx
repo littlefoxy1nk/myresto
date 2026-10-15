@@ -89,7 +89,7 @@ export function WorkerPlanningView({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Planning</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Planning</h1>
         <div className="flex items-center gap-1.5">
           <Button asChild variant="ghost" size="sm">
             <Link href={prevWeekHref} aria-label="Semaine précédente">

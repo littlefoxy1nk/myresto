@@ -8,7 +8,7 @@ import { CONTACT_CATEGORIES, DEFAULT_SUPPORT_EMAIL, type ContactInput } from "@/
 import { sendContactMessage, type ContactResult } from "@/modules/settings/server/actions";
 
 const field =
-  "w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15";
 
 /// Écrire à l'assistance : un souci, une question, une idée. Le message part par email ; si l'envoi n'est
 /// pas possible, on le dit clairement et on propose d'écrire depuis sa propre messagerie.

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { markNotificationRead, markAllNotificationsRead } from "@/modules/myspace/server/actions";
+import { Trash2 } from "lucide-react";
+import { markNotificationRead, markAllNotificationsRead, deleteNotification, clearReadNotifications } from "@/modules/myspace/server/actions";
 import type { MyNotification } from "@/modules/myspace/types";
 
 function formatWhen(iso: string): string {
@@ -33,17 +34,37 @@ export function NotificationsList({ notifications }: { notifications: MyNotifica
     startTransition(() => markAllNotificationsRead());
   }
 
+  const readCount = items.length - unreadCount;
+
+  function deleteOne(id: string) {
+    setItems((prev) => prev.filter((n) => n.id !== id));
+    startTransition(() => deleteNotification(id));
+  }
+
+  function clearRead() {
+    setItems((prev) => prev.filter((n) => !n.isRead));
+    startTransition(() => clearReadNotifications());
+  }
+
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground">Aucune notification pour le moment.</p>;
   }
 
   return (
     <div className="space-y-2">
-      {unreadCount > 0 && (
-        <div className="flex justify-end">
-          <Button size="sm" variant="ghost" onClick={markAllRead}>
-            Tout marquer comme lu
-          </Button>
+      {(unreadCount > 0 || readCount > 0) && (
+        <div className="flex flex-wrap justify-end gap-1">
+          {unreadCount > 0 && (
+            <Button size="sm" variant="ghost" onClick={markAllRead}>
+              Tout marquer comme lu
+            </Button>
+          )}
+          {readCount > 0 && (
+            <Button size="sm" variant="ghost" onClick={clearRead}>
+              <Trash2 size={13} aria-hidden="true" />
+              Effacer les lues ({readCount})
+            </Button>
+          )}
         </div>
       )}
       {items.map((n) => {
@@ -57,7 +78,7 @@ export function NotificationsList({ notifications }: { notifications: MyNotifica
         return (
           <Card
             key={n.id}
-            className={cn("flex items-start gap-3 p-3", !n.isRead && "border-accent/40 bg-accent-soft/30")}
+            className={cn("flex items-start gap-3 p-3", !n.isRead && "border-accent/30 bg-accent-soft/40")}
           >
             {!n.isRead && <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", SEVERITY_DOT[n.severity])} aria-hidden="true" />}
             {n.linkHref ? (
@@ -72,6 +93,15 @@ export function NotificationsList({ notifications }: { notifications: MyNotifica
                 Marquer lu
               </Button>
             )}
+            <button
+              type="button"
+              onClick={() => deleteOne(n.id)}
+              aria-label="Supprimer cette notification"
+              title="Supprimer"
+              className="shrink-0 rounded-full p-2 text-muted-foreground outline-none transition-colors hover:bg-urgent-soft hover:text-urgent focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <Trash2 size={15} aria-hidden="true" />
+            </button>
           </Card>
         );
       })}

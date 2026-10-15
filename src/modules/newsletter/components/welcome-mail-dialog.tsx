@@ -90,7 +90,7 @@ export function WelcomeMailDialog({
                 setSubject(e.target.value);
                 save(SUBJECT_KEY, e.target.value);
               }}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
           </div>
           <div className="space-y-1.5">
@@ -105,7 +105,7 @@ export function WelcomeMailDialog({
                 setBody(e.target.value);
                 save(BODY_KEY, e.target.value);
               }}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
             />
             <p className="text-xs text-muted-foreground">
               Variables : {MAIL_VARIABLES.map((v) => `{${v}}`).join(" ")} ·{" "}

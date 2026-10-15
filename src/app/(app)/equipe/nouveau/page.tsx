@@ -19,9 +19,9 @@ export default async function NouvelEmployePage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="stagger mx-auto max-w-lg space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Ajouter un employé</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Ajouter un employé</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Un accès sera créé, avec le rôle et les permissions associées.
         </p>

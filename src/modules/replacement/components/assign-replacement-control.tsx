@@ -21,7 +21,7 @@ export function AssignReplacementControl({ requestId, candidates }: { requestId:
       <select
         value={selected}
         onChange={(e) => setSelected(e.target.value)}
-        className="rounded-xl border border-border bg-background px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="rounded-2xl border border-border bg-card/80 px-3 py-1.5 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
       >
         {candidates.map((c) => (
           <option key={c.membershipId} value={c.membershipId}>

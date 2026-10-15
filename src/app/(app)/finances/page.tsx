@@ -4,7 +4,8 @@ import { getCurrentContext } from "@/lib/current-context";
 import { getFinanceHistory, getFinanceSummary } from "@/modules/finance/server/queries";
 import { FinanceExplorer } from "@/modules/finance/components/finance-explorer";
 import { FigureEntry } from "@/modules/finance/components/figure-entry";
-import { Card } from "@/components/ui/card";
+import { Clock, Euro, ShoppingBag, Users } from "lucide-react";
+import { StatCard } from "@/components/ui/stat-card";
 import { formatCents } from "@/lib/utils";
 
 export default async function FinancesPage() {
@@ -18,31 +19,22 @@ export default async function FinancesPage() {
   const now = new Date();
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="stagger mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Finances</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Finances</h1>
         <p className="mt-1 text-sm text-muted-foreground">14 derniers jours</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground">CA total</p>
-          <p className="mt-1 text-xl font-semibold">{formatCents(summary.totalRevenueCents)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground">Couverts</p>
-          <p className="mt-1 text-xl font-semibold">{summary.totalCovers}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground">Panier moyen</p>
-          <p className="mt-1 text-xl font-semibold">
-            {summary.averageTicketCents != null ? formatCents(summary.averageTicketCents) : "—"}
-          </p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground">Heures planifiées cette semaine</p>
-          <p className="mt-1 text-xl font-semibold">{Math.round(summary.plannedHoursThisWeek * 10) / 10}h</p>
-        </Card>
+        <StatCard label="CA total" value={formatCents(summary.totalRevenueCents)} icon={Euro} tone="accent" />
+        <StatCard label="Couverts" value={summary.totalCovers} icon={Users} tone="bar" />
+        <StatCard
+          label="Panier moyen"
+          value={summary.averageTicketCents != null ? formatCents(summary.averageTicketCents) : "—"}
+          icon={ShoppingBag}
+          tone="cuisine"
+        />
+        <StatCard label="Heures planifiées cette semaine" value={`${Math.round(summary.plannedHoursThisWeek * 10) / 10}h`} icon={Clock} tone="salle" />
       </div>
 
       <FinanceExplorer

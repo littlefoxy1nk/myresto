@@ -49,7 +49,7 @@ export function TodayServicePlan({ plan }: { plan: TodayServicePlan }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="text-lg font-semibold">
+        <h2 className="text-xl font-bold tracking-tight">
           {plan.service.name}{" "}
           <span className="text-sm font-normal text-muted-foreground">
             {upcoming ? `commence dans ${formatMinutes(plan.service.minutesFromNow)}` : "en cours"}
@@ -87,8 +87,8 @@ export function TodayServicePlan({ plan }: { plan: TodayServicePlan }) {
           {plan.zones.map((zone) => {
             const free = zone.tables.filter((t) => t.liveState === "available").length;
             return (
-              <Card key={zone.id} className="min-w-0 space-y-2 p-3">
-                <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+              <Card key={zone.id} className="min-w-0 space-y-3 p-4">
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                   <span aria-hidden="true">{ZONE_ICON[zone.type] ?? "📍"}</span>
                   {zone.name}
                   <span className="text-xs font-normal text-muted-foreground">

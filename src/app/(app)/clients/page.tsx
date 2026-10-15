@@ -5,6 +5,7 @@ import { getCurrentContext } from "@/lib/current-context";
 import { getCustomersList } from "@/modules/customers/server/queries";
 import { getNewsletterAudience } from "@/modules/newsletter/server/queries";
 import { WelcomeMailButton } from "@/modules/newsletter/components/welcome-mail-button";
+import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -31,10 +32,10 @@ export default async function ClientsPage({
   const audience = ctx.can("crm.manage") ? await getNewsletterAudience(ctx.establishment.id) : [];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="stagger mx-auto max-w-3xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {customers.length} client{customers.length > 1 ? "s" : ""}
             {onlyNewsletter ? " abonnés à la newsletter" : ` · ${subscriberCount} abonné${subscriberCount > 1 ? "s" : ""} à la newsletter`}
@@ -78,21 +79,24 @@ export default async function ClientsPage({
           name="q"
           defaultValue={q ?? ""}
           placeholder="Chercher par nom, téléphone, email…"
-          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="w-full rounded-2xl border border-border bg-card/80 px-3 py-2 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15"
         />
       </form>
 
       <div className="space-y-2">
         {customers.map((c) => (
-          <Link key={c.id} href={`/clients/${c.id}`}>
-            <Card className="flex flex-col gap-2 p-4 transition-colors hover:bg-muted sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">
-                  {c.firstName} {c.lastName}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {[c.phone, c.email].filter(Boolean).join(" · ") || "Pas de coordonnées"}
-                </p>
+          <Link key={c.id} href={`/clients/${c.id}`} className="group block rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            <Card className="flex flex-col gap-2 p-4 transition-all duration-200 group-hover:-translate-y-px group-hover:shadow-pop sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <InitialsAvatar firstName={c.firstName} lastName={c.lastName} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    {c.firstName} {c.lastName}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[c.phone, c.email].filter(Boolean).join(" · ") || "Pas de coordonnées"}
+                  </p>
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">

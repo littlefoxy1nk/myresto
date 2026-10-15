@@ -599,3 +599,23 @@ export async function setPlanningView(view: string) {
   await prisma.establishment.update({ where: { id: ctx.establishment.id }, data: { planningView: view } });
   revalidatePlanningPaths();
 }
+
+/// « C'est OK pour moi » : range une alerte du planning pour une semaine, à titre personnel.
+/// L'alerte reste calculée telle quelle — seule la personne qui l'a rangée ne la voit plus (et peut la rétablir).
+export async function dismissPlanningAlert(weekStart: string, alertKey: string) {
+  const ctx = await requirePermission("schedule.view");
+  const parsed = z.object({ weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), alertKey: z.string().min(1).max(300) }).parse({ weekStart, alertKey });
+  await prisma.planningAlertDismissal.upsert({
+    where: { membershipId_weekStart_alertKey: { membershipId: ctx.membership.id, ...parsed } },
+    create: { membershipId: ctx.membership.id, ...parsed },
+    update: {},
+  });
+  revalidatePath("/planning");
+}
+
+export async function restorePlanningAlerts(weekStart: string) {
+  const ctx = await requirePermission("schedule.view");
+  const week = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).parse(weekStart);
+  await prisma.planningAlertDismissal.deleteMany({ where: { membershipId: ctx.membership.id, weekStart: week } });
+  revalidatePath("/planning");
+}

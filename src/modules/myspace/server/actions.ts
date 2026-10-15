@@ -370,3 +370,17 @@ export async function markAllNotificationsRead() {
   });
   revalidatePath("/mon-espace");
 }
+
+/// Supprime une notification de la personne connectée (jamais celle d'un autre membre).
+export async function deleteNotification(notificationId: string) {
+  const ctx = await getCurrentContext();
+  await prisma.notification.deleteMany({ where: { id: notificationId, membershipId: ctx.membership.id } });
+  revalidatePath("/mon-espace");
+}
+
+/// Efface toutes les notifications déjà lues ; celles qui n'ont pas été lues restent.
+export async function clearReadNotifications() {
+  const ctx = await getCurrentContext();
+  await prisma.notification.deleteMany({ where: { membershipId: ctx.membership.id, readAt: { not: null } } });
+  revalidatePath("/mon-espace");
+}

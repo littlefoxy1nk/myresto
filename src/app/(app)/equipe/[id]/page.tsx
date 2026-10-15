@@ -1,3 +1,5 @@
+import { AvatarFigure } from "@/components/ui/avatar-figure";
+import { parseAvatar } from "@/lib/avatar";
 import Link from "next/link";
 import { requireModule } from "@/lib/module-guard";
 import { redirect } from "next/navigation";
@@ -29,6 +31,12 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   if (!ctx.can("staff.view")) redirect("/aujourdhui");
 
   const profile = await getEmployeeProfile(id);
+  const avatarUser = (
+    await prisma.membership.findFirst({
+      where: { id, establishmentId: ctx.establishment.id },
+      select: { user: { select: { id: true, avatarJson: true } } },
+    })
+  )?.user;
   const canManage = ctx.can("staff.manage");
 
   const roles = canManage
@@ -40,7 +48,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     : [];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="stagger mx-auto max-w-3xl space-y-6">
       <div>
         <Button asChild size="sm" variant="ghost" className="-ml-2">
           <Link href="/equipe">
@@ -49,12 +57,15 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           </Link>
         </Button>
         <div className="mt-1 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{profile.name}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {profile.jobTitle ?? profile.roleLabel}
-              {profile.jobTitle && profile.jobTitle !== profile.roleLabel ? ` · ${profile.roleLabel}` : ""}
-            </p>
+          <div className="flex min-w-0 items-center gap-4">
+            <AvatarFigure config={parseAvatar(avatarUser?.avatarJson, avatarUser?.id ?? id)} size={64} />
+            <div className="min-w-0">
+              <h1 className="text-3xl font-bold tracking-tight">{profile.name}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {profile.jobTitle ?? profile.roleLabel}
+                {profile.jobTitle && profile.jobTitle !== profile.roleLabel ? ` · ${profile.roleLabel}` : ""}
+              </p>
+            </div>
           </div>
           {canManage && (
             <div className="flex shrink-0 items-start gap-2">
@@ -83,7 +94,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
       {/* Informations */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Informations</h2>
+        <h2 className="text-lg font-bold tracking-tight">Informations</h2>
         <Card className="space-y-2 p-4 text-sm">
           {profile.email && (
             <p>
@@ -127,7 +138,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
       {/* Planning */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Planning cette semaine</h2>
+        <h2 className="text-lg font-bold tracking-tight">Planning cette semaine</h2>
         {profile.weekShifts.length === 0 ? (
           <Card className="p-6 text-center text-sm text-muted-foreground">Aucun service planifié cette semaine.</Card>
         ) : (
@@ -149,7 +160,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
       {/* Absences */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Congés & absences</h2>
+        <h2 className="text-lg font-bold tracking-tight">Congés & absences</h2>
         {profile.timeOffRequests.length === 0 ? (
           <Card className="p-6 text-center text-sm text-muted-foreground">Aucune demande pour le moment.</Card>
         ) : (
@@ -179,7 +190,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
       {/* Horaire habituel */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Horaire habituel</h2>
+        <h2 className="text-lg font-bold tracking-tight">Horaire habituel</h2>
         <p className="text-sm text-muted-foreground">
           {profile.employmentType === "flexijob"
             ? "Statut flexijob : cette personne déclare elle-même son horaire habituel depuis son espace, à tout moment."
@@ -200,7 +211,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
       {profile.oneOffAvailability.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">Disponibilités en plus cette semaine</h2>
+          <h2 className="text-lg font-bold tracking-tight">Disponibilités en plus cette semaine</h2>
           <div className="flex flex-wrap gap-2">
             {profile.oneOffAvailability.map((entry) => {
               const service = profile.availabilityServices.find((s) => s.id === entry.serviceId);

@@ -46,7 +46,7 @@ export default async function PlanningPage({
 
   if (!data.canEdit) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="stagger mx-auto max-w-6xl space-y-6">
         <WorkerPlanningView data={data} {...weekNavProps} />
       </div>
     );
@@ -57,7 +57,7 @@ export default async function PlanningPage({
     : 0;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="stagger mx-auto max-w-6xl space-y-6">
       {ctx.can("settings.manage") && serviceCount <= 1 && (
         <p className="rounded-xl border border-accent/30 bg-accent-soft/40 px-4 py-2.5 text-sm">
           <span className="font-medium text-accent">Définis tes services</span>{" "}
@@ -71,7 +71,7 @@ export default async function PlanningPage({
       )}
       {replacementRequests.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">Remplacements en attente</h2>
+          <h2 className="text-lg font-bold tracking-tight">Remplacements en attente</h2>
           <div className="space-y-2">
             {replacementRequests.map((r) => (
               <Card key={r.id} className="space-y-2 p-4">
