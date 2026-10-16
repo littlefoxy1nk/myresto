@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentContext } from "@/lib/current-context";
 import { toDateKey } from "@/lib/utils";
 import { isoWeekday } from "@/lib/time";
+import type { ReservationHit } from "@/modules/today/reservation-search";
 import { coversPerService } from "@/modules/service/spans";
 import {
   formatServiceRanges,
@@ -89,4 +90,26 @@ export type CountdownEventItem = { id: string; title: string; date: string };
 export async function getCountdownEvents(establishmentId: string): Promise<CountdownEventItem[]> {
   const events = await prisma.countdownEvent.findMany({ where: { establishmentId }, orderBy: { date: "asc" } });
   return events.map((e) => ({ id: e.id, title: e.title, date: toDateKey(e.date) }));
+}
+
+/// Les réservations du jour, avec la ou les tables auxquelles elles sont assignées : de quoi retrouver en une saisie
+/// « où est installé M. Dupont ». Réservé aux personnes qui peuvent voir les réservations.
+export async function getTodayReservationHits(establishmentId: string): Promise<ReservationHit[]> {
+  const ctx = await getCurrentContext();
+  if (!ctx.can("reservations.view")) return [];
+  const now = new Date();
+  const rows = await prisma.reservation.findMany({
+    where: { establishmentId, date: { gte: startOfDay(now), lte: endOfDay(now) } },
+    orderBy: { time: "asc" },
+    include: { tables: { include: { table: { select: { id: true, label: true, zone: { select: { name: true } } } } } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    customerName: r.customerName,
+    customerPhone: r.customerPhone,
+    time: r.time,
+    partySize: r.partySize,
+    status: r.status,
+    tables: r.tables.map((rt) => ({ id: rt.table.id, label: rt.table.label, zoneName: rt.table.zone.name })),
+  }));
 }

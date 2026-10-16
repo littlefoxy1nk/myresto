@@ -6,6 +6,8 @@ import { toast } from "@/lib/toast-bus";
 import { cn } from "@/lib/utils";
 import { ZONE_ICON } from "@/modules/floorplan/components/zone-tabs";
 import { FloorPlanCanvas } from "@/modules/floorplan/components/floor-plan-canvas";
+import { ReservationFinder } from "@/modules/today/components/reservation-finder";
+import type { ReservationHit } from "@/modules/today/reservation-search";
 import { zoneColumns } from "@/modules/floorplan/layout";
 import { LIVE_STATE_STYLE } from "@/modules/floorplan/live-state-style";
 import { ServiceTableSheet } from "@/modules/service/components/service-table-sheet";
@@ -20,7 +22,7 @@ const LEGEND = ["available", "soon", "reserved", "occupied", "cleaning"] as cons
 
 /// Toutes les salles du service d'un coup d'œil, sur un seul écran. Un clic sur une table ouvre ses actions
 /// (arrivé, installé, libérer, prête, client sans réservation).
-export function TodayServicePlan({ plan }: { plan: TodayServicePlan }) {
+export function TodayServicePlan({ plan, reservations = [] }: { plan: TodayServicePlan; reservations?: ReservationHit[] }) {
   useAutoRefresh(REFRESH_INTERVAL_MS);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
 
@@ -35,14 +37,32 @@ export function TodayServicePlan({ plan }: { plan: TodayServicePlan }) {
 
   if (plan.mode === "none" || !plan.service) {
     return (
-      <Card className="p-8 text-center">
-        <p className="text-sm font-medium">Plus de service aujourd&apos;hui</p>
-        <p className="mt-1 text-sm text-muted-foreground">Le plan des salles réapparaît ici avec le prochain service.</p>
-      </Card>
+      <div className="space-y-4">
+        {reservations.length > 0 && <ReservationFinder reservations={reservations} />}
+        <Card className="p-8 text-center">
+          <p className="text-sm font-medium">Plus de service aujourd&apos;hui</p>
+          <p className="mt-1 text-sm text-muted-foreground">Le plan des salles réapparaît ici avec le prochain service.</p>
+        </Card>
+      </div>
     );
   }
 
   const allTables = plan.zones.flatMap((z) => z.tables);
+  const planTableIds = new Set(allTables.map((t) => t.id));
+
+  // Un résultat de recherche : on ouvre la table et on la montre sur le plan (défilement + clignotement).
+  function showTable(tableId: string) {
+    setSelectedTableId(tableId);
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>(`[data-table-id="${tableId}"]`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.remove("table-flash");
+      void el.offsetWidth;
+      el.classList.add("table-flash");
+      setTimeout(() => el.classList.remove("table-flash"), 3000);
+    });
+  }
   const selected = allTables.find((t) => t.id === selectedTableId) ?? null;
   const count = (states: string[]) => allTables.filter((t) => states.includes(t.liveState)).length;
   const upcoming = plan.mode === "upcoming";
@@ -68,6 +88,8 @@ export function TodayServicePlan({ plan }: { plan: TodayServicePlan }) {
           )}
         </p>
       </div>
+
+      {reservations.length > 0 && <ReservationFinder reservations={reservations} planTableIds={planTableIds} onPickTable={showTable} />}
 
       <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Légende des couleurs">
         {LEGEND.filter((s) => !(upcoming && (s === "occupied" || s === "soon" || s === "cleaning"))).map((state) => {
