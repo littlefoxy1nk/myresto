@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
@@ -13,7 +14,9 @@ export const metadata: Metadata = {
   description: "Le copilote du restaurateur.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Toutes les pages sont générées à chaque requête : c'est ce qui permet à chacune de recevoir son « nonce » de sécurité (voir proxy.ts).
+  await connection();
   return (
     <html lang="fr" className={`${jakarta.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">

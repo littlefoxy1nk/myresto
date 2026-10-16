@@ -12,13 +12,13 @@ export function ChangeCodeDialog({ open, onOpenChange }: { open: boolean; onOpen
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const valid = currentCode.length > 0 && /^[A-Za-z0-9]{4,8}$/.test(newCode);
+  const valid = currentCode.length > 0 && /^[A-Za-z0-9]{6,12}$/.test(newCode);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogTitle>Changer mon code d&apos;accès</DialogTitle>
-        <DialogDescription>Le nouveau code doit contenir entre 4 et 8 caractères — lettres et chiffres acceptés.</DialogDescription>
+        <DialogDescription>Le nouveau code doit contenir entre 6 et 12 caractères — lettres et chiffres acceptés.</DialogDescription>
         <form
           className="mt-4 space-y-3"
           onSubmit={async (e) => {

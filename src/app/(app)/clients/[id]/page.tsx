@@ -1,3 +1,4 @@
+import { DeleteCustomerButton } from "@/modules/customers/components/delete-customer-button";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import Link from "next/link";
 import { requireModule } from "@/lib/module-guard";
@@ -95,6 +96,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           )}
         </CardContent>
       </Card>
+
+      {ctx.can("crm.manage") && (
+        <div className="flex justify-end">
+          <DeleteCustomerButton customerId={customer.id} name={`${customer.firstName} ${customer.lastName}`} />
+        </div>
+      )}
 
       <Card>
         <CardHeader>

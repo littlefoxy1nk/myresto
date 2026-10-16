@@ -22,6 +22,9 @@ export async function getCurrentContext() {
 
   if (!membership) redirect("/onboarding");
 
+  // Une session ouverte avant un changement de mot de passe / de code n'est plus valable.
+  if (membership.user.sessionVersion !== ((session as { sv?: number }).sv ?? 0)) redirect("/login");
+
   const permissions = new Set(
     membership.role.permissions.map((rp) => rp.permission.key as PermissionKey)
   );

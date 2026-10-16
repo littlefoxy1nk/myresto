@@ -201,7 +201,7 @@ const ChangeCodeSchema = z
     currentCode: z.string().min(1, "Code actuel requis."),
     newCode: z
       .string()
-      .regex(/^[A-Za-z0-9]{4,8}$/, "Le nouveau code doit contenir entre 4 et 8 caractères (lettres et chiffres)."),
+      .regex(/^[A-Za-z0-9]{6,12}$/, "Le nouveau code doit contenir entre 6 et 12 caractères (lettres et chiffres)."),
   });
 
 /// Un employé change son propre code — jamais celui d'un tiers (aucun membershipId en
@@ -217,7 +217,7 @@ export async function changeMyCode(input: z.infer<typeof ChangeCodeSchema>) {
   const valid = await bcrypt.compare(data.currentCode, user.codeHash);
   if (!valid) throw new Error("Code actuel incorrect.");
 
-  const codeHash = await bcrypt.hash(data.newCode, 10);
+  const codeHash = await bcrypt.hash(data.newCode, 12);
   await prisma.user.update({ where: { id: ctx.user.id }, data: { codeHash } });
 }
 

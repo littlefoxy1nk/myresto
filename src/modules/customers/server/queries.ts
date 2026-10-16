@@ -16,10 +16,10 @@ export async function getCustomersList(establishmentId: string, search?: string)
       ...(search
         ? {
             OR: [
-              { firstName: { contains: search } },
-              { lastName: { contains: search } },
-              { phone: { contains: search } },
-              { email: { contains: search } },
+              { firstName: { contains: search, mode: "insensitive" } },
+              { lastName: { contains: search, mode: "insensitive" } },
+              { phone: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
             ],
           }
         : {}),

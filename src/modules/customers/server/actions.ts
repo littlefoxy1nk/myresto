@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
+import { audit } from "@/lib/audit";
 
 const UpdateProfileSchema = z.object({
   preferences: z.string().optional(),
@@ -42,4 +43,23 @@ export async function updateCustomerProfile(customerId: string, input: z.infer<t
   });
 
   revalidatePath(`/clients/${customerId}`);
+}
+
+/// Droit à l'effacement : supprime la fiche d'un client. Ses anciennes réservations restent (pour les chiffres du
+/// restaurant) mais ne portent plus ni son nom, ni son téléphone, ni son email.
+export async function deleteCustomer(customerId: string) {
+  const ctx = await requirePermission("crm.manage");
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, establishmentId: ctx.establishment.id } });
+  if (!customer) throw new Error("Client introuvable.");
+
+  await prisma.$transaction([
+    prisma.reservation.updateMany({
+      where: { customerId, establishmentId: ctx.establishment.id },
+      data: { customerName: "Client supprimé", customerPhone: null, customerEmail: null, customerId: null },
+    }),
+    prisma.customer.delete({ where: { id: customerId } }),
+  ]);
+  await audit(ctx, "customer.deleted", "customer", customerId);
+  revalidatePath("/clients");
+  revalidatePath("/reservations");
 }

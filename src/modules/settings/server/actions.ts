@@ -1,5 +1,6 @@
 "use server";
 
+import { audit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentContext, requirePermission } from "@/lib/current-context";
@@ -38,6 +39,7 @@ export async function setModuleEnabled(key: string, enabled: boolean) {
     where: { id: ctx.establishment.id },
     data: { disabledModules: serializeDisabledModules(disabled) },
   });
+  await audit(ctx, enabled ? "settings.module_enabled" : "settings.module_disabled", "establishment", ctx.establishment.id, { module: key });
   revalidatePath("/", "layout");
 }
 

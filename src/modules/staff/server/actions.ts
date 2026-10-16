@@ -1,5 +1,7 @@
 "use server";
 
+import { audit } from "@/lib/audit";
+import { checkAccountAction } from "@/modules/staff/role-guard";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
@@ -7,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
 import { baseUsername } from "@/modules/staff/username";
-import { resolveAndAssignRole } from "@/modules/staff/server/roles";
+import { assertGrantable, resolveAndAssignRole } from "@/modules/staff/server/roles";
 import type { PermissionKey } from "@/lib/permissions";
 
 const CreateEmployeeSchema = z.object({
@@ -161,9 +163,16 @@ export async function createEmployee(
     }
   }
 
+  // Le rôle et les droits choisis doivent être à la portée de la personne qui crée le compte.
+  try {
+    await assertGrantable(ctx, { targetMembershipId: null, baseRoleId: role.id, permissionKeys: values.permissions as PermissionKey[] });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Rôle non autorisé.", values, attempt };
+  }
+
   const username = await generateUniqueUsername(data.firstName, data.lastName);
   const code = generateAccessCode();
-  const codeHash = await bcrypt.hash(code, 10);
+  const codeHash = await bcrypt.hash(code, 12);
 
   const user = await prisma.user.create({
     data: {
@@ -214,6 +223,7 @@ export async function createEmployee(
     });
   }
 
+  await audit(ctx, "staff.created", "membership", membership.id, { roleId: role.id });
   revalidatePath("/equipe");
 
   return {
@@ -245,20 +255,23 @@ export async function regenerateEmployeeCode(membershipId: string): Promise<Rege
 
   const membership = await prisma.membership.findFirst({
     where: { id: membershipId, establishmentId: ctx.establishment.id },
-    include: { user: true },
+    include: { user: true, role: { select: { key: true } } },
   });
   if (!membership) {
     return { error: "Employé introuvable." };
   }
+  const forbidden = checkAccountAction({ isOwner: ctx.membership.role.key === "OWNER" }, { roleKey: membership.role.key });
+  if (forbidden) return { error: forbidden };
 
   const code = generateAccessCode();
-  const codeHash = await bcrypt.hash(code, 10);
+  const codeHash = await bcrypt.hash(code, 12);
 
   await prisma.user.update({
     where: { id: membership.userId },
-    data: { codeHash, failedLoginAttempts: 0, lockedUntil: null },
+    data: { codeHash, failedLoginAttempts: 0, lockedUntil: null, sessionVersion: { increment: 1 } },
   });
 
+  await audit(ctx, "staff.code_regenerated", "membership", membershipId);
   revalidatePath(`/equipe/${membershipId}`);
   revalidatePath("/equipe");
 
@@ -341,10 +354,20 @@ export async function updateEmployee(
   const ctx = await requirePermission("staff.manage");
   const data = UpdateEmployeeSchema.parse(input);
 
-  const membership = await prisma.membership.findFirst({ where: { id: membershipId, establishmentId: ctx.establishment.id } });
+  const membership = await prisma.membership.findFirst({
+    where: { id: membershipId, establishmentId: ctx.establishment.id },
+    include: { role: { select: { key: true } } },
+  });
   if (!membership) throw new Error("Employé introuvable.");
+  const actorIsOwner = ctx.membership.role.key === "OWNER";
+  const ownAccount = membershipId === ctx.membership.id;
+  if (membership.role.key === "OWNER" && !actorIsOwner) throw new Error("Seul le propriétaire peut modifier le compte du propriétaire.");
 
-  await resolveAndAssignRole(ctx.establishment.id, membershipId, data.roleId, permissionKeys);
+  // On peut corriger son propre nom ou téléphone, mais jamais son propre rôle ni ses propres droits.
+  if (!ownAccount) {
+    await assertGrantable(ctx, { targetMembershipId: membershipId, baseRoleId: data.roleId, permissionKeys });
+    await resolveAndAssignRole(ctx.establishment.id, membershipId, data.roleId, permissionKeys);
+  }
 
   const validSkills = skills.filter((s) => ["salle", "bar", "cuisine", "plonge"].includes(s));
   const weeklyHoursTarget = data.weeklyHoursTarget ? Number.parseFloat(data.weeklyHoursTarget) : null;
@@ -363,6 +386,7 @@ export async function updateEmployee(
     },
   });
 
+  await audit(ctx, "staff.updated", "membership", membershipId, { roleId: data.roleId });
   revalidatePath(`/equipe/${membershipId}`);
   revalidatePath("/equipe");
 }
@@ -388,6 +412,8 @@ export async function removeEmployee(membershipId: string) {
     include: { role: { include: { permissions: { include: { permission: true } } } } },
   });
   if (!membership) throw new Error("Employé introuvable.");
+  const forbidden = checkAccountAction({ isOwner: ctx.membership.role.key === "OWNER" }, { roleKey: membership.role.key });
+  if (forbidden) throw new Error(forbidden);
 
   const managesStaff = membership.role.permissions.some((rp) => rp.permission.key === "staff.manage");
   if (managesStaff) {
@@ -408,10 +434,11 @@ export async function removeEmployee(membershipId: string) {
     prisma.membership.update({ where: { id: membershipId }, data: { status: "inactive" } }),
     prisma.user.update({
       where: { id: membership.userId },
-      data: { passwordHash: null, codeHash: null, failedLoginAttempts: 0, lockedUntil: null },
+      data: { passwordHash: null, codeHash: null, failedLoginAttempts: 0, lockedUntil: null, sessionVersion: { increment: 1 } },
     }),
   ]);
 
+  await audit(ctx, "staff.removed", "membership", membershipId);
   revalidatePath("/equipe");
   revalidatePath(`/equipe/${membershipId}`);
 }

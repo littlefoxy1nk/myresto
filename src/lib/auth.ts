@@ -4,8 +4,12 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { isLockedOut, computeFailedAttempt } from "@/lib/login-lockout";
 
+/// Un faux hash (celui d'un code aléatoire, donc jamais valable) pour faire le même calcul quand le compte n'existe pas.
+const DUMMY_HASH = bcrypt.hashSync(crypto.randomUUID(), 12);
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt" },
+  // Une session dure 14 jours (au lieu de 30) ; un téléphone perdu ne reste pas ouvert indéfiniment.
+  session: { strategy: "jwt", maxAge: 14 * 24 * 60 * 60 },
   pages: { signIn: "/login" },
   providers: [
     Credentials({
@@ -24,12 +28,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!identifier || !secret) return null;
 
         const user = await prisma.user.findFirst({
-          where: { OR: [{ email: identifier }, { username: identifier }] },
+          where: { OR: [{ email: identifier.trim().toLowerCase() }, { email: identifier }, { username: identifier }] },
         });
-        if (!user) return null;
+        // Même durée de réponse que le compte existe ou non : on ne laisse pas deviner quelles adresses ont un compte.
+        if (!user) {
+          await bcrypt.compare(secret, DUMMY_HASH);
+          return null;
+        }
 
         const now = new Date();
         if (isLockedOut(user.lockedUntil, now)) {
+          await bcrypt.compare(secret, DUMMY_HASH);
           return null;
         }
 
@@ -42,7 +51,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 data: { failedLoginAttempts: 0, lockedUntil: null },
               });
             }
-            return { id: user.id, email: user.email, name: `${user.firstName} ${user.lastName}` };
+            return { id: user.id, email: user.email, name: `${user.firstName} ${user.lastName}`, sessionVersion: user.sessionVersion } as { id: string; email: string | null; name: string; sessionVersion: number };
           }
         }
 
@@ -57,11 +66,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     jwt: async ({ token, user }) => {
-      if (user) token.userId = user.id;
+      if (user) {
+        token.userId = user.id;
+        // La « génération » des sessions au moment de la connexion : si elle change ensuite (mot de passe réinitialisé…), cette session n'est plus valable.
+        token.sv = (user as { sessionVersion?: number }).sessionVersion ?? 0;
+      }
       return token;
     },
     session: async ({ session, token }) => {
       if (session.user) session.user.id = token.userId as string;
+      (session as { sv?: number }).sv = (token.sv as number | undefined) ?? 0;
       return session;
     },
   },

@@ -1,7 +1,7 @@
 // MYRESTO — modèle de données
-// SQLite en développement (pas d'enums natifs -> valeurs en String documentées ci-dessous,
-// validées côté application avec Zod). Passage en PostgreSQL en prod : changer le provider
-// et promouvoir les champs "enum-like" en vrais enums Prisma.
+// PostgreSQL, en développement comme en production (même moteur partout : aucune surprise au déploiement).
+// En local : `npm run db:dev` (PostgreSQL embarqué, rien à installer). Pas d'enums natifs : les champs
+// « enum-like » sont des String documentées ci-dessous, validées côté application avec Zod.
 
 generator client {
   provider = "prisma-client-js"
@@ -9,8 +9,11 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  /// Adresse utilisée par l'appli (peut passer par un pooler de connexions chez l'hébergeur).
+  url       = env("DATABASE_URL")
+  /// Adresse directe, utilisée uniquement pour appliquer les migrations (identique à DATABASE_URL en local).
+  directUrl = env("DIRECT_URL")
 }
 
 // =========================================================================
@@ -114,6 +117,9 @@ model User {
   /// le manager régénère le code (voir staff/server/actions.ts).
   failedLoginAttempts Int    @default(0)
   lockedUntil   DateTime?
+  /// Numéro de « génération » des sessions : on l'augmente quand le mot de passe ou le code change, ce qui déconnecte
+  /// aussitôt toutes les sessions déjà ouvertes (voir lib/current-context.ts).
+  sessionVersion Int         @default(0)
   firstName     String
   lastName      String
   phone         String?
@@ -124,6 +130,21 @@ model User {
   updatedAt     DateTime     @updatedAt
 
   memberships   Membership[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+/// Un lien « mot de passe oublié » : valable une heure, utilisable une seule fois. On ne garde que l'empreinte du lien
+/// (jamais le lien lui-même), donc une fuite de la base ne permet pas de réinitialiser un compte.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 /// Rattache un utilisateur à un établissement avec un rôle donné.

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { PermissionKey } from "@/lib/permissions";
+import { checkRoleGrant } from "@/modules/staff/role-guard";
 
 /// Résout un ensemble de droits vers un rôle exact ET réassigne la Membership dans la
 /// foulée — les deux DOIVENT rester dans la même fonction : Membership.role est
@@ -88,4 +89,35 @@ async function cleanupOrphanCustomRole(establishmentId: string, previousRoleId: 
   if (role && role._count.memberships === 0) {
     await prisma.role.delete({ where: { id: role.id } });
   }
+}
+
+/// Vérifie, AVANT toute modification, que la personne qui agit a le droit de donner ce rôle et ces droits à cette personne
+/// (voir staff/role-guard.ts). Lève une erreur lisible sinon.
+export async function assertGrantable(
+  ctx: { establishment: { id: string }; membership: { id: string; role: { key: string } }; permissions: ReadonlySet<string> },
+  params: { targetMembershipId: string | null; baseRoleId: string; permissionKeys: readonly string[] }
+): Promise<void> {
+  const baseRole = await prisma.role.findFirst({
+    where: { id: params.baseRoleId, establishmentId: ctx.establishment.id },
+    include: { permissions: { include: { permission: true } } },
+  });
+  if (!baseRole) throw new Error("Rôle introuvable.");
+
+  const target = params.targetMembershipId
+    ? await prisma.membership.findFirst({
+        where: { id: params.targetMembershipId, establishmentId: ctx.establishment.id },
+        select: { id: true, role: { select: { key: true } } },
+      })
+    : null;
+  if (params.targetMembershipId && !target) throw new Error("Employé introuvable.");
+
+  const error = checkRoleGrant({
+    actor: { permissions: ctx.permissions, isOwner: ctx.membership.role.key === "OWNER" },
+    target: { currentRoleKey: target?.role.key ?? null, isSelf: target?.id === ctx.membership.id },
+    next: {
+      baseRoleKey: baseRole.key,
+      resultingKeys: params.permissionKeys.length > 0 ? params.permissionKeys : baseRole.permissions.map((rp) => rp.permission.key),
+    },
+  });
+  if (error) throw new Error(error);
 }

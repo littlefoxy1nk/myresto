@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MYRESTO
 
-## Getting Started
+Le copilote du restaurateur : réservations (en ligne et par téléphone), plan de salle, planning de l'équipe, clients, finances, listes de courses et communication — pour un restaurant, un bar, une brasserie ou un café.
 
-First, run the development server:
+Next.js (App Router) · PostgreSQL · Prisma · NextAuth · Tailwind.
+
+## Démarrer en local
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env     # puis ajoute AUTH_SECRET (openssl rand -base64 32)
+npm run db:dev           # terminal 1 : base PostgreSQL embarquée (rien à installer)
+npx prisma migrate deploy
+npm run dev              # terminal 2 : http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Créer un établissement : http://localhost:3000/onboarding (ouvert en développement).
+Données de démonstration : `npm run db:seed`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Commandes utiles
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Commande | Rôle |
+|---|---|
+| `npm test` | Les tests automatiques (logique métier) |
+| `npx tsc --noEmit` | Vérification des types |
+| `npm run lint` | Vérification du code |
+| `npm run db:migration -- nom` | Nouvelle migration après un changement de `prisma/schema.prisma` |
+| `npm run db:import-sqlite -- chemin/dev.db` | Reprendre d'anciennes données SQLite |
 
-## Learn More
+## Mise en ligne
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Voir [DEPLOY.md](DEPLOY.md) : hébergement, réglages, sauvegardes, sécurité.

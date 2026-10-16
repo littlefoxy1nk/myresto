@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 
@@ -27,4 +27,9 @@ export async function saveEmployeeDocument(buffer: Buffer, mimeType: string): Pr
 
 export async function readEmployeeDocument(fileName: string): Promise<Buffer> {
   return readFile(path.join(STORAGE_DIR, fileName));
+}
+
+/// Supprime le fichier du disque ; un fichier déjà absent n'est pas une erreur.
+export async function deleteEmployeeDocument(fileName: string): Promise<void> {
+  await unlink(path.join(STORAGE_DIR, path.basename(fileName))).catch(() => undefined);
 }

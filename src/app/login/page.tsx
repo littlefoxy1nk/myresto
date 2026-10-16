@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { signIn } from "@/lib/auth";
+import { createRateLimiter } from "@/modules/booking/logic";
+import { getClientIp } from "@/lib/client-ip";
+import { signupPolicy } from "@/lib/signup-policy";
 import Link from "next/link";
 import { CalendarClock, CalendarDays, LayoutGrid, Lock, User } from "lucide-react";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -8,9 +11,15 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { BrandMark } from "@/components/nav/brand-mark";
 import { AuthShell } from "@/components/auth/auth-shell";
 
+const perIp = createRateLimiter(20, 15 * 60_000);
+
 async function authenticate(formData: FormData) {
   "use server";
   const identifier = String(formData.get("identifier") ?? "");
+  // Freine les essais en rafale depuis une même adresse (en plus du verrouillage par compte).
+  if (!perIp.allow(await getClientIp(), Date.now())) {
+    redirect(`/login?error=rate&identifier=${encodeURIComponent(identifier)}`);
+  }
   try {
     await signIn("credentials", {
       identifier,
@@ -29,9 +38,9 @@ async function authenticate(formData: FormData) {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; identifier?: string }>;
+  searchParams: Promise<{ error?: string; identifier?: string; closed?: string; reset?: string }>;
 }) {
-  const { error, identifier } = await searchParams;
+  const { error, identifier, closed, reset } = await searchParams;
 
   return (
     <AuthShell
@@ -49,9 +58,19 @@ export default async function LoginPage({
       </div>
 
       <form action={authenticate} className="space-y-4 rounded-3xl border border-border/70 bg-card p-6 shadow-pop">
+        {reset && (
+          <p role="status" className="rounded-2xl bg-good-soft px-3.5 py-2.5 text-sm font-medium text-good">
+            Mot de passe changé. Tu peux te connecter.
+          </p>
+        )}
+        {closed && (
+          <p role="status" className="rounded-2xl bg-good-soft px-3.5 py-2.5 text-sm font-medium text-good">
+            Ton établissement et toutes ses données ont été supprimés.
+          </p>
+        )}
         {error && (
           <p role="alert" className="rounded-2xl bg-urgent-soft px-3.5 py-2.5 text-sm font-medium text-urgent">
-            Identifiant ou mot de passe incorrect.
+            {error === "rate" ? "Trop d'essais. Réessaie dans quelques minutes." : "Identifiant ou mot de passe incorrect."}
           </p>
         )}
         <div className="space-y-1.5">
@@ -73,9 +92,14 @@ export default async function LoginPage({
           </div>
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="login-secret" className="text-sm font-semibold">
-            Mot de passe ou code
-          </label>
+          <div className="flex items-baseline justify-between gap-2">
+            <label htmlFor="login-secret" className="text-sm font-semibold">
+              Mot de passe ou code
+            </label>
+            <Link href="/mot-de-passe-oublie" className="text-xs font-semibold text-accent underline-offset-4 hover:underline">
+              Mot de passe oublié ?
+            </Link>
+          </div>
           <div className="relative">
             <Lock size={17} className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <PasswordInput id="login-secret" name="secret" autoComplete="current-password" required autoFocus={!!error} className="w-full rounded-2xl border border-border bg-card/80 py-3 pl-11 pr-4 text-sm outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15" />
@@ -86,12 +110,14 @@ export default async function LoginPage({
         </SubmitButton>
       </form>
 
+      {signupPolicy().open && (
       <p className="mt-6 text-center text-sm text-muted-foreground lg:text-left">
         Pas encore d&apos;établissement sur MYRESTO ?{" "}
         <Link href="/onboarding" className="font-semibold text-accent underline-offset-4 hover:underline">
           Créer le mien
         </Link>
       </p>
+      )}
     </AuthShell>
   );
 }

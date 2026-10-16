@@ -7,12 +7,19 @@ import { prisma } from "@/lib/prisma";
 import { signIn } from "@/lib/auth";
 import { provisionSystemRoles } from "@/lib/provision-establishment";
 import { serviceLabel } from "@/lib/service-label";
+import { validatePassword } from "@/lib/password-policy";
+import { inviteCodeMatches, signupPolicy } from "@/lib/signup-policy";
+import { getClientIp } from "@/lib/client-ip";
+import { createRateLimiter } from "@/modules/booking/logic";
+
+const perIp = createRateLimiter(5, 60 * 60_000);
 
 const OnboardingSchema = z.object({
   firstName: z.string().min(1, "Le prénom est requis."),
   lastName: z.string().min(1, "Le nom est requis."),
-  email: z.string().email("Adresse email invalide."),
-  password: z.string().min(8, "8 caractères minimum."),
+  email: z.string().trim().toLowerCase().email("Adresse email invalide."),
+  password: z.string().min(1, "Choisis un mot de passe."),
+  inviteCode: z.string().optional().default(""),
   establishmentName: z.string().min(1, "Le nom de l'établissement est requis."),
   establishmentType: z.enum(["restaurant", "bar", "brasserie", "cafe"]),
   tableCount: z.coerce.number().int().min(1).max(60),
@@ -25,6 +32,7 @@ export type OnboardingValues = {
   lastName: string;
   email: string;
   password: string;
+  inviteCode: string;
   establishmentName: string;
   establishmentType: string;
   tableCount: string;
@@ -50,6 +58,7 @@ function valuesFromFormData(formData: FormData): OnboardingValues {
     lastName: String(formData.get("lastName") ?? ""),
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
+    inviteCode: String(formData.get("inviteCode") ?? ""),
     establishmentName: String(formData.get("establishmentName") ?? ""),
     establishmentType: String(formData.get("establishmentType") ?? "restaurant"),
     tableCount: String(formData.get("tableCount") ?? "12"),
@@ -64,6 +73,17 @@ export async function createEstablishment(
 ): Promise<OnboardingState> {
   const values = valuesFromFormData(formData);
   const attempt = prev.attempt + 1;
+
+  const policy = signupPolicy();
+  if (!policy.open) {
+    return { error: "La création de compte est fermée pour le moment. Contacte MYRESTO pour obtenir une invitation.", values, attempt };
+  }
+  if (!perIp.allow(await getClientIp(), Date.now())) {
+    return { error: "Trop de tentatives. Réessaie dans une heure.", values, attempt };
+  }
+  if (policy.requiresCode && !inviteCodeMatches(values.inviteCode, process.env.SIGNUP_INVITE_CODE)) {
+    return { error: "Code d'invitation incorrect.", fieldErrors: { inviteCode: "Code d'invitation incorrect." }, values, attempt };
+  }
 
   const parsed = OnboardingSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -81,6 +101,11 @@ export async function createEstablishment(
   }
   const data = parsed.data;
 
+  const passwordProblem = validatePassword(data.password, { email: data.email, name: data.establishmentName });
+  if (passwordProblem) {
+    return { error: "Merci de corriger les champs indiqués ci-dessous.", fieldErrors: { password: passwordProblem }, values, attempt };
+  }
+
   const existing = await prisma.user.findUnique({ where: { email: data.email } });
   if (existing) {
     return {
@@ -91,65 +116,74 @@ export async function createEstablishment(
     };
   }
 
-  const passwordHash = await bcrypt.hash(data.password, 10);
+  const passwordHash = await bcrypt.hash(data.password, 12);
 
-  const company = await prisma.company.create({ data: { name: data.establishmentName } });
-  const establishment = await prisma.establishment.create({
-    data: {
-      companyId: company.id,
-      name: data.establishmentName,
-      type: data.establishmentType,
-      onboardedAt: new Date(),
-    },
-  });
-
-  const roleIdByKey = await provisionSystemRoles(establishment.id);
-  const ownerRoleId = roleIdByKey.get("OWNER")!;
-
-  const user = await prisma.user.create({
-    data: {
-      companyId: company.id,
-      email: data.email,
-      passwordHash,
-      firstName: data.firstName,
-      lastName: data.lastName,
-    },
-  });
-
-  await prisma.membership.create({
-    data: {
-      userId: user.id,
-      establishmentId: establishment.id,
-      roleId: ownerRoleId,
-      jobTitle: "Propriétaire",
-    },
-  });
-
-  await prisma.serviceDefinition.create({
-    data: {
-      establishmentId: establishment.id,
-      name: serviceLabel(data.openTime, data.closeTime),
-      startTime: data.openTime,
-      endTime: data.closeTime,
-      daysOfWeek: "1,2,3,4,5,6,7",
-    },
-  });
-
-  const zone = await prisma.zone.create({
-    data: { establishmentId: establishment.id, name: "Salle", sortOrder: 0 },
-  });
-  const perRow = 5;
-  for (let i = 1; i <= data.tableCount; i++) {
-    await prisma.restaurantTable.create({
+  let companyId: string | null = null;
+  try {
+    const company = await prisma.company.create({ data: { name: data.establishmentName } });
+    companyId = company.id;
+    const establishment = await prisma.establishment.create({
       data: {
-        establishmentId: establishment.id,
-        zoneId: zone.id,
-        label: `T${i}`,
-        capacity: 4,
-        posX: ((i - 1) % perRow) * 100 + 40,
-        posY: Math.floor((i - 1) / perRow) * 100 + 40,
+        companyId: company.id,
+        name: data.establishmentName,
+        type: data.establishmentType,
+        onboardedAt: new Date(),
       },
     });
+
+    const roleIdByKey = await provisionSystemRoles(establishment.id);
+    const ownerRoleId = roleIdByKey.get("OWNER")!;
+
+    const user = await prisma.user.create({
+      data: {
+        companyId: company.id,
+        email: data.email,
+        passwordHash,
+        firstName: data.firstName,
+        lastName: data.lastName,
+      },
+    });
+
+    await prisma.membership.create({
+      data: {
+        userId: user.id,
+        establishmentId: establishment.id,
+        roleId: ownerRoleId,
+        jobTitle: "Propriétaire",
+      },
+    });
+
+    await prisma.serviceDefinition.create({
+      data: {
+        establishmentId: establishment.id,
+        name: serviceLabel(data.openTime, data.closeTime),
+        startTime: data.openTime,
+        endTime: data.closeTime,
+        daysOfWeek: "1,2,3,4,5,6,7",
+      },
+    });
+
+    const zone = await prisma.zone.create({
+      data: { establishmentId: establishment.id, name: "Salle", sortOrder: 0 },
+    });
+    const perRow = 5;
+    for (let i = 1; i <= data.tableCount; i++) {
+      await prisma.restaurantTable.create({
+        data: {
+          establishmentId: establishment.id,
+          zoneId: zone.id,
+          label: `T${i}`,
+          capacity: 4,
+          posX: ((i - 1) % perRow) * 100 + 40,
+          posY: Math.floor((i - 1) / perRow) * 100 + 40,
+        },
+      });
+    }
+  } catch (error) {
+    // Une création à moitié faite ne doit pas laisser de compte fantôme : on retire tout ce qui vient d'être créé.
+    if (companyId) await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
+    console.error("Création d'établissement échouée", error);
+    return { error: "Une erreur est survenue pendant la création. Réessaie dans un instant.", values, attempt };
   }
 
   // Les champs attendus par la connexion sont `identifier` et `secret` (voir lib/auth.ts).

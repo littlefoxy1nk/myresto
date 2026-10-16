@@ -10,6 +10,8 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { logout } from "@/lib/actions/auth-actions";
 import { parseAvatar } from "@/lib/avatar";
 import { parseMuted, visibleNotificationCategories } from "@/lib/notification-preferences";
+import { isOwner } from "@/lib/account-deletion";
+import { CloseEstablishmentCard } from "@/modules/settings/components/close-establishment-card";
 import { ServicesCard } from "@/modules/settings/components/services-card";
 import { ReviewLinksCard } from "@/modules/settings/components/review-links-card";
 import { OnlineBookingCard } from "@/modules/settings/components/online-booking-card";
@@ -43,6 +45,7 @@ export default async function ParametresPage({ searchParams }: { searchParams: P
               { key: "etablissement", label: "Mon établissement" },
               { key: "fonctionnalites", label: "Fonctionnalités" },
               { key: "droits", label: "Droits d'accès" },
+              ...(isOwner(ctx) ? [{ key: "donnees", label: "Mes données" }] : []),
             ],
           },
         ]
@@ -88,6 +91,7 @@ export default async function ParametresPage({ searchParams }: { searchParams: P
         </Card>
       )}
       {active === "droits" && <RightsTab establishmentId={ctx.establishment.id} />}
+      {active === "donnees" && isOwner(ctx) && <CloseEstablishmentCard establishmentName={ctx.establishment.name} />}
 
       {active === "profil" && (
         <>

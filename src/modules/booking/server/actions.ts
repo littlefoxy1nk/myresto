@@ -1,7 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { headers } from "next/headers";
+import { getClientIp } from "@/lib/client-ip";
 import { revalidatePath } from "next/cache";
 import { endOfDay, format, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -56,7 +56,7 @@ export async function getBookingAvailability(
   dateKey: string,
   partySize: number
 ): Promise<{ ok: true; services: ServiceAvailability[] } | { ok: false; error: string }> {
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = await getClientIp();
   if (!perIpAvailability.allow(ip, Date.now())) return { ok: false, error: "Trop de recherches, réessaie dans un instant." };
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !Number.isInteger(partySize) || partySize < 1 || partySize > MAX_ONLINE_PARTY_SIZE) {
@@ -123,7 +123,7 @@ export async function submitBookingRequest(
     return { ok: false, error: "Ce créneau est complet. Choisis une autre heure, ou appelle le restaurant." };
   }
 
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = await getClientIp();
   const phoneKey = normalizePhone(data.phone) ?? data.phone;
   if (!perPhone.allow(`${establishment.id}:${phoneKey}`, now.getTime()) || !perIp.allow(`${establishment.id}:${ip}`, now.getTime())) {
     return { ok: false, error: "Trop de demandes pour le moment. Merci de réessayer plus tard ou d'appeler le restaurant." };
