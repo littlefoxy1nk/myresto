@@ -6,6 +6,8 @@ import { NextResponse, type NextRequest } from "next/server";
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
+  // HTTPS imposé en production, sauf pour un essai local (APP_URL en http://localhost…) où il n'y a pas de HTTPS.
+  const forceHttps = !isDev && !/^http:\/\/(localhost|127\.0\.0\.1)/.test(process.env.APP_URL ?? "");
 
   const csp = [
     "default-src 'self'",
@@ -16,11 +18,14 @@ export function proxy(request: NextRequest) {
     "img-src 'self' blob: data:",
     "font-src 'self'",
     "connect-src 'self'",
+    // Le service worker (page « Pas de connexion ») et le manifeste d'installation viennent uniquement de l'appli.
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    ...(isDev ? [] : ["upgrade-insecure-requests"]),
+    ...(forceHttps ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
 
   const requestHeaders = new Headers(request.headers);
@@ -34,7 +39,7 @@ export function proxy(request: NextRequest) {
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
-  if (!isDev) response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  if (forceHttps) response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
   return response;
 }
 

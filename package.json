@@ -63,5 +63,8 @@
   },
   "overrides": {
     "nodemailer": "$nodemailer"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

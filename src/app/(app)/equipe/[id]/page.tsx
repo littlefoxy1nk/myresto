@@ -4,7 +4,7 @@ import { AvatarFigure } from "@/components/ui/avatar-figure";
 import { parseAvatar } from "@/lib/avatar";
 import Link from "next/link";
 import { requireModule } from "@/lib/module-guard";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
 import { prisma } from "@/lib/prisma";
 import { getEmployeeProfile } from "@/modules/staff/server/queries";
@@ -32,13 +32,15 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   requireModule(ctx, "staff");
   if (!ctx.can("staff.view")) redirect("/aujourdhui");
 
-  const profile = await getEmployeeProfile(id);
+  // Une fiche qui n'existe pas (ou qui appartient à un autre établissement) donne une vraie page « introuvable ».
   const avatarUser = (
     await prisma.membership.findFirst({
       where: { id, establishmentId: ctx.establishment.id },
       select: { user: { select: { id: true, avatarJson: true } } },
     })
   )?.user;
+  if (!avatarUser) notFound();
+  const profile = await getEmployeeProfile(id);
   const canManage = ctx.can("staff.manage");
 
   const roles = canManage

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { getTodayServicePlan } from "@/modules/service/server/queries";
 import { TodayServicePlan } from "@/modules/service/components/today-service-plan";
 import { getCountdownEvents, getTodayOverview, getTodayReservationHits } from "@/modules/today/server/queries";
+import { InstallBanner } from "@/components/pwa/install-app";
 import { ReservationFinder } from "@/modules/today/components/reservation-finder";
 import { TodaySummaryCard } from "@/modules/today/components/today-summary-card";
 import { CountdownWidget } from "@/modules/today/components/countdown-widget";
@@ -34,6 +35,7 @@ export default async function AujourdhuiPage() {
 
   return (
     <div className="stagger mx-auto max-w-6xl space-y-6">
+      <InstallBanner />
       <div>
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground">
           {dateLabel}

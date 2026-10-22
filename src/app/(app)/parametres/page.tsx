@@ -10,6 +10,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { logout } from "@/lib/actions/auth-actions";
 import { parseAvatar } from "@/lib/avatar";
 import { parseMuted, visibleNotificationCategories } from "@/lib/notification-preferences";
+import { InstallAppCard } from "@/components/pwa/install-app";
 import { isOwner } from "@/lib/account-deletion";
 import { CloseEstablishmentCard } from "@/modules/settings/components/close-establishment-card";
 import { ServicesCard } from "@/modules/settings/components/services-card";
@@ -95,6 +96,7 @@ export default async function ParametresPage({ searchParams }: { searchParams: P
 
       {active === "profil" && (
         <>
+          <InstallAppCard />
           <Card>
             <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
               <div className="flex items-center gap-3">
