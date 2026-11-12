@@ -244,7 +244,7 @@ export function FloorPlanApp({
                     fitMaxHeight={640}
                     tables={zone.tables}
                     canEdit={false}
-                    showReservations={!!dayView}
+                    showReservations
                     selectedTableId={selectedTableId}
                     mergeSelection={mergeSelection}
                     onSelectTable={handleSelectTable}
@@ -274,7 +274,7 @@ export function FloorPlanApp({
               fitMaxHeight={640}
               tables={activeZone.tables}
               canEdit={canEdit}
-              showReservations={!!dayView}
+              showReservations
               selectedTableId={selectedTableId}
               mergeSelection={mergeSelection}
               onSelectTable={handleSelectTable}

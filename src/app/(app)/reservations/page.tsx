@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { startOfDay, endOfDay, format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Plus } from "lucide-react";
-import { toDateKey } from "@/lib/utils";
+import { cn, toDateKey } from "@/lib/utils";
 import { isoWeekday, timeToMinutes } from "@/lib/time";
 import { assignService, eveningEnd, servicesOfReservation } from "@/modules/service/spans";
 import { BlockEveningToggle } from "@/modules/reservations/components/block-evening-toggle";
@@ -94,7 +94,108 @@ export default async function ReservationsPage({
     .filter((r) => r.status === "new" || r.status === "confirmed")
     .map(toRecipient);
 
-  const pendingRequests = allReservations.filter((r) => r.source === "online" && r.status === "new").length;
+  // Pas encore confirmées par le restaurant : elles passent en tête de liste, car c'est ce qui demande une action.
+  const toConfirmDay = allReservations.filter((r) => r.status === "new");
+  const pendingRequests = toConfirmDay.filter((r) => r.source === "online").length;
+  const toConfirm = reservations.filter((r) => r.status === "new");
+  const others = reservations.filter((r) => r.status !== "new");
+
+  const renderRow = (r: (typeof reservations)[number]) => {
+      const hasTables = r.tables.length > 0;
+      const meta = [`${r.partySize} pers.`, hasTables ? r.tables.map((t) => t.table.label).join(" + ") : null]
+        .filter(Boolean)
+        .join(" · ");
+      const isPastTime = isToday && timeToMinutes(r.time) < nowMinutes;
+      const isOpen = r.status === "new" || r.status === "confirmed";
+      const recipient = toRecipient(r);
+      const isRequest = r.source === "online" && r.status === "new";
+      const eveningUntil = eveningEnd(dayServices, r.time);
+
+      return (
+        <Card key={r.id} className={cn("p-4 transition-shadow hover:shadow-pop", r.status === "new" && "border-important/40 bg-important-soft/25")}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="flex items-center gap-3 sm:w-52 sm:shrink-0">
+            <span className="flex h-11 min-w-[3.75rem] shrink-0 items-center justify-center rounded-2xl bg-accent-soft px-2 text-sm font-bold tabular-nums text-accent">{r.time}</span>
+            {r.customerId ? (
+              <Link href={`/clients/${r.customerId}`} className="truncate text-sm font-medium text-accent hover:underline">
+                {r.customerName}
+              </Link>
+            ) : (
+              <span className="truncate text-sm font-medium">{r.customerName}</span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:flex-1">
+            <span className="text-xs text-muted-foreground">{meta}</span>
+            <Badge variant={RESERVATION_STATUS_VARIANT[r.status]}>{RESERVATION_STATUS_LABEL[r.status]}</Badge>
+            {isRequest && <Badge variant="important">Demande en ligne</Badge>}
+            {dayServices.length > 1 && (
+              <span className="text-xs text-muted-foreground">{assignService(dayServices, r.time)?.name}</span>
+            )}
+            {r.spansNextService && <Badge variant="neutral">2 services</Badge>}
+            {r.blocksEvening && <Badge variant="neutral">Toute la soirée</Badge>}
+            {!hasTables && isOpen && <span className="text-xs text-muted-foreground">sans table</span>}
+            {r.specialRequests && <span className="text-xs text-muted-foreground">· {r.specialRequests}</span>}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {isOpen && (
+              <ConfirmationToggle
+                reservationId={r.id}
+                state={r.confirmationState as "none" | "asked" | "confirmed"}
+                editable={canEdit}
+              />
+            )}
+            {canEdit && (
+              <>
+                {isOpen && (r.customerPhone || r.customerEmail) && (
+                  <RowMessageButton recipient={recipient} dateLabel={dayLabel} restaurantName={restaurantName} />
+                )}
+                {isOpen && !hasTables && <ChooseTableButton reservationId={r.id} />}
+                {(r.status === "new" || r.status === "confirmed") && hasTables && (
+                  <ConfirmAndNotifyButton
+                    recipient={recipient}
+                    status={r.status}
+                    dateLabel={dayLabel}
+                    restaurantName={restaurantName}
+                  />
+                )}
+                {(r.status === "confirmed" || r.status === "arrived") && hasTables && (
+                  <ReservationActionButton reservationId={r.id} targetStatus="seated" label="Installer" />
+                )}
+                {isOpen && (
+                  <ReservationRowActions
+                    reservationId={r.id}
+                    showNoShow={isPastTime}
+                    services={servicesForForms}
+                    editInitial={{
+                      partySize: r.partySize,
+                      date: format(r.date, "yyyy-MM-dd"),
+                      time: r.time,
+                      durationMinutes: r.durationMinutes,
+                      notes: r.notes ?? "",
+                      specialRequests: r.specialRequests ?? "",
+                      spansNextService: r.spansNextService,
+                      blocksEvening: r.blocksEvening,
+                    }}
+                  />
+                )}
+              </>
+            )}
+          </div>
+          </div>
+          {canEdit && isOpen && hasTables && (eveningUntil || r.blocksEvening) && (
+            <div className="mt-2 border-t border-border pt-2 sm:pl-[13.5rem]">
+              <BlockEveningToggle
+                reservationId={r.id}
+                checked={r.blocksEvening}
+                until={eveningUntil ?? "la fermeture"}
+              />
+            </div>
+          )}
+        </Card>
+      );
+  };
 
   return (
     <div className="stagger mx-auto max-w-4xl space-y-6">
@@ -128,110 +229,23 @@ export default async function ReservationsPage({
         serviceId={service?.id ?? null}
       />
 
-      {pendingRequests > 0 && (
+      {toConfirmDay.length > 0 && (
         <p className="rounded-2xl border border-important/30 bg-important-soft/60 px-4 py-3 text-sm text-important">
-          {pendingRequests} demande{pendingRequests > 1 ? "s" : ""} en ligne à traiter ce jour-là : choisis une table puis
-          confirme.
+          {toConfirmDay.length} réservation{toConfirmDay.length > 1 ? "s" : ""} à confirmer ce jour-là
+          {pendingRequests > 0 && ` (dont ${pendingRequests} demande${pendingRequests > 1 ? "s" : ""} en ligne)`} : elles sont en tête de liste.
+          Choisis une table puis confirme.
         </p>
       )}
 
       <div className="space-y-2">
-        {reservations.map((r) => {
-          const hasTables = r.tables.length > 0;
-          const meta = [`${r.partySize} pers.`, hasTables ? r.tables.map((t) => t.table.label).join(" + ") : null]
-            .filter(Boolean)
-            .join(" · ");
-          const isPastTime = isToday && timeToMinutes(r.time) < nowMinutes;
-          const isOpen = r.status === "new" || r.status === "confirmed";
-          const recipient = toRecipient(r);
-          const isRequest = r.source === "online" && r.status === "new";
-          const eveningUntil = eveningEnd(dayServices, r.time);
-
-          return (
-            <Card key={r.id} className="p-4 transition-shadow hover:shadow-pop">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex items-center gap-3 sm:w-52 sm:shrink-0">
-                <span className="flex h-11 min-w-[3.75rem] shrink-0 items-center justify-center rounded-2xl bg-accent-soft px-2 text-sm font-bold tabular-nums text-accent">{r.time}</span>
-                {r.customerId ? (
-                  <Link href={`/clients/${r.customerId}`} className="truncate text-sm font-medium text-accent hover:underline">
-                    {r.customerName}
-                  </Link>
-                ) : (
-                  <span className="truncate text-sm font-medium">{r.customerName}</span>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 sm:flex-1">
-                <span className="text-xs text-muted-foreground">{meta}</span>
-                <Badge variant={RESERVATION_STATUS_VARIANT[r.status]}>{RESERVATION_STATUS_LABEL[r.status]}</Badge>
-                {isRequest && <Badge variant="important">Demande en ligne</Badge>}
-                {dayServices.length > 1 && (
-                  <span className="text-xs text-muted-foreground">{assignService(dayServices, r.time)?.name}</span>
-                )}
-                {r.spansNextService && <Badge variant="neutral">2 services</Badge>}
-                {r.blocksEvening && <Badge variant="neutral">Toute la soirée</Badge>}
-                {!hasTables && isOpen && <span className="text-xs text-muted-foreground">sans table</span>}
-                {r.specialRequests && <span className="text-xs text-muted-foreground">· {r.specialRequests}</span>}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {isOpen && (
-                  <ConfirmationToggle
-                    reservationId={r.id}
-                    state={r.confirmationState as "none" | "asked" | "confirmed"}
-                    editable={canEdit}
-                  />
-                )}
-                {canEdit && (
-                  <>
-                    {isOpen && (r.customerPhone || r.customerEmail) && (
-                      <RowMessageButton recipient={recipient} dateLabel={dayLabel} restaurantName={restaurantName} />
-                    )}
-                    {isOpen && !hasTables && <ChooseTableButton reservationId={r.id} />}
-                    {(r.status === "new" || r.status === "confirmed") && hasTables && (
-                      <ConfirmAndNotifyButton
-                        recipient={recipient}
-                        status={r.status}
-                        dateLabel={dayLabel}
-                        restaurantName={restaurantName}
-                      />
-                    )}
-                    {(r.status === "confirmed" || r.status === "arrived") && hasTables && (
-                      <ReservationActionButton reservationId={r.id} targetStatus="seated" label="Installer" />
-                    )}
-                    {isOpen && (
-                      <ReservationRowActions
-                        reservationId={r.id}
-                        showNoShow={isPastTime}
-                        services={servicesForForms}
-                        editInitial={{
-                          partySize: r.partySize,
-                          date: format(r.date, "yyyy-MM-dd"),
-                          time: r.time,
-                          durationMinutes: r.durationMinutes,
-                          notes: r.notes ?? "",
-                          specialRequests: r.specialRequests ?? "",
-                          spansNextService: r.spansNextService,
-                          blocksEvening: r.blocksEvening,
-                        }}
-                      />
-                    )}
-                  </>
-                )}
-              </div>
-              </div>
-              {canEdit && isOpen && hasTables && (eveningUntil || r.blocksEvening) && (
-                <div className="mt-2 border-t border-border pt-2 sm:pl-[13.5rem]">
-                  <BlockEveningToggle
-                    reservationId={r.id}
-                    checked={r.blocksEvening}
-                    until={eveningUntil ?? "la fermeture"}
-                  />
-                </div>
-              )}
-            </Card>
-          );
-        })}
+        {toConfirm.length > 0 && (
+          <h2 className="pt-1 text-sm font-semibold text-important">À confirmer · {toConfirm.length}</h2>
+        )}
+        {toConfirm.map(renderRow)}
+        {toConfirm.length > 0 && others.length > 0 && (
+          <h2 className="pt-3 text-sm font-semibold text-muted-foreground">Le reste de la journée · {others.length}</h2>
+        )}
+        {others.map(renderRow)}
         {reservations.length === 0 && (
           <EmptyState
             icon={CalendarX2}

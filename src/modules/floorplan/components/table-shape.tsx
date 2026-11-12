@@ -11,6 +11,7 @@ export function TableShape({
   mergeTarget,
   showReservation,
   labelScale = 1,
+  touchDraggable = false,
   onPointerDownCapture,
 }: {
   table: TableWithLiveState;
@@ -24,9 +25,13 @@ export function TableShape({
   showReservation?: boolean;
   /// Quand le plan est réduit pour tenir à l'écran, on grossit un peu le texte pour qu'il reste lisible (1 = taille normale).
   labelScale?: number;
+  /// Plan modifiable : le doigt doit pouvoir glisser la table sans que le navigateur fasse défiler la page à la place.
+  touchDraggable?: boolean;
   onPointerDownCapture?: (e: React.PointerEvent) => void;
 }) {
   const style = LIVE_STATE_STYLE[table.liveState];
+  const reservation = showReservation ? table.activeReservation : null;
+  const extra = (table.dayReservations?.length ?? 0) > 1 ? table.dayReservations!.length - 1 : 0;
 
   return (
     <div
@@ -41,15 +46,20 @@ export function TableShape({
         mergeTarget && "ring-2 ring-good ring-offset-2 ring-offset-background",
         dragging ? "cursor-grabbing shadow-lg" : "cursor-grab"
       )}
-      style={{ left: table.posX, top: table.posY, width: table.width, height: table.height }}
+      style={{ left: table.posX, top: table.posY, width: table.width, height: table.height, touchAction: touchDraggable ? "none" : undefined }}
       data-table-id={table.id}
     >
       <span className="font-semibold" style={{ fontSize: 14 * labelScale }}>{table.label}</span>
-      {showReservation && table.activeReservation ? (
-        <span className="max-w-full truncate px-1 opacity-90" style={{ fontSize: 11 * labelScale }}>
-          {table.activeReservation.time} · {table.activeReservation.customerName}
-          {(table.dayReservations?.length ?? 0) > 1 && ` +${table.dayReservations!.length - 1}`}
-        </span>
+      {reservation ? (
+        <>
+          <span className="line-clamp-2 max-w-full break-words px-1 text-center font-semibold leading-tight" style={{ fontSize: 11 * labelScale }}>
+            {reservation.customerName}
+          </span>
+          <span className="tabular-nums opacity-90" style={{ fontSize: 11 * labelScale }}>
+            {reservation.partySize}p · {reservation.time}
+            {extra > 0 && ` +${extra}`}
+          </span>
+        </>
       ) : (
         <span className="opacity-80" style={{ fontSize: 12 * labelScale }}>{table.capacity} pers.</span>
       )}

@@ -7,13 +7,19 @@ import type { TableWithLiveState } from "@/modules/floorplan/types";
 import { rectsOverlap } from "@/modules/floorplan/compute";
 import { cn } from "@/lib/utils";
 
-type DragState = { id: string; startClientX: number; startClientY: number; startPosX: number; startPosY: number; posX: number; posY: number };
+type DragState = { id: string; startClientX: number; startClientY: number; startScrollLeft: number; startScrollTop: number; startPosX: number; startPosY: number; posX: number; posY: number };
 type ResizeState = { id: string; startClientX: number; startClientY: number; startWidth: number; startHeight: number; width: number; height: number };
 
 const CANVAS_SIZE = { width: 2400, height: 1600 };
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 1.6;
 const ZOOM_STEP = 0.1;
+/// Distance (en pixels d'écran, pas en unités du plan) à partir de laquelle un geste devient un déplacement et non un simple
+/// toucher : un doigt bouge toujours un peu, et sur un plan dézoomé 3 unités ne font qu'un pixel.
+const DRAG_THRESHOLD_PX = 8;
+/// Près du bord de la vue, glisser une table fait défiler le plan pour pouvoir l'amener plus loin.
+const EDGE_SCROLL_ZONE_PX = 56;
+const EDGE_SCROLL_STEP_PX = 18;
 
 function clampZoom(z: number) {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
@@ -152,6 +158,8 @@ export function FloorPlanCanvas({
       id: table.id,
       startClientX: e.clientX,
       startClientY: e.clientY,
+      startScrollLeft: scrollRef.current?.scrollLeft ?? 0,
+      startScrollTop: scrollRef.current?.scrollTop ?? 0,
       startPosX: table.posX,
       startPosY: table.posY,
       posX: table.posX,
@@ -179,9 +187,20 @@ export function FloorPlanCanvas({
 
   function handlePointerMove(e: React.PointerEvent) {
     if (drag) {
-      const dx = (e.clientX - drag.startClientX) / zoom;
-      const dy = (e.clientY - drag.startClientY) / zoom;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) movedRef.current = true;
+      const scroller = scrollRef.current;
+      if (scroller && movedRef.current) {
+        const box = scroller.getBoundingClientRect();
+        if (e.clientX > box.right - EDGE_SCROLL_ZONE_PX) scroller.scrollLeft += EDGE_SCROLL_STEP_PX;
+        else if (e.clientX < box.left + EDGE_SCROLL_ZONE_PX) scroller.scrollLeft -= EDGE_SCROLL_STEP_PX;
+        if (e.clientY > box.bottom - EDGE_SCROLL_ZONE_PX) scroller.scrollTop += EDGE_SCROLL_STEP_PX;
+        else if (e.clientY < box.top + EDGE_SCROLL_ZONE_PX) scroller.scrollTop -= EDGE_SCROLL_STEP_PX;
+      }
+      // Le défilement du plan pendant le geste compte aussi dans le déplacement de la table.
+      const screenDx = e.clientX - drag.startClientX + ((scroller?.scrollLeft ?? 0) - drag.startScrollLeft);
+      const screenDy = e.clientY - drag.startClientY + ((scroller?.scrollTop ?? 0) - drag.startScrollTop);
+      if (Math.hypot(e.clientX - drag.startClientX, e.clientY - drag.startClientY) > DRAG_THRESHOLD_PX) movedRef.current = true;
+      const dx = screenDx / zoom;
+      const dy = screenDy / zoom;
       const posX = clamp(drag.startPosX + dx, 0, CANVAS_SIZE.width - 60);
       const posY = clamp(drag.startPosY + dy, 0, CANVAS_SIZE.height - 60);
       setDrag({ ...drag, posX, posY });
@@ -208,6 +227,13 @@ export function FloorPlanCanvas({
       onResizeTable(resize.id, Math.round(resize.width), Math.round(resize.height));
       setResize(null);
     }
+  }
+
+  // Le navigateur a repris la main (appel entrant, geste système…) : on abandonne sans rien enregistrer.
+  function handlePointerCancel() {
+    setDrag(null);
+    setResize(null);
+    setDropTargetId(null);
   }
 
   // Enveloppe visuelle derrière les tables d'un même groupe actif, pour rendre la
@@ -268,6 +294,7 @@ export function FloorPlanCanvas({
         ref={canvasRef}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerUp}
         className="relative origin-top-left"
         style={{
@@ -310,20 +337,23 @@ export function FloorPlanCanvas({
                 dragging={isDragging}
                 mergeTarget={dropTargetId === t.id}
                 showReservation={showReservations}
+                touchDraggable={canEdit}
                 labelScale={fit ? Math.min(1.5, Math.max(1, 1 / zoom)) : 1}
                 onPointerDownCapture={(e) => startDrag(e, t)}
               />
               {canEdit && selected && !isDragging && (
+                // Zone de toucher de 32 px (au doigt, un carré de 14 px est introuvable) autour du petit carré visible.
                 <div
                   onPointerDown={(e) => startResize(e, t)}
-                  className={cn(
-                    "absolute h-3.5 w-3.5 cursor-nwse-resize rounded-sm border-2 border-accent bg-card shadow"
-                  )}
+                  className="absolute flex h-8 w-8 cursor-nwse-resize items-center justify-center"
                   style={{
-                    left: displayTable.posX + displayTable.width - 7,
-                    top: displayTable.posY + displayTable.height - 7,
+                    left: displayTable.posX + displayTable.width - 16,
+                    top: displayTable.posY + displayTable.height - 16,
+                    touchAction: "none",
                   }}
-                />
+                >
+                  <span className={cn("block h-3.5 w-3.5 rounded-sm border-2 border-accent bg-card shadow")} />
+                </div>
               )}
             </div>
           );
