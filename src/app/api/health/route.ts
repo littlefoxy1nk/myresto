@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { explainMissingDatabaseUrl, resolveDatabaseUrl } from "@/lib/database-url";
 import { vapidConfig } from "@/modules/push/server/send";
 import { signupPolicy } from "@/lib/signup-policy";
+import { cleanEnvValue } from "@/lib/env-value";
+import { platformAdminEmails } from "@/lib/platform-admin";
 import { readSmtpConfig } from "@/modules/settings/contact";
 
 /// « Est-ce que tout est bien branché ? » À ouvrir dans le navigateur après un déploiement : /api/health
@@ -36,13 +38,16 @@ export async function GET() {
   const ok = checks.authSecret && checks.databaseUrl === "ok" && databaseReachable && migrationsApplied && checks.appUrl;
 
   const headers = { "Cache-Control": "no-store" };
-  if (ok) return Response.json({ status: "ok" }, { headers });
+  // Seulement des nombres et des oui/non (jamais une adresse ni un code) : de quoi vérifier à distance que l'équipe est bien configurée.
+  const equipe = { adressesReconnues: platformAdminEmails(env).size, codeEquipeConfigure: !!cleanEnvValue(env.ADMIN_INVITE_CODE) };
+  if (ok) return Response.json({ status: "ok", equipe }, { headers });
 
   const policy = signupPolicy(env);
   return Response.json(
     {
       status: "à configurer",
       checks,
+      equipe,
       aide: {
         authSecret: checks.authSecret ? undefined : "Ajoute la variable AUTH_SECRET (une longue valeur aléatoire).",
         databaseUrl:

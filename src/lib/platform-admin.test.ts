@@ -23,3 +23,17 @@ test("en production sans code « équipe » configuré : fermé ; en développem
   assert.match(checkAdminSignup({ email: "sara@example.be", code: "x", adminCodeMatches: () => true, env: { ...noCode, NODE_ENV: "production" } })!, /réservée/);
   assert.equal(checkAdminSignup({ email: "sara@example.be", code: "x", adminCodeMatches: () => true, env: { ...noCode, NODE_ENV: "development" } }), null);
 });
+
+test("les erreurs de format courantes dans PLATFORM_ADMIN_EMAILS sont tolérées", () => {
+  const expected = ["chloehamoir@gmail.com", "sara-petlic@hotmail.com"];
+  for (const raw of [
+    "chloehamoir@gmail.com,sara-petlic@hotmail.com",
+    '"chloehamoir@gmail.com,sara-petlic@hotmail.com"',
+    "'chloehamoir@gmail.com', 'sara-petlic@hotmail.com'",
+    "Chloehamoir@Gmail.com ; sara-petlic@hotmail.com",
+    "chloehamoir@gmail.com\nsara-petlic@hotmail.com\n",
+    " chloehamoir@gmail.com sara-petlic@hotmail.com,",
+  ]) {
+    assert.deepEqual([...platformAdminEmails({ PLATFORM_ADMIN_EMAILS: raw })].sort(), expected, raw);
+  }
+});

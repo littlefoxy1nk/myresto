@@ -13,3 +13,12 @@ test("le code doit correspondre exactement", () => {
   assert.equal(inviteCodeMatches("", "secret-1"), false);
   assert.equal(inviteCodeMatches("x", undefined), false);
 });
+
+test("les codes d'invitation tolèrent guillemets et espaces recopiés par erreur", async () => {
+  const { inviteCodeMatches } = await import("./signup-policy");
+  assert.equal(inviteCodeMatches("trois-renards-7142", '"trois-renards-7142"'), true);
+  assert.equal(inviteCodeMatches(' "trois-renards-7142" ', "trois-renards-7142\n"), true);
+  assert.equal(inviteCodeMatches("trois-renards-7143", '"trois-renards-7142"'), false);
+  assert.equal(inviteCodeMatches("abc", '""'), false);
+  assert.equal(inviteCodeMatches("", undefined), false);
+});

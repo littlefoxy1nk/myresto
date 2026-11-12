@@ -1,3 +1,5 @@
+import { cleanEnvValue } from "@/lib/env-value";
+
 /// L'équipe MYRESTO (les personnes qui créent et accompagnent les établissements) : leurs adresses email sont listées dans
 /// le réglage PLATFORM_ADMIN_EMAILS (séparées par des virgules), que seule la personne qui gère l'hébergement peut changer.
 /// Personne ne peut se donner ces droits depuis l'appli.
@@ -6,8 +8,9 @@ type Env = Record<string, string | undefined>;
 export function platformAdminEmails(env: Env = process.env): Set<string> {
   return new Set(
     (env.PLATFORM_ADMIN_EMAILS ?? "")
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
+      // Virgule, point-virgule, espace ou retour à la ligne : on accepte tous les séparateurs, et on ignore les guillemets.
+      .split(/[\s,;]+/)
+      .map((e) => cleanEnvValue(e).toLowerCase())
       .filter(Boolean)
   );
 }
@@ -27,7 +30,7 @@ export function checkAdminSignup(params: {
 }): string | null {
   const env = params.env ?? process.env;
   if (!isPlatformAdminEmail(params.email, env)) return null;
-  const configured = !!env.ADMIN_INVITE_CODE?.trim();
+  const configured = !!cleanEnvValue(env.ADMIN_INVITE_CODE);
   if (!configured) {
     // En développement, sans code configuré, on laisse faire pour pouvoir essayer ; en production, c'est fermé.
     return env.NODE_ENV === "production" ? "Cette adresse est réservée à l'équipe MYRESTO." : null;
