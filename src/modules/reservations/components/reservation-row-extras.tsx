@@ -66,9 +66,10 @@ export function ConfirmAndNotifyButton({
           onClick={() =>
             startTransition(async () => {
               try {
-                await updateReservationStatus(recipient.id, "confirmed");
-                toast("Réservation confirmée");
-                if (recipient.phone || recipient.email) setOpen(true);
+                const { emailed } = await updateReservationStatus(recipient.id, "confirmed");
+                toast(emailed ? "Réservation confirmée · email envoyé au client" : "Réservation confirmée");
+                // Le message à préparer à la main n'est proposé que si le client n'a pas déjà reçu l'email automatique.
+                if (recipient.phone || (recipient.email && !emailed)) setOpen(true);
               } catch {
                 toast("Impossible d'enregistrer les modifications", "error");
               }

@@ -57,6 +57,8 @@ model Establishment {
   /// Fonctionnalités masquées pour cet établissement (clés séparées par des virgules, voir lib/modules.ts).
   /// Vide = tout est affiché. Masquer ne supprime aucune donnée.
   disabledModules      String   @default("")
+  /// Envoie automatiquement un email au client quand sa réservation est confirmée (s'il a laissé son adresse).
+  emailConfirmations   Boolean  @default(true)
   /// Comment le planning regroupe les services : "service" (une ligne par service) ou "periode" (juste Midi et Soir).
   planningView         String   @default("service")
   createdAt     DateTime @default(now())
@@ -587,6 +589,8 @@ model Reservation {
   /// | confirmed ("V"). Indépendant du statut de la réservation.
   confirmationState    String   @default("none")
   confirmationAskedAt  DateTime?
+  /// Quand l'email de confirmation a été envoyé au client (une seule fois par réservation, même si on la confirme à nouveau).
+  confirmationEmailSentAt DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

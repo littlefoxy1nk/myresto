@@ -15,6 +15,7 @@ import { isOwner } from "@/lib/account-deletion";
 import { CloseEstablishmentCard } from "@/modules/settings/components/close-establishment-card";
 import { ServicesCard } from "@/modules/settings/components/services-card";
 import { ReviewLinksCard } from "@/modules/settings/components/review-links-card";
+import { readSmtpConfig } from "@/modules/settings/contact";
 import { OnlineBookingCard } from "@/modules/settings/components/online-booking-card";
 import { ModulesCard } from "@/modules/settings/components/modules-card";
 import { AvatarEditor } from "@/modules/settings/components/avatar-editor";
@@ -218,7 +219,12 @@ async function EstablishmentTab({ ctx }: { ctx: Awaited<ReturnType<typeof getCur
           </p>
         </CardHeader>
         <CardContent>
-          <OnlineBookingCard slug={ctx.establishment.bookingSlug} enabled={ctx.establishment.onlineBookingEnabled} />
+          <OnlineBookingCard
+            slug={ctx.establishment.bookingSlug}
+            enabled={ctx.establishment.onlineBookingEnabled}
+            emailConfirmations={ctx.establishment.emailConfirmations}
+            emailReady={readSmtpConfig(process.env) !== null}
+          />
         </CardContent>
       </Card>
 

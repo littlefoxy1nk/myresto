@@ -5,7 +5,7 @@ import type { SmtpConfig } from "@/modules/settings/contact";
 /// avec le message pour ne rien perdre).
 export async function sendMail(
   smtp: SmtpConfig,
-  mail: { to: string; subject: string; text: string; replyTo?: string }
+  mail: { to: string; subject: string; text: string; replyTo?: string; fromName?: string }
 ): Promise<void> {
   const transport = nodemailer.createTransport({
     host: smtp.host,
@@ -16,5 +16,13 @@ export async function sendMail(
     greetingTimeout: 10_000,
     socketTimeout: 15_000,
   });
-  await transport.sendMail({ from: smtp.from, to: mail.to, replyTo: mail.replyTo, subject: mail.subject, text: mail.text });
+  await transport.sendMail({ from: displayFrom(smtp.from, mail.fromName), to: mail.to, replyTo: mail.replyTo, subject: mail.subject, text: mail.text });
+}
+
+/// Le nom affiché à côté de l'adresse d'envoi (ex. « La Valaisanne » <adresse>), pour que le client reconnaisse le restaurant.
+/// Si l'adresse d'envoi configurée contient déjà un nom, on n'y touche pas.
+export function displayFrom(from: string, name?: string): string {
+  const clean = (name ?? "").replace(/[\r\n"<>]+/g, " ").trim();
+  if (!clean || from.includes("<")) return from;
+  return `"${clean}" <${from}>`;
 }

@@ -10,6 +10,7 @@ import { isoWeekday } from "@/lib/time";
 import { requirePermission } from "@/lib/current-context";
 import { normalizePhone } from "@/modules/messaging/phone";
 import { subscribeCustomer } from "@/modules/newsletter/server/subscribe";
+import { emailBookingAlert } from "@/modules/messaging/server/send-emails";
 import { notifyMember } from "@/modules/myspace/server/notify";
 import {
   buildAvailability,
@@ -141,7 +142,7 @@ export async function submitBookingRequest(
   });
   if (duplicate) return { ok: false, error: "Une demande existe déjà pour ce numéro à cette heure." };
 
-  await prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     // Seuls les clients qui ont coché la case entrent dans la base clients (avec leur accord daté).
     const customerId =
       data.newsletterOptIn && data.email
@@ -153,7 +154,7 @@ export async function submitBookingRequest(
           })
         : null;
 
-    await tx.reservation.create({
+    return tx.reservation.create({
       data: {
         establishmentId: establishment.id,
         customerId,
@@ -194,6 +195,9 @@ export async function submitBookingRequest(
     )
   );
 
+  // Et un email aux responsables, si l'envoi est configuré (voir messaging/server/send-emails.ts).
+  emailBookingAlert(created.id);
+
   revalidatePath("/reservations");
   revalidatePath("/aujourdhui");
   return { ok: true };
@@ -225,6 +229,13 @@ export async function enableOnlineBooking() {
   await prisma.establishment.update({ where: { id: ctx.establishment.id }, data: { bookingSlug: slug, onlineBookingEnabled: true } });
   revalidatePath("/parametres");
   return slug;
+}
+
+/// Envoyer (ou non) un email de confirmation au client quand sa réservation est confirmée.
+export async function setEmailConfirmations(enabled: boolean) {
+  const ctx = await requirePermission("settings.manage");
+  await prisma.establishment.update({ where: { id: ctx.establishment.id }, data: { emailConfirmations: enabled } });
+  revalidatePath("/parametres");
 }
 
 export async function disableOnlineBooking() {

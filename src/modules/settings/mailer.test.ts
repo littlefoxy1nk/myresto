@@ -95,3 +95,11 @@ test("sendMail : une erreur de connexion est levée (jamais avalée)", async () 
     )
   );
 });
+
+test("displayFrom : nom du restaurant à côté de l'adresse, sans casser l'en-tête", async () => {
+  const { displayFrom } = await import("./mailer");
+  assert.equal(displayFrom("noreply@myresto.app", "La Valaisanne"), '"La Valaisanne" <noreply@myresto.app>');
+  assert.equal(displayFrom("noreply@myresto.app"), "noreply@myresto.app");
+  assert.equal(displayFrom("MYRESTO <noreply@myresto.app>", "La Valaisanne"), "MYRESTO <noreply@myresto.app>");
+  assert.equal(displayFrom("noreply@myresto.app", 'Evil"\r\nBcc: x@y.z'), '"Evil Bcc: x@y.z" <noreply@myresto.app>');
+});

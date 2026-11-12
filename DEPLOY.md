@@ -85,6 +85,22 @@ Vercel n'a pas de disque durable : c'est pour cela que les photos et documents s
    - **ouvrir un établissement en mode assistance** : accès à tout, avec un bandeau visible, mais sans être propriétaire (pas de suppression de l'établissement, pas d'export, pas d'accès au compte du patron). Chaque entrée est notée dans le journal de l'établissement.
 4. Retirer une adresse de `PLATFORM_ADMIN_EMAILS` coupe aussitôt tous ses accès d'assistance.
 
+## Emails automatiques (réservations)
+
+Deux emails partent tout seuls dès que l'envoi d'emails est configuré :
+- **à l'équipe** (toute personne qui gère les réservations et qui a une adresse email) quand une demande arrive par le lien de réservation en ligne — sauf si elle a coupé « Réservations en ligne » dans ses notifications ;
+- **au client** quand tu confirme sa réservation, s'il a laissé son adresse. Un seul email par réservation, même si tu la confirmes plusieurs fois. Le client peut répondre à l'email : la réponse arrive chez le propriétaire. Chaque restaurant peut couper cet email dans *Paramètres → Mon établissement → Réservation en ligne*.
+
+Les établissements de démonstration n'envoient jamais d'email. Si l'envoi échoue, la réservation est enregistrée quand même et l'email est simplement retenté à la prochaine confirmation.
+
+**Configurer l'envoi avec Gmail (pour tester)** :
+1. Sur l'adresse Gmail qui enverra les emails : active la validation en deux étapes (myaccount.google.com → Sécurité).
+2. Toujours dans Sécurité, cherche « Mots de passe des applications », crée-en un (nom : MYRESTO) : Google affiche un code de 16 lettres.
+3. Dans Vercel → Settings → Environment Variables, ajoute `SMTP_HOST` = `smtp.gmail.com`, `SMTP_PORT` = `587`, `SMTP_USER` = l'adresse Gmail, `SMTP_PASS` = le code de 16 lettres (sans espaces). Ne remplis pas `SMTP_FROM` : les emails afficheront alors le nom du restaurant comme expéditeur.
+4. Redéploie. Pour vérifier : confirme une réservation de test dont l'email du client est le tien.
+
+Pour un vrai lancement, utilise une adresse à ton nom de domaine (sinon Gmail limite le nombre d'envois par jour et les emails risquent de finir dans les spams).
+
 ## Notifications sur téléphone
 
 Les notifications dans l'appli (la cloche) marchent toujours. Pour qu'elles arrivent aussi **sur le téléphone, appli fermée** :
