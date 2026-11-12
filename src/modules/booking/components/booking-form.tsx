@@ -314,6 +314,13 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
             Réservation en ligne jusqu&apos;à {MAX_ONLINE_PARTY_SIZE} personnes, au moins {Math.floor(MIN_LEAD_MINUTES / 60)} h {String(MIN_LEAD_MINUTES % 60).padStart(2, "0")} avant l&apos;heure choisie — sinon, appelle le
             restaurant. Elle n&apos;est valable qu&apos;une fois confirmée par lui.
           </p>
+          <p className="text-center text-xs leading-relaxed text-muted-foreground">
+            Tes informations servent uniquement à gérer ta réservation.{" "}
+            <a href="/confidentialite" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4 hover:text-foreground">
+              Voir comment elles sont protégées
+            </a>
+            .
+          </p>
         </div>
       </form>
     </Card>

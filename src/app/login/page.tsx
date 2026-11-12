@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { signIn } from "@/lib/auth";
-import { createRateLimiter } from "@/modules/booking/logic";
+import { createRateLimiter } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import { signupPolicy } from "@/lib/signup-policy";
 import Link from "next/link";
@@ -11,13 +11,13 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { BrandMark } from "@/components/nav/brand-mark";
 import { AuthShell } from "@/components/auth/auth-shell";
 
-const perIp = createRateLimiter(20, 15 * 60_000);
+const perIp = createRateLimiter("login", 20, 15 * 60_000);
 
 async function authenticate(formData: FormData) {
   "use server";
   const identifier = String(formData.get("identifier") ?? "");
   // Freine les essais en rafale depuis une même adresse (en plus du verrouillage par compte).
-  if (!perIp.allow(await getClientIp(), Date.now())) {
+  if (!(await perIp.allow(await getClientIp()))) {
     redirect(`/login?error=rate&identifier=${encodeURIComponent(identifier)}`);
   }
   try {

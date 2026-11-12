@@ -115,24 +115,6 @@ export function validateBookingRequest(
   };
 }
 
-/// Fenêtre glissante en mémoire : au plus `max` appels par clé sur `windowMs`. Freine un
-/// formulaire public sans dépendance externe ; la mémoire est celle du processus.
-export function createRateLimiter(max: number, windowMs: number) {
-  const hits = new Map<string, number[]>();
-  return {
-    allow(key: string, now: number): boolean {
-      const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
-      if (recent.length >= max) {
-        hits.set(key, recent);
-        return false;
-      }
-      recent.push(now);
-      hits.set(key, recent);
-      return true;
-    },
-  };
-}
-
 /// Une réservation déjà prise (même celle d'une demande en ligne sans table) qui consomme des places.
 export type BookedParty = { time: string; durationMinutes: number; partySize: number };
 

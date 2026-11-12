@@ -7,7 +7,7 @@ import { getCurrentContext, requirePermission } from "@/lib/current-context";
 import { isAvatarConfig } from "@/lib/avatar";
 import { MODULES, parseDisabledModules, serializeDisabledModules } from "@/lib/modules";
 import { parseMuted, serializeMuted, visibleNotificationCategories } from "@/lib/notification-preferences";
-import { createRateLimiter } from "@/modules/booking/logic";
+import { createRateLimiter } from "@/lib/rate-limit";
 import { sendMail } from "@/modules/settings/mailer";
 import {
   ContactSchema,
@@ -60,7 +60,7 @@ export async function saveMyNotificationPreferences(mutedKeys: string[]) {
   revalidatePath("/parametres");
 }
 
-const perUser = createRateLimiter(5, 3_600_000);
+const perUser = createRateLimiter("contact", 5, 3_600_000);
 
 export type ContactResult = { saved: true; emailed: boolean; reason?: "not_configured" | "failed" };
 
@@ -70,7 +70,7 @@ export type ContactResult = { saved: true; emailed: boolean; reason?: "not_confi
 export async function sendContactMessage(input: ContactInput): Promise<ContactResult> {
   const ctx = await getCurrentContext();
   const data = ContactSchema.parse(input);
-  if (!perUser.allow(ctx.user.id, Date.now())) {
+  if (!(await perUser.allow(ctx.user.id))) {
     throw new Error("Tu as déjà envoyé plusieurs messages récemment. Réessaie dans une heure.");
   }
 

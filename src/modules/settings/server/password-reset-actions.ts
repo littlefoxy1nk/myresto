@@ -7,13 +7,13 @@ import { prisma } from "@/lib/prisma";
 import { appBaseUrl } from "@/lib/app-url";
 import { getClientIp } from "@/lib/client-ip";
 import { validatePassword } from "@/lib/password-policy";
-import { createRateLimiter } from "@/modules/booking/logic";
+import { createRateLimiter } from "@/lib/rate-limit";
 import { readSmtpConfig } from "@/modules/settings/contact";
 import { sendMail } from "@/modules/settings/mailer";
 import { RESET_TOKEN_TTL_MINUTES, buildResetEmail, hashResetToken, isResetTokenUsable, newResetToken } from "@/modules/settings/password-reset";
 
-const perIp = createRateLimiter(5, 60 * 60_000);
-const perEmail = createRateLimiter(3, 60 * 60_000);
+const perIp = createRateLimiter("reset-ip", 5, 60 * 60_000);
+const perEmail = createRateLimiter("reset-email", 3, 60 * 60_000);
 
 export type ForgotPasswordResult = { ok: true } | { ok: false; error: string };
 
@@ -23,8 +23,7 @@ export async function requestPasswordReset(emailInput: string): Promise<ForgotPa
   const email = z.string().trim().toLowerCase().email().safeParse(emailInput);
   if (!email.success) return { ok: false, error: "Adresse email invalide." };
 
-  const now = Date.now();
-  if (!perIp.allow(await getClientIp(), now) || !perEmail.allow(email.data, now)) {
+  if (!(await perIp.allow(await getClientIp())) || !(await perEmail.allow(email.data))) {
     return { ok: false, error: "Trop de demandes. Réessaie dans une heure." };
   }
 
@@ -41,7 +40,7 @@ export async function requestPasswordReset(emailInput: string): Promise<ForgotPa
   // Un seul lien valable à la fois : les précédents sont retirés.
   await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
   await prisma.passwordResetToken.create({
-    data: { userId: user.id, tokenHash, expiresAt: new Date(now + RESET_TOKEN_TTL_MINUTES * 60_000) },
+    data: { userId: user.id, tokenHash, expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60_000) },
   });
 
   const link = `${base}/reinitialiser/${token}`;
@@ -71,7 +70,7 @@ export type ResetPasswordResult = { ok: false; error: string };
 export async function resetPassword(input: z.infer<typeof ResetSchema>): Promise<ResetPasswordResult> {
   const parsed = ResetSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Ce lien n'est pas valide." };
-  if (!perIp.allow(`reset:${await getClientIp()}`, Date.now())) return { ok: false, error: "Trop de tentatives. Réessaie dans une heure." };
+  if (!(await perIp.allow(`use:${await getClientIp()}`))) return { ok: false, error: "Trop de tentatives. Réessaie dans une heure." };
 
   const row = await prisma.passwordResetToken.findUnique({ where: { tokenHash: hashResetToken(parsed.data.token) }, include: { user: true } });
   if (!row || !isResetTokenUsable(row, new Date())) return { ok: false, error: "Ce lien a expiré ou a déjà servi. Refais une demande." };

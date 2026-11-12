@@ -951,6 +951,14 @@ model PushSubscription {
   @@index([membershipId])
 }
 
+/// Compteur partagé des limites anti-abus (connexion, formulaire public…) : une ligne par clé, remise à zéro quand la fenêtre
+/// de temps est passée. En base (et non en mémoire) pour que toutes les copies du serveur voient le même compteur.
+model RateLimitBucket {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+}
+
 /// Un message du responsable à son équipe (toute l'équipe, la salle ou la cuisine).
 model Announcement {
   id              String         @id @default(cuid())

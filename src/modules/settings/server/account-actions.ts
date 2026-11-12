@@ -7,9 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { signOut } from "@/lib/auth";
 import { getCurrentContext } from "@/lib/current-context";
 import { deleteEstablishmentCompletely, isOwner } from "@/lib/account-deletion";
-import { createRateLimiter } from "@/modules/booking/logic";
+import { createRateLimiter } from "@/lib/rate-limit";
 
-const perUser = createRateLimiter(5, 60 * 60_000);
+const perUser = createRateLimiter("account", 5, 60 * 60_000);
 
 const CloseSchema = z.object({
   confirmName: z.string(),
@@ -25,7 +25,7 @@ export type CloseEstablishmentResult = { ok: false; error: string };
 export async function closeEstablishment(input: z.infer<typeof CloseSchema>): Promise<CloseEstablishmentResult> {
   const ctx = await getCurrentContext();
   if (!isOwner(ctx)) return { ok: false, error: "Seul le propriétaire peut fermer l'établissement." };
-  if (!perUser.allow(ctx.user.id, Date.now())) return { ok: false, error: "Trop de tentatives. Réessaie dans une heure." };
+  if (!(await perUser.allow(ctx.user.id))) return { ok: false, error: "Trop de tentatives. Réessaie dans une heure." };
 
   const data = CloseSchema.safeParse(input);
   if (!data.success) return { ok: false, error: data.error.issues[0]?.message ?? "Données invalides." };

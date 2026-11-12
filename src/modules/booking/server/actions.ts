@@ -11,10 +11,10 @@ import { requirePermission } from "@/lib/current-context";
 import { normalizePhone } from "@/modules/messaging/phone";
 import { subscribeCustomer } from "@/modules/newsletter/server/subscribe";
 import { emailBookingAlert } from "@/modules/messaging/server/send-emails";
+import { createRateLimiter } from "@/lib/rate-limit";
 import { notifyMember } from "@/modules/myspace/server/notify";
 import {
   buildAvailability,
-  createRateLimiter,
   MAX_ONLINE_PARTY_SIZE,
   validateBookingRequest,
   type BookingRequestInput,
@@ -22,9 +22,9 @@ import {
 } from "@/modules/booking/logic";
 
 const HOUR = 3_600_000;
-const perPhone = createRateLimiter(3, HOUR);
-const perIp = createRateLimiter(10, HOUR);
-const perIpAvailability = createRateLimiter(120, HOUR);
+const perPhone = createRateLimiter("book-phone", 3, HOUR);
+const perIp = createRateLimiter("book-ip", 10, HOUR);
+const perIpAvailability = createRateLimiter("book-search", 120, HOUR);
 
 /// Places totales (tables utilisables) et couverts déjà pris ce jour-là — y compris les demandes
 /// en ligne pas encore installées, qui n'ont pas de table mais occupent bien des places.
@@ -58,7 +58,7 @@ export async function getBookingAvailability(
   partySize: number
 ): Promise<{ ok: true; services: ServiceAvailability[] } | { ok: false; error: string }> {
   const ip = await getClientIp();
-  if (!perIpAvailability.allow(ip, Date.now())) return { ok: false, error: "Trop de recherches, réessaie dans un instant." };
+  if (!(await perIpAvailability.allow(ip))) return { ok: false, error: "Trop de recherches, réessaie dans un instant." };
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !Number.isInteger(partySize) || partySize < 1 || partySize > MAX_ONLINE_PARTY_SIZE) {
     return { ok: true, services: [] };
@@ -126,7 +126,7 @@ export async function submitBookingRequest(
 
   const ip = await getClientIp();
   const phoneKey = normalizePhone(data.phone) ?? data.phone;
-  if (!perPhone.allow(`${establishment.id}:${phoneKey}`, now.getTime()) || !perIp.allow(`${establishment.id}:${ip}`, now.getTime())) {
+  if (!(await perPhone.allow(`${establishment.id}:${phoneKey}`)) || !(await perIp.allow(`${establishment.id}:${ip}`))) {
     return { ok: false, error: "Trop de demandes pour le moment. Merci de réessayer plus tard ou d'appeler le restaurant." };
   }
 

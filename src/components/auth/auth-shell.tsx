@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { BrandMark } from "@/components/nav/brand-mark";
 
@@ -38,7 +39,14 @@ export function AuthShell({
       </aside>
 
       <main className="flex items-center justify-center px-4 py-10">
-        <div className="page-in w-full max-w-md">{children}</div>
+        <div className="page-in w-full max-w-md">
+          {children}
+          <p className="mt-8 text-center text-xs text-muted-foreground lg:text-left">
+            <Link href="/confidentialite" className="underline underline-offset-4 hover:text-foreground">
+              Confidentialité
+            </Link>
+          </p>
+        </div>
       </main>
     </div>
   );

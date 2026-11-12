@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   bookingSlots,
   buildAvailability,
-  createRateLimiter,
   seatsFreeAt,
   slotsByService,
   validateBookingRequest,
@@ -86,16 +85,6 @@ test("le jour même : au moins 1 h 30 de délai", () => {
   assert.equal(validateBookingRequest({ ...today, time: "19:00" }, new Date(2026, 9, 13, 17, 45), open).ok, false);
   assert.equal(validateBookingRequest({ ...today, time: "19:00" }, new Date(2026, 9, 13, 17, 30), open).ok, true);
 });
-
-test("rate limiter : bloque au-delà du maximum puis libère", () => {
-  const limiter = createRateLimiter(2, 1000);
-  assert.equal(limiter.allow("k", 0), true);
-  assert.equal(limiter.allow("k", 10), true);
-  assert.equal(limiter.allow("k", 20), false);
-  assert.equal(limiter.allow("other", 20), true);
-  assert.equal(limiter.allow("k", 2000), true);
-});
-
 
 const party = (time: string, partySize: number, durationMinutes = 90) => ({ time, partySize, durationMinutes });
 

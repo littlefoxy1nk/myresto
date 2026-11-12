@@ -10,9 +10,9 @@ import { checkAdminSignup, isPlatformAdminEmail } from "@/lib/platform-admin";
 import { validatePassword } from "@/lib/password-policy";
 import { inviteCodeMatches, signupPolicy } from "@/lib/signup-policy";
 import { getClientIp } from "@/lib/client-ip";
-import { createRateLimiter } from "@/modules/booking/logic";
+import { createRateLimiter } from "@/lib/rate-limit";
 
-const perIp = createRateLimiter(5, 60 * 60_000);
+const perIp = createRateLimiter("signup", 5, 60 * 60_000);
 
 const OnboardingSchema = z.object({
   firstName: z.string().min(1, "Le prénom est requis."),
@@ -78,7 +78,7 @@ export async function createEstablishment(
   if (!policy.open) {
     return { error: "La création de compte est fermée pour le moment. Contacte MYRESTO pour obtenir une invitation.", values, attempt };
   }
-  if (!perIp.allow(await getClientIp(), Date.now())) {
+  if (!(await perIp.allow(await getClientIp()))) {
     return { error: "Trop de tentatives. Réessaie dans une heure.", values, attempt };
   }
   // Les adresses de l'équipe MYRESTO ne s'inscrivent qu'avec le code « équipe » (jamais avec celui des restaurateurs).

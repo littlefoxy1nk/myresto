@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { getPublicBookingInfo } from "@/modules/booking/server/queries";
@@ -33,7 +34,12 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
 
       <main className="relative mx-auto -mt-20 w-full max-w-lg px-4 pb-10">
         <BookingForm slug={slug} restaurantName={info.name} />
-        <p className="mt-8 text-center text-xs text-muted-foreground">Propulsé par MYRESTO</p>
+        <p className="mt-8 text-center text-xs text-muted-foreground">
+          Propulsé par MYRESTO ·{" "}
+          <Link href="/confidentialite" className="underline underline-offset-4 hover:text-foreground">
+            Confidentialité
+          </Link>
+        </p>
       </main>
     </div>
   );

@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentContext } from "@/lib/current-context";
-import { createRateLimiter } from "@/modules/booking/logic";
+import { createRateLimiter } from "@/lib/rate-limit";
 import { sendPushToMember, vapidConfig } from "@/modules/push/server/send";
 
 const SubscriptionSchema = z.object({
@@ -42,7 +42,7 @@ export async function countMyPushDevices(): Promise<number> {
   return prisma.pushSubscription.count({ where: { membershipId: ctx.membership.id } });
 }
 
-const testLimiter = createRateLimiter(5, 10 * 60_000);
+const testLimiter = createRateLimiter("push-test", 5, 10 * 60_000);
 
 export type TestPushResult = { ok: true; sent: number } | { ok: false; error: string };
 
@@ -50,7 +50,7 @@ export type TestPushResult = { ok: true; sent: number } | { ok: false; error: st
 export async function sendTestPush(): Promise<TestPushResult> {
   const ctx = await getCurrentContext();
   if (!vapidConfig()) return { ok: false, error: "Les notifications sur téléphone ne sont pas encore configurées sur ce serveur." };
-  if (!testLimiter.allow(ctx.membership.id, Date.now())) return { ok: false, error: "Trop d'essais. Réessaie dans quelques minutes." };
+  if (!(await testLimiter.allow(ctx.membership.id))) return { ok: false, error: "Trop d'essais. Réessaie dans quelques minutes." };
   const sent = await sendPushToMember(ctx.membership.id, { title: "MYRESTO", body: "Les notifications fonctionnent sur cet appareil.", url: "/parametres?tab=notifications", tag: "test" });
   if (sent === 0) return { ok: false, error: "Aucun appareil n'a reçu l'essai. Réactive les notifications puis réessaie." };
   return { ok: true, sent };
