@@ -13,6 +13,7 @@ import { CreateZoneDialog } from "@/modules/floorplan/components/create-zone-dia
 import { CreateTableDialog } from "@/modules/floorplan/components/create-table-dialog";
 import { MoveReservationDialog } from "@/modules/reservations/components/move-reservation-dialog";
 import { WalkInDialog } from "@/modules/service/components/walk-in-dialog";
+import { occupyTable } from "@/modules/reservations/server/actions";
 import { CreateGroupDialog } from "@/modules/floorplan/components/create-group-dialog";
 import {
   createZone,
@@ -299,7 +300,8 @@ export function FloorPlanApp({
             canMerge={canMerge && !viewAll}
             canCreateReservation={canCreateReservation}
             reserveHref={reserveHref(selectedTable, dayView)}
-            onWalkIn={canWalkIn && !dayView ? () => setWalkInTableId(selectedTable.id) : undefined}
+            onWalkIn={canWalkIn && !dayView ? () => guarded(() => occupyTable(selectedTable.id), "Client installé") : undefined}
+            onWalkInDetails={canWalkIn && !dayView ? () => setWalkInTableId(selectedTable.id) : undefined}
             onMoveReservation={canWalkIn ? setMoveReservationId : undefined}
             zones={zones.map((z) => ({ id: z.id, name: z.name }))}
             onClose={() => setSelectedTableId(null)}

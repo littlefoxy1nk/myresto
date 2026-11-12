@@ -248,8 +248,11 @@ export async function createReservation(input: CreateReservationInput) {
   return reservation;
 }
 
+const ANONYMOUS_WALK_IN_NAME = "Client sans réservation";
+
 const WalkInSchema = z.object({
-  customerName: z.string().min(1, "Le nom du client est requis."),
+  /// Facultatif : un client qui se présente n'a pas à décliner son identité pour s'asseoir.
+  customerName: z.string().trim().max(120).optional(),
   customerPhone: z.string().optional(),
   partySize: z.coerce.number().int().min(1).max(60),
   tableIds: z.array(z.string()).min(1, "Choisissez au moins une table."),
@@ -263,6 +266,7 @@ const WalkInSchema = z.object({
 export async function createWalkIn(input: z.infer<typeof WalkInSchema>) {
   const ctx = await requireAnyPermission("reservations.edit", "service.run");
   const data = WalkInSchema.parse(input);
+  const customerName = data.customerName || ANONYMOUS_WALK_IN_NAME;
 
   await assertTablesHaveCapacity(ctx.establishment.id, data.tableIds, data.partySize, data.allowOverCapacity);
 
@@ -274,7 +278,7 @@ export async function createWalkIn(input: z.infer<typeof WalkInSchema>) {
     await assertNoTableConflict(tx, ctx.establishment.id, data.tableIds, date, time, DEFAULT_DURATION_MINUTES);
 
     const customerId = await findOrCreateCustomer(tx, ctx.establishment.id, {
-      name: data.customerName,
+      name: customerName,
       phone: data.customerPhone,
     });
 
@@ -282,7 +286,7 @@ export async function createWalkIn(input: z.infer<typeof WalkInSchema>) {
       data: {
         establishmentId: ctx.establishment.id,
         customerId,
-        customerName: data.customerName,
+        customerName,
         customerPhone: data.customerPhone || null,
         partySize: data.partySize,
         date,
@@ -317,7 +321,7 @@ export async function occupyTable(tableId: string) {
   const ctx = await requireAnyPermission("reservations.edit", "service.run");
   const table = await prisma.restaurantTable.findFirst({ where: { id: tableId, establishmentId: ctx.establishment.id } });
   if (!table) throw new Error("Table introuvable.");
-  await createWalkIn({ customerName: "Client sans réservation", partySize: Math.min(table.capacity, 2), tableIds: [tableId] });
+  await createWalkIn({ partySize: Math.min(table.capacity, 2), tableIds: [tableId] });
 }
 
 const UpdateReservationSchema = z.object({

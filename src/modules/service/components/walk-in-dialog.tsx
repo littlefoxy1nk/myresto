@@ -28,17 +28,16 @@ export function WalkInDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogTitle>Client sans réservation</DialogTitle>
-        <DialogDescription>Installe directement un walk-in sur cette table.</DialogDescription>
+        <DialogDescription>Tout est facultatif : tu peux installer le client sans rien renseigner.</DialogDescription>
         <form
           className="mt-4 space-y-3"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!customerName.trim()) return;
             setPending(true);
             setError(null);
             try {
               await createWalkIn({
-                customerName: customerName.trim(),
+                customerName: customerName.trim() || undefined,
                 customerPhone: customerPhone.trim() || undefined,
                 partySize,
                 tableIds: [tableId],
@@ -55,11 +54,10 @@ export function WalkInDialog({
         >
           <div className="space-y-1.5">
             <label htmlFor="walkin-name" className="text-sm font-semibold">
-              Nom
+              Nom (optionnel)
             </label>
             <input
               id="walkin-name"
-              autoFocus
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="ex: Famille Dupont"
@@ -104,7 +102,7 @@ export function WalkInDialog({
 
           {error && <p className="text-sm text-urgent">{error}</p>}
 
-          <Button type="submit" className="w-full" disabled={pending || !customerName.trim()}>
+          <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Installation…" : overCapacity ? "Installer quand même" : "Installer"}
           </Button>
         </form>

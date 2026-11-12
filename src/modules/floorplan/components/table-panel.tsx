@@ -23,6 +23,7 @@ export function TablePanel({
   canCreateReservation,
   reserveHref,
   onWalkIn,
+  onWalkInDetails,
   onMoveReservation,
   zones,
   onClose,
@@ -39,8 +40,10 @@ export function TablePanel({
   canCreateReservation: boolean;
   /// Lien "réserver pour plus tard" (date/heure du plan affiché déjà préremplies).
   reserveHref: string;
-  /// Présent seulement sur le plan live : installer tout de suite un client sans réservation.
+  /// Présent seulement sur le plan live : installer tout de suite un client sans réservation, sans rien demander.
   onWalkIn?: () => void;
+  /// Facultatif : préciser le nom, le téléphone ou le nombre de personnes avant d'installer.
+  onWalkInDetails?: () => void;
   /// Présent si l'utilisateur peut changer une réservation de table.
   onMoveReservation?: (reservationId: string) => void;
   zones: { id: string; name: string }[];
@@ -79,6 +82,15 @@ export function TablePanel({
               <UserPlus size={14} aria-hidden="true" />
               Installer un client maintenant
             </Button>
+          )}
+          {onWalkIn && onWalkInDetails && (table.liveState === "available" || table.liveState === "soon") && (
+            <button
+              type="button"
+              onClick={onWalkInDetails}
+              className="w-full rounded-lg px-2 py-1 text-xs text-muted-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              Préciser le nom ou le nombre de personnes
+            </button>
           )}
           {canCreateReservation && (
             <Button asChild size="sm" variant={onWalkIn ? "secondary" : "primary"} className="w-full">
