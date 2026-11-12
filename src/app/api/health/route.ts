@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { explainMissingDatabaseUrl, resolveDatabaseUrl } from "@/lib/database-url";
-import { vapidConfig } from "@/modules/push/server/send";
+import { vapidConfig, vapidKeyProblem } from "@/modules/push/server/send";
 import { signupPolicy } from "@/lib/signup-policy";
 import { cleanEnvValue } from "@/lib/env-value";
 import { platformAdminEmails } from "@/lib/platform-admin";
@@ -39,8 +39,10 @@ export async function GET() {
 
   const headers = { "Cache-Control": "no-store" };
   // Seulement des nombres et des oui/non (jamais une adresse ni un code) : de quoi vérifier à distance que l'équipe est bien configurée.
+  const vapid = vapidConfig(env);
+  const notificationsTelephone = !vapid ? "désactivées" : vapidKeyProblem(vapid) ? "clés mal recopiées" : "ok";
   const equipe = { adressesReconnues: platformAdminEmails(env).size, codeEquipeConfigure: !!cleanEnvValue(env.ADMIN_INVITE_CODE) };
-  if (ok) return Response.json({ status: "ok", equipe }, { headers });
+  if (ok) return Response.json({ status: "ok", equipe, notificationsTelephone }, { headers });
 
   const policy = signupPolicy(env);
   return Response.json(
@@ -48,6 +50,7 @@ export async function GET() {
       status: "à configurer",
       checks,
       equipe,
+      notificationsTelephone,
       aide: {
         authSecret: checks.authSecret ? undefined : "Ajoute la variable AUTH_SECRET (une longue valeur aléatoire).",
         databaseUrl:

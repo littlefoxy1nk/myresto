@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentContext } from "@/lib/current-context";
 import { createRateLimiter } from "@/lib/rate-limit";
-import { sendPushToMember, vapidConfig } from "@/modules/push/server/send";
+import { explainPushFailure, sendPushDetailed, vapidConfig } from "@/modules/push/server/send";
 
 const SubscriptionSchema = z.object({
   endpoint: z.string().url().max(1000).refine((u) => u.startsWith("https://"), "Adresse de notification invalide."),
@@ -51,7 +51,7 @@ export async function sendTestPush(): Promise<TestPushResult> {
   const ctx = await getCurrentContext();
   if (!vapidConfig()) return { ok: false, error: "Les notifications sur téléphone ne sont pas encore configurées sur ce serveur." };
   if (!(await testLimiter.allow(ctx.membership.id))) return { ok: false, error: "Trop d'essais. Réessaie dans quelques minutes." };
-  const sent = await sendPushToMember(ctx.membership.id, { title: "MYRESTO", body: "Les notifications fonctionnent sur cet appareil.", url: "/parametres?tab=notifications", tag: "test" });
-  if (sent === 0) return { ok: false, error: "Aucun appareil n'a reçu l'essai. Réactive les notifications puis réessaie." };
-  return { ok: true, sent };
+  const outcome = await sendPushDetailed(ctx.membership.id, { title: "MYRESTO", body: "Les notifications fonctionnent sur cet appareil.", url: "/parametres?tab=notifications", tag: "test" });
+  if (outcome.sent === 0) return { ok: false, error: explainPushFailure(outcome) };
+  return { ok: true, sent: outcome.sent };
 }
