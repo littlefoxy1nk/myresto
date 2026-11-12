@@ -70,7 +70,7 @@ export async function deletePost(id: string) {
   if (!existing) throw new Error("Publication introuvable.");
 
   await prisma.marketingPost.delete({ where: { id } });
-  if (existing.mediaFileName) await deleteMarketingMedia(existing.mediaFileName);
+  if (existing.mediaFileName) await deleteMarketingMedia(ctx.establishment.id, existing.mediaFileName);
   revalidateMarketingPaths();
 }
 
@@ -81,7 +81,7 @@ export async function uploadPostPhoto(formData: FormData) {
   const id = String(formData.get("postId") ?? "");
   const file = formData.get("file");
   if (!(file instanceof File)) throw new Error("Aucune photo choisie.");
-  if (file.size > MAX_IMAGE_BYTES) throw new Error("Photo trop lourde (5 Mo maximum).");
+  if (file.size > MAX_IMAGE_BYTES) throw new Error("Photo trop lourde (4 Mo maximum).");
 
   const existing = await prisma.marketingPost.findFirst({ where: { id, establishmentId: ctx.establishment.id } });
   if (!existing) throw new Error("Publication introuvable.");
@@ -90,9 +90,9 @@ export async function uploadPostPhoto(formData: FormData) {
   const type = detectImageType(buffer);
   if (!type) throw new Error("Format non accepté (JPEG, PNG ou WebP uniquement).");
 
-  const fileName = await saveMarketingMedia(buffer, type.extension);
+  const fileName = await saveMarketingMedia(ctx.establishment.id, buffer, type.extension);
   await prisma.marketingPost.update({ where: { id }, data: { mediaFileName: fileName, mediaMimeType: type.mime } });
-  if (existing.mediaFileName) await deleteMarketingMedia(existing.mediaFileName);
+  if (existing.mediaFileName) await deleteMarketingMedia(ctx.establishment.id, existing.mediaFileName);
   revalidateMarketingPaths();
 }
 
@@ -103,6 +103,6 @@ export async function removePostPhoto(id: string) {
   if (!existing.mediaFileName) return;
 
   await prisma.marketingPost.update({ where: { id }, data: { mediaFileName: null, mediaMimeType: null } });
-  await deleteMarketingMedia(existing.mediaFileName);
+  await deleteMarketingMedia(ctx.establishment.id, existing.mediaFileName);
   revalidateMarketingPaths();
 }

@@ -137,8 +137,8 @@ export function PostDialog({
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0] ?? null;
-                if (file && file.size > 5 * 1024 * 1024) {
-                  setError("Photo trop lourde (5 Mo maximum).");
+                if (file && file.size > 4 * 1024 * 1024) {
+                  setError("Photo trop lourde (4 Mo maximum).");
                   e.target.value = "";
                   return;
                 }

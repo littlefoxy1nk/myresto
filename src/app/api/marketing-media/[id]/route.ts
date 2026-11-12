@@ -30,7 +30,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/marketing-me
   });
   if (!post?.mediaFileName || !post.mediaMimeType) return new Response("Introuvable.", { status: 404 });
 
-  const buffer = await readMarketingMedia(post.mediaFileName).catch(() => null);
+  const buffer = await readMarketingMedia(context.establishment.id, post.mediaFileName).catch(() => null);
   if (!buffer) return new Response("Introuvable.", { status: 404 });
 
   const download = new URL(request.url).searchParams.get("download") === "1";

@@ -1,4 +1,5 @@
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/// 4 Mo : au-delà, l'hébergeur (Vercel) refuse l'envoi du formulaire.
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 export type ImageType = { mime: "image/jpeg" | "image/png" | "image/webp"; extension: ".jpg" | ".png" | ".webp" };
 

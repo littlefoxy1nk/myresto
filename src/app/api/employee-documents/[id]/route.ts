@@ -23,7 +23,8 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/employee-do
     return new Response("Accès refusé.", { status: 403 });
   }
 
-  const buffer = await readEmployeeDocument(document.fileName);
+  const buffer = await readEmployeeDocument(context.establishment.id, document.fileName);
+  if (!buffer) return new Response("Introuvable.", { status: 404 });
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": document.mimeType,

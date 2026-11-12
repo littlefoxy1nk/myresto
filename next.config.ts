@@ -7,8 +7,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
     serverActions: {
-      // Les photos de publications et les documents d'employés font jusqu'à 5 Mo (+ un peu de marge pour le formulaire).
-      bodySizeLimit: "6mb",
+      // Les photos de publications et les documents d'employés font jusqu'à 4 Mo (+ marge pour le formulaire ; Vercel refuse de toute façon au-delà de 4,5 Mo).
+      bodySizeLimit: "5mb",
       // Derrière un serveur intermédiaire (hébergeur, nom de domaine), l'adresse peut différer de celle vue par l'appli :
       // on y liste les adresses autorisées à envoyer des formulaires (séparées par des virgules).
       ...(process.env.SERVER_ACTION_ORIGINS ? { allowedOrigins: process.env.SERVER_ACTION_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean) } : {}),

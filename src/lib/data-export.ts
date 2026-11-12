@@ -21,9 +21,13 @@ export function scopeFor(modelName: string, establishmentId: string, depth = 0):
 }
 
 /// Les secrets ne sortent jamais d'un export.
-const HIDDEN_FIELDS: Record<string, string[]> = { User: ["passwordHash", "codeHash", "failedLoginAttempts", "lockedUntil"] };
+const HIDDEN_FIELDS: Record<string, string[]> = {
+  User: ["passwordHash", "codeHash", "failedLoginAttempts", "lockedUntil"],
+  // Les photos et documents sont listés (nom, type, taille), mais leur contenu n'est pas recopié dans le fichier d'export.
+  StoredFile: ["data"],
+};
 
-type Delegate = { findMany: (args: { where: Record<string, unknown> }) => Promise<Record<string, unknown>[]> };
+type Delegate = { findMany: (args: { where: Record<string, unknown>; omit?: Record<string, boolean> }) => Promise<Record<string, unknown>[]> };
 
 /// Toutes les données d'un établissement, en clair, dans un seul objet (droit à la portabilité).
 /// Les photos et documents d'employés sont listés par nom ; leurs fichiers ne sont pas inclus.
@@ -43,7 +47,7 @@ export async function exportEstablishmentData(establishmentId: string): Promise<
     if (!where) continue;
 
     const hidden = HIDDEN_FIELDS[model.name] ?? [];
-    const rows = await delegate.findMany({ where });
+    const rows = await delegate.findMany({ where, ...(hidden.length > 0 ? { omit: Object.fromEntries(hidden.map((f) => [f, true])) } : {}) });
     out[model.name.charAt(0).toLowerCase() + model.name.slice(1)] = rows.map((row) =>
       Object.fromEntries(Object.entries(row).filter(([key]) => !hidden.includes(key)))
     );

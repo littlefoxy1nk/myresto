@@ -174,11 +174,11 @@ export async function uploadCertificate(formData: FormData) {
     throw new Error("Format non accepté (PDF, JPEG ou PNG uniquement).");
   }
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    throw new Error("Fichier trop volumineux (5 Mo maximum).");
+    throw new Error("Fichier trop volumineux (4 Mo maximum).");
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const fileName = await saveEmployeeDocument(buffer, file.type);
+  const fileName = await saveEmployeeDocument(ctx.establishment.id, buffer, file.type);
 
   await prisma.employeeDocument.create({
     data: {

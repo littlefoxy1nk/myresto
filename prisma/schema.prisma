@@ -4,16 +4,16 @@
 // « enum-like » sont des String documentées ci-dessous, validées côté application avec Zod.
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client-js"
+  output        = "../src/generated/prisma"
+  // Le serveur de l'hébergeur (Linux) peut différer de ce Mac : on prépare le moteur pour les deux.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  /// Adresse utilisée par l'appli (peut passer par un pooler de connexions chez l'hébergeur).
-  url       = env("DATABASE_URL")
-  /// Adresse directe, utilisée uniquement pour appliquer les migrations (identique à DATABASE_URL en local).
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  /// Adresse de la base. Celle des migrations (adresse directe, sans pooler) est réglée dans prisma.config.ts.
+  url      = env("DATABASE_URL")
 }
 
 // =========================================================================
@@ -89,6 +89,7 @@ model Establishment {
   marketingPosts  MarketingPost[]
   campaigns       Campaign[]
   auditLogs       AuditLog[]
+  storedFiles     StoredFile[]
   agendaEvents    AgendaEvent[]
   notifications   Notification[]
   replacementRequests ReplacementRequest[]
@@ -909,4 +910,19 @@ model PlanningAlertDismissal {
   createdAt    DateTime   @default(now())
 
   @@unique([membershipId, weekStart, alertKey])
+}
+
+/// Les photos de publications et les documents d'employés. Gardés dans la base plutôt que sur un disque : un hébergement
+/// sans disque persistant (Vercel…) les perdrait. Jamais servis directement : seulement par les routes authentifiées.
+model StoredFile {
+  /// Nom aléatoire (jamais dérivé du nom donné par la personne).
+  name            String        @id
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  kind            String // employee-document | marketing-media
+  size            Int
+  data            Bytes
+  createdAt       DateTime      @default(now())
+
+  @@index([establishmentId])
 }

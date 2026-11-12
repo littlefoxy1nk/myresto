@@ -3,6 +3,7 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
+import { resolveDirectDatabaseUrl } from "./src/lib/database-url";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -15,6 +16,6 @@ export default defineConfig({
     // Les commandes Prisma (migrations) passent par l'adresse directe de la base ; sinon par l'adresse habituelle.
     // Sans aucune des deux (par exemple pendant `npm ci` chez un hébergeur, qui ne fait que générer le client),
     // une adresse factice évite que l'installation échoue : rien ne s'y connecte.
-    url: process.env.DIRECT_URL || process.env.DATABASE_URL || "postgresql://postgres:postgres@127.0.0.1:5432/postgres",
+    url: resolveDirectDatabaseUrl() ?? "postgresql://postgres:postgres@127.0.0.1:5432/postgres",
   },
 });

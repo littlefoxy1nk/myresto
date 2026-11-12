@@ -30,7 +30,7 @@ Crée une base PostgreSQL chez l'hébergeur et note son adresse (`postgresql://�
 
 | Variable | Valeur |
 |---|---|
-| `DATABASE_URL` | L'adresse de la base (la « poolée » si tu en as une) |
+| `DATABASE_URL` | L'adresse de la base, en `postgres://` (la « poolée » si tu en as une) |
 | `DIRECT_URL` | L'adresse directe de la base (la même s'il n'y en a qu'une) |
 | `AUTH_SECRET` | Une longue valeur aléatoire : `openssl rand -base64 32` |
 | `APP_URL` | L'adresse publique, ex. `https://app.myresto.be` |
@@ -57,6 +57,21 @@ Chez l'hébergeur, ajoute ton domaine ; il te donne un enregistrement DNS à sai
 2. Dans Paramètres → *Aide et contact*, envoie un message : tu vérifies que l'envoi d'emails marche.
 3. Sur la page de connexion, teste « Mot de passe oublié ».
 4. Donne le code d'invitation à un restaurateur ami : il crée son propre établissement. Les données de chacun sont totalement séparées.
+
+## Variante Vercel (si l'appli est hébergée sur Vercel)
+
+Vercel n'a pas de disque durable : c'est pour cela que les photos et documents sont gardés dans la base de données (aucun volume à brancher).
+
+1. **Base de données** : une base PostgreSQL (Prisma Postgres, Neon, Supabase…), branchée au projet dans *Storage → Connect Project*. L'adresse doit commencer par `postgres://` ou `postgresql://`. Une adresse `prisma+postgres://` (Prisma Accelerate) ne convient pas : utilise l'adresse « directe » (TCP) que la console de la base propose.
+2. **Réglages** : *Project → Settings → Environment Variables*, cochés pour **Production** :
+   - `DATABASE_URL` (ou les noms posés par Vercel : `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING` — l'appli les reconnaît),
+   - `AUTH_SECRET` (`openssl rand -base64 32`),
+   - `APP_URL` = l'adresse du site, en `https://…`,
+   - `SIGNUP_INVITE_CODE` = ton code d'invitation.
+3. **Créer les tables** : automatique. Le build Vercel utilise la commande `vercel-build` (voir `package.json`) qui lance `prisma migrate deploy` avant de construire l'appli. Laisse la commande de build de Vercel par défaut.
+4. **Région** : *Settings → Functions → Function Region* : choisis Francfort (`fra1`) ou Paris (`cdg1`), la plus proche de ta base.
+5. **Vérifier** : ouvre `https://ton-site/api/health`. Réponse `{"status":"ok"}` = tout est branché. Sinon la réponse dit exactement quelle variable manque ou ce qui ne va pas.
+6. Limites propres à Vercel : photos et documents jusqu'à 4 Mo (Vercel refuse les envois plus gros).
 
 ## Sauvegardes (indispensable avant d'inviter des amis)
 
