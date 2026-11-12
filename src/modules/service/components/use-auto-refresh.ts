@@ -9,10 +9,28 @@ import { useRouter } from "next/navigation";
 /// justes même sans action de l'utilisateur. Sans WebSocket ni infra temps réel — l'action
 /// de mutation (Server Action + revalidatePath) reste le mécanisme principal de mise à
 /// jour ; ce polling ne fait que rattraper l'écoulement du temps entre deux actions.
+///
+/// Il ne tourne QUE quand l'onglet est visible : un téléphone posé avec l'appli ouverte en arrière-plan ne consomme rien
+/// (ni base de données, ni serveur). Au retour sur l'onglet, la page se remet à jour tout de suite si elle est restée trop
+/// longtemps cachée.
 export function useAutoRefresh(intervalMs: number) {
   const router = useRouter();
   useEffect(() => {
-    const id = setInterval(() => router.refresh(), intervalMs);
-    return () => clearInterval(id);
+    let lastRefresh = Date.now();
+    const refresh = () => {
+      lastRefresh = Date.now();
+      router.refresh();
+    };
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, intervalMs);
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastRefresh >= intervalMs) refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [router, intervalMs]);
 }

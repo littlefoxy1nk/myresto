@@ -1,5 +1,6 @@
 "use server";
 
+import { NOT_SUPPORT } from "@/lib/assistance";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { addDays, differenceInCalendarDays, endOfDay, startOfDay } from "date-fns";
@@ -319,7 +320,7 @@ export async function generateWeekSchedule(weekStart: string) {
   const rangeEnd = endOfDay(days[6]);
 
   const [memberships, services, requirements, existingShifts, availabilities, timeOffs, targetRules] = await Promise.all([
-    prisma.membership.findMany({ where: { establishmentId, status: "active" } }),
+    prisma.membership.findMany({ where: { establishmentId, status: "active", ...NOT_SUPPORT } }),
     prisma.serviceDefinition.findMany({ where: { establishmentId } }),
     prisma.staffingRequirement.findMany({ where: { establishmentId, requiredCount: { gt: 0 } } }),
     prisma.shift.findMany({ where: { establishmentId, date: { gte: rangeStart, lte: rangeEnd }, status: { not: "cancelled" } } }),

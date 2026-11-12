@@ -17,7 +17,7 @@ import { occupyTable, updateReservationStatus, releaseReservationTables } from "
 import { setTableManualStatus } from "@/modules/floorplan/server/actions";
 import type { TodayServicePlan } from "@/modules/service/types";
 
-const REFRESH_INTERVAL_MS = 30_000;
+const REFRESH_INTERVAL_MS = 60_000;
 const LEGEND = ["available", "soon", "reserved", "occupied", "cleaning"] as const;
 
 /// Toutes les salles du service d'un coup d'œil, sur un seul écran. Un clic sur une table ouvre ses actions

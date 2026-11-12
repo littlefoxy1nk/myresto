@@ -5,6 +5,13 @@ import type { PermissionKey } from "@/lib/permissions";
 /// congé à valider » à quelqu'un qui ne valide rien).
 export const NOTIFICATION_CATEGORIES = [
   {
+    key: "messages",
+    label: "Messages de l'équipe",
+    description: "Ton responsable écrit à l'équipe.",
+    types: ["announcement"],
+    requires: null,
+  },
+  {
     key: "my_schedule",
     label: "Mes horaires",
     description: "Un service t'est attribué, modifié ou annulé.",

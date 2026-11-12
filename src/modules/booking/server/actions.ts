@@ -175,7 +175,7 @@ export async function submitBookingRequest(
     where: {
       establishmentId: establishment.id,
       status: "active",
-      role: { permissions: { some: { permission: { key: "reservations.edit" } } } },
+      role: { key: { not: "SUPPORT" }, permissions: { some: { permission: { key: "reservations.edit" } } } },
     },
     select: { id: true },
   });

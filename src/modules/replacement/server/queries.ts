@@ -1,3 +1,4 @@
+import { NOT_SUPPORT } from "@/lib/assistance";
 import { prisma } from "@/lib/prisma";
 import { getCurrentContext, ForbiddenError } from "@/lib/current-context";
 import { toDateKey } from "@/lib/utils";
@@ -22,7 +23,7 @@ export async function getEligibleCandidatesForShift(
 ): Promise<Omit<EligibleCandidate, "hasVolunteered">[]> {
   const [members, dayShifts, approvedLeaves] = await Promise.all([
     prisma.membership.findMany({
-      where: { establishmentId, status: "active", id: { not: shift.membershipId } },
+      where: { establishmentId, status: "active", id: { not: shift.membershipId }, ...NOT_SUPPORT },
       include: { user: true },
     }),
     prisma.shift.findMany({

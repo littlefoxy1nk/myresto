@@ -26,7 +26,7 @@ async function notifyScheduleEditors(establishmentId: string, excludeMembershipI
       establishmentId,
       status: "active",
       id: { not: excludeMembershipId },
-      role: { permissions: { some: { permission: { key: "schedule.edit" } } } },
+      role: { key: { not: "SUPPORT" }, permissions: { some: { permission: { key: "schedule.edit" } } } },
     },
   });
   await Promise.all(
@@ -76,7 +76,7 @@ export async function requestTimeOff(input: z.infer<typeof RequestTimeOffSchema>
       establishmentId: ctx.establishment.id,
       status: "active",
       id: { not: ctx.membership.id },
-      role: { permissions: { some: { permission: { key: "timeoff.manage" } } } },
+      role: { key: { not: "SUPPORT" }, permissions: { some: { permission: { key: "timeoff.manage" } } } },
     },
   });
   const memberName = `${ctx.user.firstName} ${ctx.user.lastName}`;
@@ -131,7 +131,7 @@ export async function declareSickLeave(input: z.infer<typeof DeclareSickLeaveSch
       establishmentId: ctx.establishment.id,
       status: "active",
       id: { not: ctx.membership.id },
-      role: { permissions: { some: { permission: { key: "timeoff.manage" } } } },
+      role: { key: { not: "SUPPORT" }, permissions: { some: { permission: { key: "timeoff.manage" } } } },
     },
   });
   const memberName = `${ctx.user.firstName} ${ctx.user.lastName}`;

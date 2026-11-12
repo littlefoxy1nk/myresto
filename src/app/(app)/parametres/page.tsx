@@ -18,6 +18,7 @@ import { ReviewLinksCard } from "@/modules/settings/components/review-links-card
 import { OnlineBookingCard } from "@/modules/settings/components/online-booking-card";
 import { ModulesCard } from "@/modules/settings/components/modules-card";
 import { AvatarEditor } from "@/modules/settings/components/avatar-editor";
+import { PushCard } from "@/modules/push/components/push-card";
 import { NotificationPreferencesCard } from "@/modules/settings/components/notification-preferences-card";
 import { ContactForm } from "@/modules/settings/components/contact-form";
 import { SettingsTabs } from "@/modules/settings/components/settings-tabs";
@@ -51,14 +52,19 @@ export default async function ParametresPage({ searchParams }: { searchParams: P
           },
         ]
       : []),
-    {
-      label: "Mon compte",
-      tabs: [
-        { key: "profil", label: "Mon profil" },
-        { key: "notifications", label: "Notifications" },
-        { key: "aide", label: "Aide et contact" },
-      ],
-    },
+    // En mode assistance, « Mon compte » (profil, notifications de la personne) ne concerne pas l'établissement du client.
+    ...(ctx.assistance
+      ? []
+      : [
+          {
+            label: "Mon compte",
+            tabs: [
+              { key: "profil", label: "Mon profil" },
+              { key: "notifications", label: "Notifications" },
+              { key: "aide", label: "Aide et contact" },
+            ],
+          },
+        ]),
   ];
   const allowed = groups.flatMap((g) => g.tabs.map((t) => t.key));
   const { tab: requested } = await searchParams;
@@ -136,7 +142,8 @@ export default async function ParametresPage({ searchParams }: { searchParams: P
             <CardTitle>Mes notifications</CardTitle>
             <p className="text-sm text-muted-foreground">Choisis celles que tu veux recevoir. Tu ne vois ici que ce qui te concerne selon tes accès.</p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <PushCard />
             <NotificationPreferencesCard
               categories={visibleNotificationCategories(ctx.can).map((c) => ({ key: c.key, label: c.label, description: c.description }))}
               muted={[...parseMuted(ctx.membership.mutedNotificationCategories)]}
@@ -232,7 +239,7 @@ async function EstablishmentTab({ ctx }: { ctx: Awaited<ReturnType<typeof getCur
 
 async function RightsTab({ establishmentId }: { establishmentId: string }) {
   const roles = await prisma.role.findMany({
-    where: { establishmentId },
+    where: { establishmentId, key: { not: "SUPPORT" } },
     include: { permissions: { include: { permission: true } } },
     orderBy: { createdAt: "asc" },
   });

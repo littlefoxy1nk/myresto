@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { isNotificationMuted } from "@/lib/notification-preferences";
+import { buildPushPayload } from "@/modules/push/payload";
+import { sendPushToMember } from "@/modules/push/server/send";
 
 export type NotificationType =
   | "shift_changed"
@@ -12,7 +14,8 @@ export type NotificationType =
   | "coverage_requested"
   | "coverage_accepted"
   | "coverage_declined"
-  | "reservation_request";
+  | "reservation_request"
+  | "announcement";
 export type NotificationSeverity = "urgent" | "important" | "watch";
 
 /// Point d'entrée unique pour créer une notification personnelle — utilisé par
@@ -47,4 +50,7 @@ export async function notifyMember(params: {
       linkHref: params.linkHref ?? null,
     },
   });
+
+  // Et la même chose sur son téléphone, s'il l'a activé (sans effet, et sans erreur, sinon).
+  await sendPushToMember(params.membershipId, buildPushPayload({ type: params.type, title: params.title, body: params.body, linkHref: params.linkHref }));
 }

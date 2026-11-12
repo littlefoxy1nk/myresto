@@ -90,6 +90,7 @@ model Establishment {
   campaigns       Campaign[]
   auditLogs       AuditLog[]
   storedFiles     StoredFile[]
+  announcements   Announcement[]
   agendaEvents    AgendaEvent[]
   notifications   Notification[]
   replacementRequests ReplacementRequest[]
@@ -182,6 +183,9 @@ model Membership {
   documents       EmployeeDocument[]
   notifications   Notification[]
   planningAlertDismissals PlanningAlertDismissal[]
+  pushSubscriptions       PushSubscription[]
+  announcementsAuthored   Announcement[] @relation("AnnouncementAuthor")
+  announcementReads       AnnouncementRead[]
   replacementRequestsMade ReplacementRequest[] @relation("ReplacementRequestedBy")
   replacementsResolvedFor ReplacementRequest[] @relation("ReplacementResolvedFor")
   replacementVolunteers   ReplacementVolunteer[]
@@ -925,4 +929,50 @@ model StoredFile {
   createdAt       DateTime      @default(now())
 
   @@index([establishmentId])
+}
+
+/// Un appareil (téléphone, ordinateur) où une personne a activé les notifications. Les messages partent vers `endpoint`,
+/// chiffrés avec les clés `p256dh` et `auth`. Un appareil appartient à une personne dans un établissement à la fois.
+model PushSubscription {
+  id           String     @id @default(cuid())
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  endpoint     String     @unique
+  p256dh       String
+  auth         String
+  userAgent    String?
+  createdAt    DateTime   @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([membershipId])
+}
+
+/// Un message du responsable à son équipe (toute l'équipe, la salle ou la cuisine).
+model Announcement {
+  id              String         @id @default(cuid())
+  establishmentId String
+  establishment   Establishment  @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  authorId        String?
+  author          Membership?    @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  /// Gardé tel quel : le nom reste affiché même si l'auteur quitte l'équipe.
+  authorName      String
+  title           String
+  body            String
+  audience        String // all | salle | cuisine
+  createdAt       DateTime       @default(now())
+  reads           AnnouncementRead[]
+
+  @@index([establishmentId, createdAt])
+}
+
+/// « J'ai lu » : qui a lu quel message, et quand.
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  membershipId   String
+  membership     Membership   @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  readAt         DateTime     @default(now())
+
+  @@unique([announcementId, membershipId])
 }

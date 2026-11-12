@@ -45,7 +45,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
   const roles = canManage
     ? await prisma.role.findMany({
-        where: { establishmentId: ctx.establishment.id, isSystem: true },
+        where: { establishmentId: ctx.establishment.id, isSystem: true, key: { not: "SUPPORT" } },
         include: { permissions: { include: { permission: true } } },
         orderBy: { createdAt: "asc" },
       })

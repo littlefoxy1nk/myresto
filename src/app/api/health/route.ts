@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { explainMissingDatabaseUrl, resolveDatabaseUrl } from "@/lib/database-url";
+import { vapidConfig } from "@/modules/push/server/send";
 import { signupPolicy } from "@/lib/signup-policy";
 import { readSmtpConfig } from "@/modules/settings/contact";
 
@@ -54,6 +55,7 @@ export async function GET() {
         migrationsApplied: migrationsApplied || !databaseReachable ? undefined : "La base est vide : les tables n'ont pas été créées (voir DEPLOY.md, « Créer les tables »).",
         appUrl: checks.appUrl ? undefined : "Ajoute la variable APP_URL (l'adresse publique, en https://).",
         inscriptions: policy.open ? undefined : "La création de compte est fermée : ajoute SIGNUP_INVITE_CODE (un code de ton choix) pour pouvoir créer ton établissement.",
+        notificationsTelephone: vapidConfig(env) ? undefined : "Facultatif : sans VAPID_PUBLIC_KEY et VAPID_PRIVATE_KEY, les notifications sur téléphone sont désactivées (celles de l'appli marchent).",
         emails: readSmtpConfig(env) ? undefined : "Facultatif : sans SMTP_*, aucun email (mot de passe oublié…) ne part.",
       },
     },

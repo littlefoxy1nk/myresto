@@ -10,6 +10,8 @@ export type RoleGrantCheck = {
 };
 
 export function checkRoleGrant({ actor, target, next }: RoleGrantCheck): string | null {
+  if (next.baseRoleKey === "SUPPORT") return "Ce rôle est réservé à l'assistance MYRESTO.";
+  if (target.currentRoleKey === "SUPPORT") return "Ce compte appartient à l'assistance MYRESTO : il ne se modifie pas ici.";
   if (target.isSelf) return "Tu ne peux pas modifier ton propre rôle ni tes propres droits.";
   if (target.currentRoleKey === "OWNER" && !actor.isOwner) return "Seul le propriétaire peut modifier le compte du propriétaire.";
   if (next.baseRoleKey === "OWNER" && !actor.isOwner) return "Seul le propriétaire peut donner le rôle de propriétaire.";

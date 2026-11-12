@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { appBaseUrl } from "@/lib/app-url";
 import { getClientIp } from "@/lib/client-ip";
 import { validatePassword } from "@/lib/password-policy";
 import { createRateLimiter } from "@/modules/booking/logic";
@@ -13,14 +14,6 @@ import { RESET_TOKEN_TTL_MINUTES, buildResetEmail, hashResetToken, isResetTokenU
 
 const perIp = createRateLimiter(5, 60 * 60_000);
 const perEmail = createRateLimiter(3, 60 * 60_000);
-
-/// L'adresse publique de l'appli, pour construire le lien du mail. Jamais déduite de la requête (un en-tête Host falsifié
-/// ferait pointer le lien vers un faux site) : elle vient de la configuration.
-function appBaseUrl(): string | null {
-  const configured = (process.env.APP_URL || process.env.AUTH_URL || "").trim().replace(/\/+$/, "");
-  if (configured) return configured;
-  return process.env.NODE_ENV === "production" ? null : "http://localhost:3000";
-}
 
 export type ForgotPasswordResult = { ok: true } | { ok: false; error: string };
 

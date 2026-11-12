@@ -73,6 +73,27 @@ Vercel n'a pas de disque durable : c'est pour cela que les photos et documents s
 5. **Vérifier** : ouvre `https://ton-site/api/health`. Réponse `{"status":"ok"}` = tout est branché. Sinon la réponse dit exactement quelle variable manque ou ce qui ne va pas.
 6. Limites propres à Vercel : photos et documents jusqu'à 4 Mo (Vercel refuse les envois plus gros).
 
+## L'équipe MYRESTO : créer l'établissement d'un client
+
+1. Dans les réglages de l'hébergeur, ajoute :
+   - `PLATFORM_ADMIN_EMAILS` : les adresses de l'équipe, séparées par des virgules (ex. `chloehamoir@gmail.com,sara-petlic@hotmail.com`) ;
+   - `ADMIN_INVITE_CODE` : un code secret réservé à l'équipe (différent de `SIGNUP_INVITE_CODE`, que tu donnes aux restaurateurs).
+2. Chaque personne de l'équipe crée son compte sur `/onboarding` avec **son** adresse et le **code d'équipe**. Elle a ainsi son petit établissement d'essai.
+3. Un nouveau menu **Équipe MYRESTO** apparaît. Il permet de :
+   - **créer l'établissement d'un client** : nom, patron, email → le patron reçoit (ou tu lui transmets) un lien pour choisir son mot de passe, valable 7 jours ;
+   - voir **tous les établissements** ;
+   - **ouvrir un établissement en mode assistance** : accès à tout, avec un bandeau visible, mais sans être propriétaire (pas de suppression de l'établissement, pas d'export, pas d'accès au compte du patron). Chaque entrée est notée dans le journal de l'établissement.
+4. Retirer une adresse de `PLATFORM_ADMIN_EMAILS` coupe aussitôt tous ses accès d'assistance.
+
+## Notifications sur téléphone
+
+Les notifications dans l'appli (la cloche) marchent toujours. Pour qu'elles arrivent aussi **sur le téléphone, appli fermée** :
+
+1. Sur ton ordinateur, dans le dossier du projet : `npx web-push generate-vapid-keys`. Ça affiche une clé publique et une clé privée.
+2. Dans les réglages de l'hébergeur, ajoute `VAPID_PUBLIC_KEY` (clé publique) et `VAPID_PRIVATE_KEY` (clé privée), puis redéploie. Génère-les **une seule fois** et garde-les : si elles changent, chacun doit réactiver ses notifications.
+3. Chaque personne active ensuite les notifications dans *Paramètres → Notifications → Sur ce téléphone* (bouton « Activer », puis « Envoyer un essai »).
+4. **iPhone** : règle d'Apple — ça ne marche qu'une fois MYRESTO ajouté à l'écran d'accueil (Partager → Sur l'écran d'accueil) et ouvert depuis son icône. Sur Android et ordinateur, ça marche directement dans le navigateur.
+
 ## Sauvegardes (indispensable avant d'inviter des amis)
 
 - **Base de données** : active les sauvegardes automatiques chez l'hébergeur (quotidiennes), et fais de temps en temps un export manuel : `pg_dump "<DIRECT_URL>" > sauvegarde.sql`.

@@ -25,7 +25,7 @@ test("un type n'appartient qu'à une seule catégorie", () => {
 
 test("les catégories proposées dépendent des droits", () => {
   const employee = visibleNotificationCategories(() => false).map((c) => c.key);
-  assert.deepEqual(employee, ["my_schedule", "my_leave", "replacements", "coverage_asked"]);
+  assert.deepEqual(employee, ["messages", "my_schedule", "my_leave", "replacements", "coverage_asked"]);
 
   const manager = visibleNotificationCategories((p) => p === "reservations.edit" || p === "timeoff.manage").map((c) => c.key);
   assert.ok(manager.includes("online_booking"));

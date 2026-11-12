@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildResetEmail, hashResetToken, isResetTokenUsable, newResetToken } from "./password-reset";
+import { INVITE_TOKEN_TTL_MINUTES, buildInviteEmail, buildResetEmail, hashResetToken, isResetTokenUsable, newResetToken } from "./password-reset";
 
 test("le lien est aléatoire et la base ne garde que son empreinte", () => {
   const a = newResetToken();
@@ -22,4 +22,12 @@ test("l'email contient le lien et rassure en cas d'erreur", () => {
   const mail = buildResetEmail({ firstName: "Chloé", link: "https://x.test/reinitialiser/abc" });
   assert.match(mail.text, /https:\/\/x\.test\/reinitialiser\/abc/);
   assert.match(mail.text, /ignore simplement/);
+});
+
+test("l'invitation d'un patron : lien, nom de l'établissement et durée de sept jours", () => {
+  const mail = buildInviteEmail({ firstName: "Marc", establishmentName: "La Bouletterie", link: "https://x.test/reinitialiser/abc" });
+  assert.match(mail.subject, /La Bouletterie/);
+  assert.match(mail.text, /https:\/\/x\.test\/reinitialiser\/abc/);
+  assert.match(mail.text, /7 jours/);
+  assert.equal(INVITE_TOKEN_TTL_MINUTES, 10080);
 });

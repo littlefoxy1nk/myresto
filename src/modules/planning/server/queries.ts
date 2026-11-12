@@ -1,3 +1,4 @@
+import { NOT_SUPPORT } from "@/lib/assistance";
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay, addDays } from "date-fns";
 import { getCurrentContext, ForbiddenError } from "@/lib/current-context";
@@ -78,7 +79,7 @@ export async function getWeekPlanning(establishmentId: string, weekStart: Date):
 
   const [memberships, shifts, services, timeOffs, reservations, availabilities, targetRules, historicalCoversByWeekday, planningNotes, requirementRows, coverageRequestRows] = await Promise.all([
     prisma.membership.findMany({
-      where: { establishmentId, status: "active" },
+      where: { establishmentId, status: "active", ...NOT_SUPPORT },
       include: { user: true },
       orderBy: { createdAt: "asc" },
     }),

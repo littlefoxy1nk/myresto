@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { Palmtree } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getCurrentContext } from "@/lib/current-context";
@@ -27,6 +28,8 @@ const TIMEOFF_STATUS_VARIANT: Record<string, "watch" | "good" | "neutral"> = {
 
 export default async function MonEspacePage() {
   const ctx = await getCurrentContext();
+  // En mode assistance, la personne n'est pas de l'équipe du client : pas d'espace personnel ici.
+  if (ctx.assistance) redirect("/aujourdhui");
   const data = await getMyDashboard();
   const todayKey = toDateKey(new Date());
 

@@ -28,7 +28,7 @@ test("mobile : un rôle restreint garde une barre remplie et rien n'est perdu", 
   const { pinned, more } = splitMobileNav(limited);
   assert.deepEqual(
     pinned.map((i) => i.href),
-    ["/aujourdhui", "/mon-espace", "/planning"],
+    ["/aujourdhui", "/mon-espace", "/planning", "/messages"],
   );
   assert.deepEqual(more.map((i) => i.href), ["/parametres"]);
 });

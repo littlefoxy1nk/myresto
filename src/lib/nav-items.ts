@@ -47,6 +47,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/planning", label: "Planning", icon: "CalendarDays", permission: "schedule.view", group: "equipe", mobile: true, primary: true, available: true },
   { href: "/equipe", label: "Équipe", icon: "Users", permission: "staff.view", group: "equipe", mobile: true, available: true },
   { href: "/conges", label: "Congés", icon: "Palmtree", permission: "timeoff.manage", group: "equipe", available: true },
+  // Sans `permission` : tout le monde lit les messages de son responsable (écrire demande staff.manage ou schedule.edit).
+  { href: "/messages", label: "Messages", icon: "MessageSquare", group: "equipe", mobile: true, available: true },
 
   { href: "/clients", label: "Clients", icon: "Heart", permission: "crm.view", group: "gestion", available: true },
   { href: "/finances", label: "Finances", icon: "LineChart", permission: "finance.view", group: "gestion", available: true },

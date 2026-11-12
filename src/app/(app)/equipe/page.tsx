@@ -1,3 +1,4 @@
+import { NOT_SUPPORT } from "@/lib/assistance";
 import Link from "next/link";
 import { requireModule } from "@/lib/module-guard";
 import { redirect } from "next/navigation";
@@ -21,7 +22,7 @@ export default async function EquipePage() {
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
 
   const memberships = await prisma.membership.findMany({
-    where: { establishmentId: ctx.establishment.id, status: "active" },
+    where: { establishmentId: ctx.establishment.id, status: "active", ...NOT_SUPPORT },
     include: {
       user: true,
       role: true,

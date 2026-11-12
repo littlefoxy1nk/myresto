@@ -422,7 +422,7 @@ export async function removeEmployee(membershipId: string) {
         establishmentId: ctx.establishment.id,
         status: "active",
         id: { not: membershipId },
-        role: { permissions: { some: { permission: { key: "staff.manage" } } } },
+        role: { key: { not: "SUPPORT" }, permissions: { some: { permission: { key: "staff.manage" } } } },
       },
     });
     if (otherManagers === 0) {

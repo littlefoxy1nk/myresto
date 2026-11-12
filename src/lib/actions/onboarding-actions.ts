@@ -5,8 +5,8 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { signIn } from "@/lib/auth";
-import { provisionSystemRoles } from "@/lib/provision-establishment";
-import { serviceLabel } from "@/lib/service-label";
+import { createEstablishmentWithOwner } from "@/lib/create-establishment";
+import { checkAdminSignup, isPlatformAdminEmail } from "@/lib/platform-admin";
 import { validatePassword } from "@/lib/password-policy";
 import { inviteCodeMatches, signupPolicy } from "@/lib/signup-policy";
 import { getClientIp } from "@/lib/client-ip";
@@ -81,7 +81,15 @@ export async function createEstablishment(
   if (!perIp.allow(await getClientIp(), Date.now())) {
     return { error: "Trop de tentatives. Réessaie dans une heure.", values, attempt };
   }
-  if (policy.requiresCode && !inviteCodeMatches(values.inviteCode, process.env.SIGNUP_INVITE_CODE)) {
+  // Les adresses de l'équipe MYRESTO ne s'inscrivent qu'avec le code « équipe » (jamais avec celui des restaurateurs).
+  const adminProblem = checkAdminSignup({
+    email: values.email.trim().toLowerCase(),
+    code: values.inviteCode,
+    adminCodeMatches: (code) => inviteCodeMatches(code, process.env.ADMIN_INVITE_CODE),
+  });
+  if (adminProblem) return { error: adminProblem, fieldErrors: { inviteCode: adminProblem }, values, attempt };
+  const isTeamEmail = isPlatformAdminEmail(values.email);
+  if (!isTeamEmail && policy.requiresCode && !inviteCodeMatches(values.inviteCode, process.env.SIGNUP_INVITE_CODE)) {
     return { error: "Code d'invitation incorrect.", fieldErrors: { inviteCode: "Code d'invitation incorrect." }, values, attempt };
   }
 
@@ -118,70 +126,16 @@ export async function createEstablishment(
 
   const passwordHash = await bcrypt.hash(data.password, 12);
 
-  let companyId: string | null = null;
   try {
-    const company = await prisma.company.create({ data: { name: data.establishmentName } });
-    companyId = company.id;
-    const establishment = await prisma.establishment.create({
-      data: {
-        companyId: company.id,
-        name: data.establishmentName,
-        type: data.establishmentType,
-        onboardedAt: new Date(),
-      },
+    await createEstablishmentWithOwner({
+      establishmentName: data.establishmentName,
+      establishmentType: data.establishmentType,
+      tableCount: data.tableCount,
+      openTime: data.openTime,
+      closeTime: data.closeTime,
+      owner: { firstName: data.firstName, lastName: data.lastName, email: data.email, passwordHash },
     });
-
-    const roleIdByKey = await provisionSystemRoles(establishment.id);
-    const ownerRoleId = roleIdByKey.get("OWNER")!;
-
-    const user = await prisma.user.create({
-      data: {
-        companyId: company.id,
-        email: data.email,
-        passwordHash,
-        firstName: data.firstName,
-        lastName: data.lastName,
-      },
-    });
-
-    await prisma.membership.create({
-      data: {
-        userId: user.id,
-        establishmentId: establishment.id,
-        roleId: ownerRoleId,
-        jobTitle: "Propriétaire",
-      },
-    });
-
-    await prisma.serviceDefinition.create({
-      data: {
-        establishmentId: establishment.id,
-        name: serviceLabel(data.openTime, data.closeTime),
-        startTime: data.openTime,
-        endTime: data.closeTime,
-        daysOfWeek: "1,2,3,4,5,6,7",
-      },
-    });
-
-    const zone = await prisma.zone.create({
-      data: { establishmentId: establishment.id, name: "Salle", sortOrder: 0 },
-    });
-    const perRow = 5;
-    for (let i = 1; i <= data.tableCount; i++) {
-      await prisma.restaurantTable.create({
-        data: {
-          establishmentId: establishment.id,
-          zoneId: zone.id,
-          label: `T${i}`,
-          capacity: 4,
-          posX: ((i - 1) % perRow) * 100 + 40,
-          posY: Math.floor((i - 1) / perRow) * 100 + 40,
-        },
-      });
-    }
   } catch (error) {
-    // Une création à moitié faite ne doit pas laisser de compte fantôme : on retire tout ce qui vient d'être créé.
-    if (companyId) await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
     console.error("Création d'établissement échouée", error);
     return { error: "Une erreur est survenue pendant la création. Réessaie dans un instant.", values, attempt };
   }

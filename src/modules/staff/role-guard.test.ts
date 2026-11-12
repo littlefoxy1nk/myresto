@@ -28,3 +28,8 @@ test("agir sur le compte du propriétaire", () => {
   assert.equal(checkAccountAction({ isOwner: false }, { roleKey: "MANAGER" }), null);
   assert.equal(checkAccountAction({ isOwner: true }, { roleKey: "OWNER" }), null);
 });
+
+test("le rôle d'assistance MYRESTO ne se donne jamais, ni ne se modifie", () => {
+  assert.match(checkRoleGrant({ actor: owner, target: { currentRoleKey: "FLOOR_STAFF", isSelf: false }, next: { baseRoleKey: "SUPPORT", resultingKeys: [] } })!, /assistance/);
+  assert.match(checkRoleGrant({ actor: owner, target: { currentRoleKey: "SUPPORT", isSelf: false }, next: { baseRoleKey: "MANAGER", resultingKeys: [] } })!, /assistance/);
+});

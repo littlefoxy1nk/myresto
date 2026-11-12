@@ -11,7 +11,7 @@ export default async function NouvelEmployePage() {
 
   const [roles, serviceDefinitions] = await Promise.all([
     prisma.role.findMany({
-      where: { establishmentId: ctx.establishment.id, isSystem: true },
+      where: { establishmentId: ctx.establishment.id, isSystem: true, key: { not: "SUPPORT" } },
       include: { permissions: { include: { permission: true } } },
       orderBy: { createdAt: "asc" },
     }),

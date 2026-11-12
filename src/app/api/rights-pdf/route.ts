@@ -8,7 +8,7 @@ export async function GET() {
   if (!ctx.can("settings.manage")) return new Response("Accès refusé.", { status: 403 });
 
   const roles = await prisma.role.findMany({
-    where: { establishmentId: ctx.establishment.id },
+    where: { establishmentId: ctx.establishment.id, key: { not: "SUPPORT" } },
     include: { permissions: { include: { permission: true } } },
     orderBy: { createdAt: "asc" },
   });
