@@ -70,11 +70,14 @@ export function FloorPlanApp({
   const [confirmDeleteTableId, setConfirmDeleteTableId] = useState<string | null>(null);
   const [confirmDeleteZoneId, setConfirmDeleteZoneId] = useState<string | null>(null);
   const [walkInTableId, setWalkInTableId] = useState<string | null>(null);
+  /// Table qu'on est en train de déplacer en touchant l'endroit où la poser (voir FloorPlanCanvas, placingTableId).
+  const [moveTableId, setMoveTableId] = useState<string | null>(null);
   const [moveReservationId, setMoveReservationId] = useState<string | null>(null);
 
   const canMerge = canEdit || canMergeDay;
   const todayKey = toDateKey(new Date());
 
+  const movingTable = moveTableId ? (zones.find((z) => z.id === activeZoneId)?.tables ?? []).find((t) => t.id === moveTableId) ?? null : null;
   const viewAll = activeZoneId === ALL_ZONES && zones.length > 1 && !canEdit;
   const allTables = zones.flatMap((z) => z.tables);
   const selectedTable = (viewAll ? allTables : (zones.find((z) => z.id === activeZoneId) ?? zones[0])?.tables ?? []).find((t) => t.id === selectedTableId) ?? null;
@@ -104,6 +107,7 @@ export function FloorPlanApp({
   }
 
   function handleSelectTable(id: string) {
+    if (moveTableId) return;
     if (mergeMode) {
       setMergeSelection((prev) => {
         const next = new Set(prev);
@@ -127,7 +131,8 @@ export function FloorPlanApp({
       if (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
 
       if (e.key === "Escape") {
-        if (mergeMode) exitMergeMode();
+        if (moveTableId) setMoveTableId(null);
+        else if (mergeMode) exitMergeMode();
         else setSelectedTableId(null);
       } else if ((e.key === "Delete" || e.key === "Backspace") && canEdit && selectedTableId && !mergeMode) {
         e.preventDefault();
@@ -268,6 +273,16 @@ export function FloorPlanApp({
           </Card>
         ) : (
           <div className="w-full min-w-0 flex-1">
+            {movingTable && (
+              <div className="sticky top-2 z-20 mb-2 flex items-center justify-between gap-3 rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm shadow-card">
+                <span>
+                  Touche l&apos;endroit où poser la table <strong>{movingTable.label}</strong>.
+                </span>
+                <Button size="sm" variant="secondary" onClick={() => setMoveTableId(null)}>
+                  Annuler
+                </Button>
+              </div>
+            )}
             <FloorPlanCanvas
               key={activeZone.id}
               fit={!canEdit}
@@ -275,9 +290,16 @@ export function FloorPlanApp({
               tables={activeZone.tables}
               canEdit={canEdit}
               showReservations
-              selectedTableId={selectedTableId}
+              selectedTableId={movingTable?.id ?? selectedTableId}
               mergeSelection={mergeSelection}
               onSelectTable={handleSelectTable}
+              placingTableId={movingTable?.id ?? null}
+              onPlaceTable={(posX, posY) => {
+                if (!movingTable) return;
+                const id = movingTable.id;
+                setMoveTableId(null);
+                guarded(() => updateTable({ id, posX, posY }), "Table déplacée");
+              }}
               onMoveTable={(id, posX, posY) => guarded(() => updateTable({ id, posX, posY }))}
               onResizeTable={(id, width, height) => guarded(() => updateTable({ id, width, height }))}
               onDropOnTable={
@@ -301,6 +323,14 @@ export function FloorPlanApp({
             canCreateReservation={canCreateReservation}
             reserveHref={reserveHref(selectedTable, dayView)}
             onWalkIn={canWalkIn && !dayView ? () => guarded(() => occupyTable(selectedTable.id), "Client installé") : undefined}
+            onStartMove={
+              canEdit && !viewAll
+                ? () => {
+                    setMoveTableId(selectedTable.id);
+                    setSelectedTableId(null);
+                  }
+                : undefined
+            }
             onWalkInDetails={canWalkIn && !dayView ? () => setWalkInTableId(selectedTable.id) : undefined}
             onMoveReservation={canWalkIn ? setMoveReservationId : undefined}
             zones={zones.map((z) => ({ id: z.id, name: z.name }))}

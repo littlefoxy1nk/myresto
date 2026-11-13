@@ -49,21 +49,22 @@ export function emailBookingAlert(reservationId: string): Promise<void> | void {
   });
 }
 
-export type GuestEmailOutcome = "sent" | "skipped";
+/// « sent » = l'email part ; sinon la raison pour laquelle rien n'est parti, pour que l'écran puisse la dire.
+export type GuestEmailOutcome = "sent" | "no-email" | "already-sent" | "disabled" | "not-configured";
 
 /// La réservation vient d'être confirmée : un email au client (une seule fois), s'il a laissé son adresse, si l'établissement
-/// n'a pas coupé cette option et si l'envoi est configuré. Retourne « sent » quand l'envoi est lancé, pour que l'écran puisse
-/// l'indiquer.
+/// n'a pas coupé cette option et si l'envoi est configuré. Retourne « sent » quand l'envoi est lancé, sinon la raison.
 export async function emailGuestConfirmation(reservationId: string, establishmentId: string): Promise<GuestEmailOutcome> {
-  const smtp = readSmtpConfig(process.env);
-  if (!smtp) return "skipped";
   const reservation = await prisma.reservation.findFirst({ where: { id: reservationId, establishmentId }, include: { establishment: true } });
-  if (!reservation?.customerEmail || reservation.confirmationEmailSentAt) return "skipped";
-  if (!reservation.establishment.emailConfirmations || reservation.establishment.isDemo) return "skipped";
+  if (!reservation?.customerEmail) return "no-email";
+  if (reservation.confirmationEmailSentAt) return "already-sent";
+  if (!reservation.establishment.emailConfirmations || reservation.establishment.isDemo) return "disabled";
+  const smtp = readSmtpConfig(process.env);
+  if (!smtp) return "not-configured";
 
   // On réserve l'envoi avant de partir : deux clics rapprochés ne produisent pas deux emails. Si l'envoi échoue, on libère.
   const claimed = await prisma.reservation.updateMany({ where: { id: reservationId, confirmationEmailSentAt: null }, data: { confirmationEmailSentAt: new Date() } });
-  if (claimed.count === 0) return "skipped";
+  if (claimed.count === 0) return "already-sent";
 
   const owner = await prisma.membership.findFirst({
     where: { establishmentId, status: "active", role: { key: "OWNER" }, user: { email: { not: null } } },

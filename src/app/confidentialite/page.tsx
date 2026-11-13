@@ -58,7 +58,10 @@ export default function ConfidentialitePage() {
           <Section title="À quoi cela sert">
             <ul className={items}>
               <li>Gérer votre réservation et vous joindre en cas de souci.</li>
-              <li>Vous envoyer un email de confirmation, si vous avez laissé votre adresse et que le restaurant confirme votre demande.</li>
+              <li>
+                Vous envoyer une confirmation quand le restaurant confirme votre demande : par email si vous avez laissé votre adresse, sinon par un SMS que le
+                restaurant vous écrit depuis son propre téléphone.
+              </li>
               <li>
                 Vous envoyer les actualités du restaurant <strong>uniquement si vous avez coché la case prévue</strong>. Chaque email contient un lien pour
                 vous désinscrire à tout moment.
@@ -74,7 +77,7 @@ export default function ConfidentialitePage() {
                 L&apos;équipe MYRESTO, uniquement pour aider le restaurant à la demande de celui-ci. Chaque entrée dans un établissement est notée dans
                 son journal.
               </li>
-              <li>Les prestataires techniques qui font fonctionner le service : hébergement, base de données et envoi d&apos;emails.</li>
+              <li>Les prestataires techniques qui font fonctionner le service : hébergement, base de données, envoi d&apos;emails.</li>
             </ul>
           </Section>
 

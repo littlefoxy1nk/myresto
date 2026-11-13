@@ -27,7 +27,7 @@ export type MessageRecipient = {
 
 const STORAGE_KEY = (kind: MessageKind) => `myresto.message-template.${kind}`;
 
-function loadTemplate(kind: MessageKind) {
+export function loadTemplate(kind: MessageKind) {
   try {
     return window.localStorage.getItem(STORAGE_KEY(kind)) ?? DEFAULT_TEMPLATES[kind];
   } catch {

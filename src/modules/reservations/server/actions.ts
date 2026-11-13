@@ -42,14 +42,15 @@ export async function updateReservationStatus(reservationId: string, status: (ty
   await prisma.reservationStatusEvent.create({ data: { reservationId, status } });
 
   // Confirmer une réservation prévient le client par email (une seule fois), s'il a laissé son adresse.
-  const emailed = status === "confirmed" && reservation.status !== "confirmed" ? (await emailGuestConfirmation(reservationId, ctx.establishment.id)) === "sent" : false;
+  const emailOutcome = status === "confirmed" && reservation.status !== "confirmed" ? await emailGuestConfirmation(reservationId, ctx.establishment.id) : null;
+  const emailed = emailOutcome === "sent";
 
   revalidatePath("/reservations");
   revalidatePath("/aujourdhui");
   revalidatePath("/plan-de-salle");
   revalidatePath("/service");
   revalidatePath("/clients");
-  return { emailed };
+  return { emailed, emailOutcome };
 }
 
 /// "Libérer" une table (Mode Service) : le client est parti. Marquer la réservation

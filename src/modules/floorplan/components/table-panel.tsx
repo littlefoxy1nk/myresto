@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { X, Copy, Trash2, Link2, Link2Off, CalendarPlus, UserPlus, ArrowRightLeft } from "lucide-react";
+import { X, Copy, Trash2, Link2, Link2Off, CalendarPlus, UserPlus, ArrowRightLeft, Move } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { isMovable } from "@/modules/reservations/move";
@@ -24,6 +24,7 @@ export function TablePanel({
   reserveHref,
   onWalkIn,
   onWalkInDetails,
+  onStartMove,
   onMoveReservation,
   zones,
   onClose,
@@ -44,6 +45,8 @@ export function TablePanel({
   onWalkIn?: () => void;
   /// Facultatif : préciser le nom, le téléphone ou le nombre de personnes avant d'installer.
   onWalkInDetails?: () => void;
+  /// Présent si l'utilisateur peut modifier le plan : déplacer cette table en touchant l'endroit où la poser.
+  onStartMove?: () => void;
   /// Présent si l'utilisateur peut changer une réservation de table.
   onMoveReservation?: (reservationId: string) => void;
   zones: { id: string; name: string }[];
@@ -101,6 +104,13 @@ export function TablePanel({
             </Button>
           )}
         </div>
+      )}
+
+      {onStartMove && (
+        <Button size="sm" variant="secondary" className="mt-2 w-full" onClick={onStartMove}>
+          <Move size={14} aria-hidden="true" />
+          Déplacer cette table
+        </Button>
       )}
 
       {(table.dayReservations ?? (table.activeReservation ? [table.activeReservation] : [])).map((r) => (

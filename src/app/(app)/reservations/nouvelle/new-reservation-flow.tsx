@@ -214,7 +214,7 @@ export function NewReservationFlow({
           <Field label="Nom du client" value={customerName} onChange={setCustomerName} autoFocus />
           <div className="grid grid-cols-2 gap-3">
             <Field label="Téléphone (optionnel)" value={customerPhone} onChange={setCustomerPhone} type="tel" />
-            <Field label="Email (optionnel)" value={customerEmail} onChange={setCustomerEmail} type="email" />
+            <Field label="Email (pour envoyer la confirmation automatiquement)" value={customerEmail} onChange={setCustomerEmail} type="email" />
           </div>
           <div className="flex items-center justify-between gap-4 rounded-2xl bg-muted/60 px-4 py-3">
             <div className="flex items-center gap-2.5">

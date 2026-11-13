@@ -50,6 +50,8 @@ export function FloorPlanCanvas({
   fit = false,
   fitMaxHeight = FIT_MAX_HEIGHT,
   showReservations = false,
+  placingTableId = null,
+  onPlaceTable,
 }: {
   tables: TableWithLiveState[];
   canEdit: boolean;
@@ -68,12 +70,18 @@ export function FloorPlanCanvas({
   /// Hauteur maximale du plan cadré (en pixels) : plus grande sur la page Plan de salle que dans la carte d'Aujourd'hui.
   fitMaxHeight?: number;
   showReservations?: boolean;
+  /// Mode « poser » (téléphone) : une table est choisie, le prochain toucher sur le plan dit où la mettre. Plus fiable que de
+  /// la glisser au doigt, car le navigateur partage le geste avec le défilement de la page.
+  placingTableId?: string | null;
+  onPlaceTable?: (posX: number, posY: number) => void;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [resize, setResize] = useState<ResizeState | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const movedRef = useRef(false);
+  const [placeBlocked, setPlaceBlocked] = useState(false);
+  const placing = !!placingTableId && !!onPlaceTable;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [manualZoom, setZoom] = useState(1);
   const [fitZoom, setFitZoom] = useState(1);
@@ -143,6 +151,7 @@ export function FloorPlanCanvas({
   }
 
   function startDrag(e: React.PointerEvent, table: TableWithLiveState) {
+    if (placing) return; // un toucher sert alors à choisir l'endroit, pas à attraper une table
     if (!canEdit) {
       onSelectTable(table.id);
       return;
@@ -229,6 +238,27 @@ export function FloorPlanCanvas({
     }
   }
 
+  // Mode « poser » : le toucher donne le centre de la table déplacée ; on refuse un endroit déjà occupé.
+  function handleCanvasClick(e: React.MouseEvent) {
+    if (!placing || !placingTableId || !onPlaceTable || !canvasRef.current) return;
+    const moving = tables.find((t) => t.id === placingTableId);
+    if (!moving) return;
+    const box = canvasRef.current.getBoundingClientRect();
+    const posX = Math.round(clamp((e.clientX - box.left) / zoom - moving.width / 2, 0, CANVAS_SIZE.width - moving.width));
+    const posY = Math.round(clamp((e.clientY - box.top) / zoom - moving.height / 2, 0, CANVAS_SIZE.height - moving.height));
+    const rect = { x: posX, y: posY, width: moving.width, height: moving.height };
+    const movingGroup = moving.group?.id ?? null;
+    const blocked = tables.some(
+      (t) => t.id !== moving.id && !(movingGroup && t.group?.id === movingGroup) && rectsOverlap(rect, { x: t.posX, y: t.posY, width: t.width, height: t.height })
+    );
+    if (blocked) {
+      setPlaceBlocked(true);
+      window.setTimeout(() => setPlaceBlocked(false), 2200);
+      return;
+    }
+    onPlaceTable(posX, posY);
+  }
+
   // Le navigateur a repris la main (appel entrant, geste système…) : on abandonne sans rien enregistrer.
   function handlePointerCancel() {
     setDrag(null);
@@ -256,6 +286,11 @@ export function FloorPlanCanvas({
 
   return (
     <div className="relative rounded-3xl border border-border/70 bg-muted/50">
+      {placeBlocked && (
+        <p role="status" className="absolute inset-x-3 bottom-3 z-10 rounded-2xl bg-urgent px-3 py-2 text-center text-xs font-medium text-white shadow">
+          Cet endroit est déjà pris : touche un endroit libre.
+        </p>
+      )}
       {!fit && <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-2xl border border-border bg-card p-1 shadow-sm">
         <button
           type="button"
@@ -296,7 +331,8 @@ export function FloorPlanCanvas({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerUp}
-        className="relative origin-top-left"
+        onClick={handleCanvasClick}
+        className={cn("relative origin-top-left", placing && "cursor-crosshair")}
         style={{
           width: CANVAS_SIZE.width,
           height: CANVAS_SIZE.height,
@@ -337,11 +373,11 @@ export function FloorPlanCanvas({
                 dragging={isDragging}
                 mergeTarget={dropTargetId === t.id}
                 showReservation={showReservations}
-                touchDraggable={canEdit}
+                touchDraggable={canEdit && !placing}
                 labelScale={fit ? Math.min(1.5, Math.max(1, 1 / zoom)) : 1}
                 onPointerDownCapture={(e) => startDrag(e, t)}
               />
-              {canEdit && selected && !isDragging && (
+              {canEdit && selected && !isDragging && !placing && (
                 // Zone de toucher de 32 px (au doigt, un carré de 14 px est introuvable) autour du petit carré visible.
                 <div
                   onPointerDown={(e) => startResize(e, t)}

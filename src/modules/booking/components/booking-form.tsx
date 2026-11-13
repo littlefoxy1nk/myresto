@@ -257,7 +257,7 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
             <Labeled id="bk-phone" label="GSM *">
               <input id="bk-phone" required type="tel" autoComplete="tel" inputMode="tel" placeholder="0475 12 34 56" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
             </Labeled>
-            <Labeled id="bk-email" label="Email (facultatif)">
+            <Labeled id="bk-email" label="Email (pour recevoir ta confirmation)">
               <input id="bk-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
             </Labeled>
 
