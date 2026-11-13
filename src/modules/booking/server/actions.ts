@@ -1,6 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
+import { z } from "zod";
 import { getClientIp } from "@/lib/client-ip";
 import { revalidatePath } from "next/cache";
 import { endOfDay, format, startOfDay } from "date-fns";
@@ -15,11 +16,12 @@ import { createRateLimiter } from "@/lib/rate-limit";
 import { notifyMember } from "@/modules/myspace/server/notify";
 import {
   buildAvailability,
-  MAX_ONLINE_PARTY_SIZE,
   validateBookingRequest,
+  type BookableService,
   type BookingRequestInput,
   type ServiceAvailability,
 } from "@/modules/booking/logic";
+import { clampRules, parseClosedTimes, RULE_BOUNDS, serializeClosedTimes, type OnlineRules } from "@/modules/booking/rules";
 
 const HOUR = 3_600_000;
 const perPhone = createRateLimiter("book-phone", 3, HOUR);
@@ -37,17 +39,45 @@ async function loadCapacity(establishmentId: string, date: Date) {
         date: { gte: startOfDay(date), lte: endOfDay(date) },
         status: { in: ["new", "confirmed", "arrived", "seated"] },
       },
-      select: { time: true, durationMinutes: true, partySize: true },
+      select: { time: true, durationMinutes: true, partySize: true, source: true },
     }),
   ]);
-  return { totalSeats: tables.reduce((sum, t) => sum + t.capacity, 0), bookings: reservations };
+  return {
+    totalSeats: tables.reduce((sum, t) => sum + t.capacity, 0),
+    bookings: reservations,
+    // Le plafond de couverts du restaurateur ne compte que les demandes reçues en ligne.
+    onlineBookings: reservations.filter((r) => r.source === "online"),
+  };
 }
 
-function servicesOn(services: { id: string; name: string; startTime: string; endTime: string; daysOfWeek: string }[], date: Date) {
+type ServiceRow = {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  daysOfWeek: string;
+  onlineEnabled: boolean;
+  onlineMaxCovers: number | null;
+  onlineClosedTimes: string;
+};
+
+function servicesOn(services: ServiceRow[], date: Date): BookableService[] {
   const weekday = isoWeekday(date);
   return services
     .filter((s) => s.daysOfWeek.split(",").map(Number).includes(weekday))
-    .map((s) => ({ id: s.id, name: s.name, startTime: s.startTime, endTime: s.endTime }));
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      onlineEnabled: s.onlineEnabled,
+      onlineMaxCovers: s.onlineMaxCovers,
+      onlineClosedTimes: parseClosedTimes(s.onlineClosedTimes),
+    }));
+}
+
+function rulesOf(e: { onlineMaxPartySize: number; onlineMaxDaysAhead: number; onlineMinLeadMinutes: number }): OnlineRules {
+  return clampRules({ maxPartySize: e.onlineMaxPartySize, maxDaysAhead: e.onlineMaxDaysAhead, minLeadMinutes: e.onlineMinLeadMinutes });
 }
 
 /// Heures encore réservables, par service, pour un jour et un nombre de personnes — un service
@@ -60,7 +90,7 @@ export async function getBookingAvailability(
   const ip = await getClientIp();
   if (!(await perIpAvailability.allow(ip))) return { ok: false, error: "Trop de recherches, réessaie dans un instant." };
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !Number.isInteger(partySize) || partySize < 1 || partySize > MAX_ONLINE_PARTY_SIZE) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !Number.isInteger(partySize) || partySize < 1) {
     return { ok: true, services: [] };
   }
   const establishment = await prisma.establishment.findFirst({
@@ -68,19 +98,26 @@ export async function getBookingAvailability(
     include: { services: true },
   });
   if (!establishment) return { ok: false, error: "Ce lien de réservation n'est plus actif." };
+  const rules = rulesOf(establishment);
+  if (partySize > rules.maxPartySize) return { ok: true, services: [] };
 
   const date = new Date(`${dateKey}T00:00:00`);
   const now = new Date();
-  const { totalSeats, bookings } = await loadCapacity(establishment.id, date);
+  // Au-delà de la limite de jours choisie par le restaurateur, aucun créneau n'est proposé.
+  const daysAhead = Math.round((date.getTime() - startOfDay(now).getTime()) / 86_400_000);
+  if (daysAhead > rules.maxDaysAhead || daysAhead < 0) return { ok: true, services: [] };
+  const { totalSeats, bookings, onlineBookings } = await loadCapacity(establishment.id, date);
   return {
     ok: true,
     services: buildAvailability({
       services: servicesOn(establishment.services, date),
       bookings,
+      onlineBookings,
       totalSeats,
       partySize,
-      isToday: startOfDay(date).getTime() === startOfDay(now).getTime(),
+      date,
       now,
+      rules,
     }),
   };
 }
@@ -106,7 +143,8 @@ export async function submitBookingRequest(
   if (!establishment) return { ok: false, error: "Ce lien de réservation n'est plus actif." };
 
   const now = new Date();
-  const checked = validateBookingRequest(input, now, (date) => servicesOn(establishment.services, date));
+  const rules = rulesOf(establishment);
+  const checked = validateBookingRequest(input, now, (date) => servicesOn(establishment.services, date), rules);
   if (!checked.ok) return checked;
   const data = checked.data;
 
@@ -117,8 +155,9 @@ export async function submitBookingRequest(
     services: servicesOn(establishment.services, dayDate),
     ...capacity,
     partySize: data.partySize,
-    isToday: startOfDay(dayDate).getTime() === startOfDay(now).getTime(),
+    date: dayDate,
     now,
+    rules,
   }).some((sv) => sv.times.includes(data.time));
   if (!stillOpen) {
     return { ok: false, error: "Ce créneau est complet. Choisis une autre heure, ou appelle le restaurant." };
@@ -241,5 +280,46 @@ export async function setEmailConfirmations(enabled: boolean) {
 export async function disableOnlineBooking() {
   const ctx = await requirePermission("settings.manage");
   await prisma.establishment.update({ where: { id: ctx.establishment.id }, data: { onlineBookingEnabled: false } });
+  revalidatePath("/parametres");
+}
+
+const RulesSchema = z.object({
+  maxPartySize: z.number().int().min(RULE_BOUNDS.maxPartySize.min).max(RULE_BOUNDS.maxPartySize.max),
+  maxDaysAhead: z.number().int().min(RULE_BOUNDS.maxDaysAhead.min).max(RULE_BOUNDS.maxDaysAhead.max),
+  minLeadMinutes: z.number().int().min(RULE_BOUNDS.minLeadMinutes.min).max(RULE_BOUNDS.minLeadMinutes.max),
+});
+
+/// Règle les limites générales de la réservation en ligne (taille du groupe, jusqu'à quand à l'avance, délai minimum).
+export async function updateOnlineRules(input: OnlineRules) {
+  const ctx = await requirePermission("settings.manage");
+  const data = RulesSchema.parse(input);
+  await prisma.establishment.update({
+    where: { id: ctx.establishment.id },
+    data: { onlineMaxPartySize: data.maxPartySize, onlineMaxDaysAhead: data.maxDaysAhead, onlineMinLeadMinutes: data.minLeadMinutes },
+  });
+  revalidatePath("/parametres");
+}
+
+const ServiceRulesSchema = z.object({
+  onlineEnabled: z.boolean(),
+  /// Vide = pas de plafond.
+  onlineMaxCovers: z.number().int().min(RULE_BOUNDS.maxCovers.min).max(RULE_BOUNDS.maxCovers.max).nullable(),
+  onlineClosedTimes: z.array(z.string()).max(60),
+});
+
+/// Règle, pour un service : proposé en ligne ou non, plafond de couverts en ligne, heures fermées.
+export async function updateServiceOnlineRules(serviceId: string, input: z.input<typeof ServiceRulesSchema>) {
+  const ctx = await requirePermission("settings.manage");
+  const data = ServiceRulesSchema.parse(input);
+  const service = await prisma.serviceDefinition.findFirst({ where: { id: serviceId, establishmentId: ctx.establishment.id }, select: { id: true } });
+  if (!service) throw new Error("Service introuvable.");
+  await prisma.serviceDefinition.update({
+    where: { id: service.id },
+    data: {
+      onlineEnabled: data.onlineEnabled,
+      onlineMaxCovers: data.onlineMaxCovers,
+      onlineClosedTimes: serializeClosedTimes(data.onlineClosedTimes),
+    },
+  });
   revalidatePath("/parametres");
 }

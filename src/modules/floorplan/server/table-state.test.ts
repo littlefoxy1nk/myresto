@@ -51,3 +51,30 @@ test("le nettoyage n'a pas de sens sur un jour choisi : table libre", () => {
   const out = computeTableStateForWindow("cleaning", [], ...DINNER);
   assert.equal(out.liveState, "available");
 });
+
+test("fenêtre pas encore commencée : un repas déjà terminé (client libéré) ne bloque plus la table", () => {
+  const walkIn = res("sans-resa", "18:30", 90, "completed");
+  const kept = computeTableStateForWindow("available", [walkIn], ...DINNER);
+  assert.equal(kept.liveState, "reserved"); // historique d'un service passé : on le garde
+  const ignored = computeTableStateForWindow("available", [walkIn], ...DINNER, true);
+  assert.equal(ignored.liveState, "available");
+  assert.equal(ignored.reservations.length, 0);
+});
+
+test("fenêtre pas encore commencée : une réservation confirmée, elle, compte toujours", () => {
+  const out = computeTableStateForWindow("available", [res("a", "20:00"), res("b", "18:30", 90, "completed")], ...DINNER, true);
+  assert.deepEqual(out.reservations.map((r) => r.id), ["a"]);
+});
+
+import { computeSlotAvailability } from "./table-state";
+
+test("créneau d'aujourd'hui : un client libéré ne rend plus la table « occupée »", () => {
+  const done = res("sans-resa", "14:00", 90, "completed");
+  const blocked = computeSlotAvailability("available", [done], 14 * 60 + 15, 90, true);
+  assert.equal(blocked.liveState, "occupied");
+  const free = computeSlotAvailability("available", [done], 14 * 60 + 15, 90, true, undefined, true);
+  assert.equal(free.liveState, "available");
+  // Une réservation encore ouverte, elle, bloque toujours.
+  const seated = computeSlotAvailability("available", [res("s", "14:00", 90, "seated")], 14 * 60 + 15, 90, true, undefined, true);
+  assert.equal(seated.liveState, "occupied");
+});

@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay, isSameDay } from "date-fns";
-import { timeToMinutes, isoWeekday } from "@/lib/time";
+import { timeToMinutes, isoWeekday, nowMinutes } from "@/lib/time";
 import { groupInstantFor } from "@/modules/floorplan/group-scope";
+import { completedStillBlocks } from "@/modules/reservations/occupancy";
 import {
   computeTableLiveState,
   computeSlotAvailability,
@@ -180,7 +181,8 @@ export async function getFloorPlanForSlot(
         requestedStartMinutes,
         durationMinutes,
         isToday,
-        excludeReservationId
+        excludeReservationId,
+        !completedStillBlocks(date, requestedStartMinutes)
       );
       return { table: t, liveState, activeReservation };
     })
@@ -263,6 +265,9 @@ export async function getFloorPlanForDay(
   const windowEnd = service ? timeToMinutes(service.endTime) : 24 * 60;
 
   const reservationsByTable = reservationsByTableMap(reservations);
+  // Un service d'aujourd'hui qui n'a pas encore commencé : les repas déjà terminés n'y comptent plus.
+  const now = new Date();
+  const windowNotStarted = !!service && isSameDay(date, now) && windowStart > nowMinutes(now);
 
   return {
     services,
@@ -277,7 +282,8 @@ export async function getFloorPlanForDay(
           t.status as TableManualStatus,
           reservationsByTable.get(t.id) ?? [],
           windowStart,
-          windowEnd
+          windowEnd,
+          windowNotStarted
         );
         return {
           id: t.id,

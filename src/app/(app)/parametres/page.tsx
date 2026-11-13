@@ -17,6 +17,9 @@ import { ServicesCard } from "@/modules/settings/components/services-card";
 import { ReviewLinksCard } from "@/modules/settings/components/review-links-card";
 import { readSmtpConfig } from "@/modules/settings/contact";
 import { OnlineBookingCard } from "@/modules/settings/components/online-booking-card";
+import { OnlineLimitsCard } from "@/modules/settings/components/online-limits-card";
+import { slotsByService } from "@/modules/booking/logic";
+import { clampRules, parseClosedTimes } from "@/modules/booking/rules";
 import { ModulesCard } from "@/modules/settings/components/modules-card";
 import { AvatarEditor } from "@/modules/settings/components/avatar-editor";
 import { PushCard } from "@/modules/push/components/push-card";
@@ -181,6 +184,19 @@ async function EstablishmentTab({ ctx }: { ctx: Awaited<ReturnType<typeof getCur
     endTime: s.endTime,
     days: s.daysOfWeek.split(",").map(Number),
   }));
+  // Les services avec ce que le restaurateur a réglé pour la réservation en ligne (heures proposées, plafond, fermé ou non).
+  const rawServices = await prisma.serviceDefinition.findMany({ where: { establishmentId: ctx.establishment.id }, orderBy: { startTime: "asc" } });
+  const slotTimes = new Map(slotsByService(rawServices).map((x) => [x.service.id, x.times]));
+  const onlineServices = rawServices.map((s) => ({
+    id: s.id,
+    name: s.name,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    times: slotTimes.get(s.id) ?? [],
+    onlineEnabled: s.onlineEnabled,
+    onlineMaxCovers: s.onlineMaxCovers,
+    onlineClosedTimes: parseClosedTimes(s.onlineClosedTimes),
+  }));
 
   return (
     <>
@@ -225,6 +241,16 @@ async function EstablishmentTab({ ctx }: { ctx: Awaited<ReturnType<typeof getCur
             emailConfirmations={ctx.establishment.emailConfirmations}
             emailReady={readSmtpConfig(process.env) !== null}
           />
+          <div className="mt-4">
+            <OnlineLimitsCard
+              rules={clampRules({
+                maxPartySize: ctx.establishment.onlineMaxPartySize,
+                maxDaysAhead: ctx.establishment.onlineMaxDaysAhead,
+                minLeadMinutes: ctx.establishment.onlineMinLeadMinutes,
+              })}
+              services={onlineServices}
+            />
+          </div>
         </CardContent>
       </Card>
 

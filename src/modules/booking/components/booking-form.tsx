@@ -7,20 +7,25 @@ import { Button } from "@/components/ui/button";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
-import { MAX_DAYS_AHEAD, MAX_ONLINE_PARTY_SIZE, MIN_LEAD_MINUTES, type ServiceAvailability } from "@/modules/booking/logic";
+import type { ServiceAvailability } from "@/modules/booking/logic";
+import { formatLeadTime, type OnlineRules } from "@/modules/booking/rules";
 import { getBookingAvailability, submitBookingRequest } from "@/modules/booking/server/actions";
 
 const inputClass =
   "w-full rounded-2xl border border-border bg-card/80 px-4 py-3 text-base outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15";
 
-export function BookingForm({ slug, restaurantName }: { slug: string; restaurantName: string }) {
+export function BookingForm({ slug, restaurantName, rules }: { slug: string; restaurantName: string; rules: OnlineRules }) {
   const today = format(new Date(), "yyyy-MM-dd");
+  // Avec un délai minimum d'un jour ou plus, les premiers jours ne sont plus réservables en ligne : on commence après.
+  const firstOffset = Math.min(rules.maxDaysAhead, Math.floor(rules.minLeadMinutes / 1440));
+  const firstDay = format(addDays(new Date(), firstOffset), "yyyy-MM-dd");
+  const lastDay = format(addDays(new Date(), rules.maxDaysAhead), "yyyy-MM-dd");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [partySize, setPartySize] = useState(2);
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(firstDay);
   const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
@@ -30,7 +35,8 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
   const [done, setDone] = useState(false);
   const [pickOther, setPickOther] = useState(false);
   // Les 14 prochains jours en pastilles ; au-delà, « Autre » ouvre le calendrier.
-  const days = Array.from({ length: 14 }, (_, i) => addDays(new Date(), i));
+  const days = Array.from({ length: Math.max(1, Math.min(14, rules.maxDaysAhead - firstOffset + 1)) }, (_, i) => addDays(new Date(), firstOffset + i));
+  const hasMoreDays = rules.maxDaysAhead - firstOffset + 1 > days.length;
   const inQuickDays = days.some((d) => format(d, "yyyy-MM-dd") === date);
 
   // Les créneaux dépendent du jour ET du nombre de personnes (un service peut être complet pour 6 mais pas pour 2).
@@ -122,7 +128,7 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
                 </span>
                 <div>
                   <p className="text-sm font-semibold">Personnes</p>
-                  <p className="text-xs text-muted-foreground">Jusqu&apos;à {MAX_ONLINE_PARTY_SIZE} en ligne</p>
+                  <p className="text-xs text-muted-foreground">Jusqu&apos;à {rules.maxPartySize} en ligne</p>
                 </div>
               </div>
               <NumberStepper
@@ -132,7 +138,7 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
                   setTime("");
                 }}
                 min={1}
-                max={MAX_ONLINE_PARTY_SIZE}
+                max={rules.maxPartySize}
                 label="Nombre de personnes"
               />
             </div>
@@ -140,7 +146,7 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
             <div className="space-y-2">
               <span className="text-sm font-semibold">Jour</span>
               <div className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1 [scrollbar-width:none]" role="radiogroup" aria-label="Jour de la réservation">
-                {days.map((d, i) => {
+                {days.map((d) => {
                   const key = format(d, "yyyy-MM-dd");
                   const active = key === date;
                   return (
@@ -160,14 +166,14 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
                       )}
                     >
                       <span className={cn("text-[11px] font-semibold uppercase", active ? "text-ink-foreground/70" : "text-muted-foreground")}>
-                        {i === 0 ? "Auj." : i === 1 ? "Dem." : frDate(key, { weekday: "short" }).replace(".", "")}
+                        {key === today ? "Auj." : key === format(addDays(new Date(), 1), "yyyy-MM-dd") ? "Dem." : frDate(key, { weekday: "short" }).replace(".", "")}
                       </span>
                       <span className="text-xl font-bold tabular-nums leading-none">{d.getDate()}</span>
                       <span className={cn("text-[11px]", active ? "text-ink-foreground/70" : "text-muted-foreground")}>{frDate(key, { month: "short" }).replace(".", "")}</span>
                     </button>
                   );
                 })}
-                <button
+                {hasMoreDays && <button
                   type="button"
                   onClick={() => setPickOther((v) => !v)}
                   aria-expanded={pickOther || !inQuickDays}
@@ -178,15 +184,15 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
                 >
                   <CalendarDays size={18} aria-hidden="true" />
                   Autre
-                </button>
+                </button>}
               </div>
               {(pickOther || !inQuickDays) && (
                 <input
                   id="bk-date"
                   aria-label="Choisir une autre date"
                   type="date"
-                  min={today}
-                  max={format(addDays(new Date(), MAX_DAYS_AHEAD), "yyyy-MM-dd")}
+                  min={firstDay}
+                  max={lastDay}
                   value={date}
                   onChange={(e) => {
                     if (!e.target.value) return;
@@ -216,7 +222,11 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
                     {sections.length > 1 && <p className="text-xs font-semibold text-muted-foreground">{sv.name}</p>}
                     {sv.times.length === 0 ? (
                       <Notice>
-                        {sv.full ? "Complet — appelle le restaurant pour une éventuelle place." : "Plus de créneau en ligne pour ce service."}
+                        {sv.closedOnline
+                          ? "Pas de réservation en ligne pour ce service : appelle le restaurant."
+                          : sv.full
+                            ? "Complet — appelle le restaurant pour une éventuelle place."
+                            : "Plus de créneau en ligne pour ce service."}
                       </Notice>
                     ) : (
                       <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label={`Heure d'arrivée, ${sv.name}`}>
@@ -311,8 +321,9 @@ export function BookingForm({ slug, restaurantName }: { slug: string; restaurant
             {pending ? "Envoi…" : "Envoyer ma demande"}
           </Button>
           <p className="text-center text-xs leading-relaxed text-muted-foreground">
-            Réservation en ligne jusqu&apos;à {MAX_ONLINE_PARTY_SIZE} personnes, au moins {Math.floor(MIN_LEAD_MINUTES / 60)} h {String(MIN_LEAD_MINUTES % 60).padStart(2, "0")} avant l&apos;heure choisie — sinon, appelle le
-            restaurant. Elle n&apos;est valable qu&apos;une fois confirmée par lui.
+            Réservation en ligne jusqu&apos;à {rules.maxPartySize} personne{rules.maxPartySize > 1 ? "s" : ""}
+            {rules.minLeadMinutes > 0 && <>, au moins {formatLeadTime(rules.minLeadMinutes)} avant l&apos;heure choisie</>} — sinon, appelle le restaurant.
+            Elle n&apos;est valable qu&apos;une fois confirmée par lui.
           </p>
           <p className="text-center text-xs leading-relaxed text-muted-foreground">
             Tes informations servent uniquement à gérer ta réservation.{" "}

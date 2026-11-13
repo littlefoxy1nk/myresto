@@ -21,11 +21,10 @@ export type MovableTable = {
   group: { id: string; combinedCapacity: number } | null;
 };
 
-/// Mêmes statuts que le contrôle de conflit serveur (assertNoTableConflict) : seules les
-/// annulées et no-show libèrent la table.
+/// Les annulées et no-show libèrent toujours la table. Les terminées aussi pour un créneau qui commence maintenant
+/// ou plus tard : l'appelant ne charge alors pas ces réservations (voir occupancy.ts).
 const INACTIVE_STATUSES = ["cancelled", "no_show"];
-/// Une réservation terminée occupe encore son créneau côté serveur, mais ça n'a pas de
-/// sens de la déplacer : on ne propose le déplacement que pour les réservations ouvertes.
+/// Une réservation terminée n'a pas de sens à déplacer : on ne propose le déplacement que pour les réservations ouvertes.
 const MOVABLE_STATUSES = ["new", "confirmed", "arrived", "seated"];
 
 export function isMovable(status: string): boolean {

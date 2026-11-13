@@ -51,6 +51,13 @@ model Establishment {
   /// un restaurant ne reçoit de demandes en ligne que s'il l'a décidé.
   bookingSlug          String?  @unique
   onlineBookingEnabled Boolean  @default(false)
+  /// Limites de la réservation en ligne (le téléphone et le comptoir ne sont jamais limités par elles).
+  /// Plus grand groupe accepté en ligne ; au-delà le client doit appeler.
+  onlineMaxPartySize   Int      @default(6)
+  /// Jusqu'à combien de jours à l'avance on peut réserver en ligne.
+  onlineMaxDaysAhead   Int      @default(90)
+  /// Délai minimum entre la demande et l'heure choisie, en minutes.
+  onlineMinLeadMinutes Int      @default(90)
   /// Liens "laisser un avis" glissés dans le premier mail aux clients abonnés.
   googleReviewUrl      String?
   tripadvisorReviewUrl String?
@@ -288,6 +295,12 @@ model ServiceDefinition {
   startTime       String        // "12:00"
   endTime         String        // "14:30"
   daysOfWeek      String        // CSV "1,2,3,4,5" (1=lundi..7=dimanche)
+  /// Réservation en ligne : ce service est-il proposé ? Tous les services le sont par défaut.
+  onlineEnabled   Boolean       @default(true)
+  /// Plafond de couverts réservés EN LIGNE sur ce service, par jour. Vide = pas de plafond (seules les places comptent).
+  onlineMaxCovers Int?
+  /// Heures fermées à la réservation en ligne (CSV "19:30,20:00"), le reste du service reste ouvert.
+  onlineClosedTimes String      @default("")
   createdAt       DateTime      @default(now())
 
   shifts          Shift[]

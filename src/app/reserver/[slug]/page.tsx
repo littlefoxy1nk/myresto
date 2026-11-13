@@ -33,7 +33,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
       </div>
 
       <main className="relative mx-auto -mt-20 w-full max-w-lg px-4 pb-10">
-        <BookingForm slug={slug} restaurantName={info.name} />
+        <BookingForm slug={slug} restaurantName={info.name} rules={info.rules} />
         <p className="mt-8 text-center text-xs text-muted-foreground">
           Propulsé par MYRESTO ·{" "}
           <Link href="/confidentialite" className="underline underline-offset-4 hover:text-foreground">

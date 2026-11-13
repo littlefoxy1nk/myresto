@@ -73,7 +73,9 @@ export function computeSlotAvailability(
   requestedStartMinutes: number,
   requestedDurationMinutes: number,
   isToday: boolean,
-  excludeReservationId?: string
+  excludeReservationId?: string,
+  /// Un repas terminé (client libéré) ne retient plus la table pour ce créneau (voir reservations/occupancy.ts).
+  ignoreCompleted = false
 ): { liveState: TableLiveState; activeReservation: TableUpcomingReservation | null } {
   if (manualStatus === "unavailable") {
     return { liveState: "unavailable", activeReservation: null };
@@ -81,7 +83,7 @@ export function computeSlotAvailability(
 
   const requestedEndMinutes = requestedStartMinutes + requestedDurationMinutes;
   const conflict = reservationsOnDate
-    .filter((r) => r.status !== "cancelled" && r.status !== "no_show" && r.id !== excludeReservationId)
+    .filter((r) => r.status !== "cancelled" && r.status !== "no_show" && !(ignoreCompleted && r.status === "completed") && r.id !== excludeReservationId)
     .map((r) => {
       const startMinutes = timeToMinutes(r.time);
       return { r, startMinutes, endMinutes: startMinutes + r.durationMinutes };
@@ -108,18 +110,21 @@ export function computeSlotAvailability(
 /// Une réservation compte si elle chevauche la fenêtre [windowStart, windowEnd[ ; toutes
 /// celles qui comptent sont renvoyées, triées par heure, pour pouvoir afficher un double
 /// service sur la même table. `minutesFromNow` est fixé à 0 : il n'a pas de sens ici.
+/// `ignoreCompleted` : la fenêtre n'a pas encore commencé, donc un repas déjà terminé (un client sans réservation installé
+/// puis libéré avant le service, par exemple) ne doit plus occuper la table. Pour un service passé, on garde l'historique.
 export function computeTableStateForWindow(
   manualStatus: TableManualStatus,
   reservationsOnDate: ReservationForStateCalc[],
   windowStartMinutes: number,
-  windowEndMinutes: number
+  windowEndMinutes: number,
+  ignoreCompleted = false
 ): { liveState: TableLiveState; reservations: TableUpcomingReservation[] } {
   if (manualStatus === "unavailable") {
     return { liveState: "unavailable", reservations: [] };
   }
 
   const reservations = reservationsOnDate
-    .filter((r) => r.status !== "cancelled" && r.status !== "no_show")
+    .filter((r) => r.status !== "cancelled" && r.status !== "no_show" && !(ignoreCompleted && r.status === "completed"))
     .map((r) => ({ r, start: timeToMinutes(r.time) }))
     .filter((x) => x.start < windowEndMinutes && x.start + x.r.durationMinutes > windowStartMinutes)
     .sort((a, b) => a.start - b.start)

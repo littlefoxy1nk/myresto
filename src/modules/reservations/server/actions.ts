@@ -12,6 +12,7 @@ import { findOrCreateCustomer } from "@/modules/customers/server/matching";
 import { fetchZonesAndGroups } from "@/modules/floorplan/server/queries";
 import { groupInstantFor } from "@/modules/floorplan/group-scope";
 import { isMovable, type DayBooking } from "@/modules/reservations/move";
+import { nonBlockingStatuses } from "@/modules/reservations/occupancy";
 import { effectiveDuration } from "@/modules/service/spans";
 import { getServiceWindowsForDate } from "@/modules/service/server/windows";
 
@@ -136,7 +137,8 @@ async function assertNoTableConflict(
         id: excludeReservationId ? { not: excludeReservationId } : undefined,
         establishmentId,
         date: { gte: startOfDay(date), lte: endOfDay(date) },
-        status: { notIn: ["cancelled", "no_show"] },
+        // Un repas terminé (client libéré) ne retient plus sa table pour un créneau qui commence maintenant ou plus tard.
+        status: { notIn: nonBlockingStatuses(date, requestedStart) },
       },
     },
     include: { reservation: true, table: true },
@@ -477,7 +479,7 @@ export async function getMoveReservationData(reservationId: string): Promise<Mov
       where: {
         establishmentId: ctx.establishment.id,
         date: { gte: startOfDay(reservation.date), lte: endOfDay(reservation.date) },
-        status: { notIn: ["cancelled", "no_show"] },
+        status: { notIn: nonBlockingStatuses(reservation.date, timeToMinutes(reservation.time)) },
       },
       include: { tables: true },
     }),
