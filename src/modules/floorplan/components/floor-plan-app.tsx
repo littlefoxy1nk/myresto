@@ -59,8 +59,9 @@ export function FloorPlanApp({
   /// Aperçu en lecture seule d'un autre jour / d'un service (voir getFloorPlanForDay).
   dayView?: { label: string; serviceName: string | null; isToday: boolean; dateKey: string; startTime: string | null } | null;
 }) {
-  // En lecture (pas d'édition) avec plusieurs salles, on les montre toutes d'un coup : plus besoin de cliquer d'une salle à l'autre.
-  const [activeZoneId, setActiveZoneId] = useState<string | null>(!canEdit && zones.length > 1 ? ALL_ZONES : (zones[0]?.id ?? null));
+  // Avec plusieurs salles, on les montre toutes d'un coup (comme « Aujourd'hui ») : plus besoin de cliquer d'une salle à l'autre.
+  // Dessiner / déplacer / fusionner des tables se fait salle par salle : ces actions ouvrent la salle concernée.
+  const [activeZoneId, setActiveZoneId] = useState<string | null>(zones.length > 1 ? ALL_ZONES : (zones[0]?.id ?? null));
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [mergeMode, setMergeMode] = useState(false);
   const [mergeSelection, setMergeSelection] = useState<Set<string>>(new Set());
@@ -72,13 +73,15 @@ export function FloorPlanApp({
   const [walkInTableId, setWalkInTableId] = useState<string | null>(null);
   /// Table qu'on est en train de déplacer en touchant l'endroit où la poser (voir FloorPlanCanvas, placingTableId).
   const [moveTableId, setMoveTableId] = useState<string | null>(null);
+  /// Le déplacement a été lancé depuis « Toutes les salles » : on y revient une fois la table posée (ou l'action annulée).
+  const [returnToAll, setReturnToAll] = useState(false);
   const [moveReservationId, setMoveReservationId] = useState<string | null>(null);
 
   const canMerge = canEdit || canMergeDay;
   const todayKey = toDateKey(new Date());
 
   const movingTable = moveTableId ? (zones.find((z) => z.id === activeZoneId)?.tables ?? []).find((t) => t.id === moveTableId) ?? null : null;
-  const viewAll = activeZoneId === ALL_ZONES && zones.length > 1 && !canEdit;
+  const viewAll = activeZoneId === ALL_ZONES && zones.length > 1;
   const allTables = zones.flatMap((z) => z.tables);
   const selectedTable = (viewAll ? allTables : (zones.find((z) => z.id === activeZoneId) ?? zones[0])?.tables ?? []).find((t) => t.id === selectedTableId) ?? null;
   // En vue « toutes les salles », les boîtes de dialogue (fusion, walk-in…) s'appuient sur la salle de la table choisie.
@@ -123,6 +126,18 @@ export function FloorPlanApp({
   function exitMergeMode() {
     setMergeMode(false);
     setMergeSelection(new Set());
+    backToAllIfNeeded();
+  }
+
+  function backToAllIfNeeded() {
+    if (!returnToAll) return;
+    setReturnToAll(false);
+    setActiveZoneId(ALL_ZONES);
+  }
+
+  function cancelMove() {
+    setMoveTableId(null);
+    backToAllIfNeeded();
   }
 
   useEffect(() => {
@@ -131,7 +146,7 @@ export function FloorPlanApp({
       if (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
 
       if (e.key === "Escape") {
-        if (moveTableId) setMoveTableId(null);
+        if (moveTableId) cancelMove();
         else if (mergeMode) exitMergeMode();
         else setSelectedTableId(null);
       } else if ((e.key === "Delete" || e.key === "Backspace") && canEdit && selectedTableId && !mergeMode) {
@@ -141,7 +156,8 @@ export function FloorPlanApp({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [mergeMode, selectedTableId, canEdit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mergeMode, selectedTableId, canEdit, moveTableId, returnToAll]);
 
   if (!activeZone) {
     return (
@@ -175,13 +191,16 @@ export function FloorPlanApp({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ZoneTabs
           zones={zones}
-          showAll={!canEdit && zones.length > 1}
+          showAll={zones.length > 1}
           activeZoneId={viewAll ? ALL_ZONES : activeZone.id}
           canEdit={canEdit}
           onSelect={(id) => {
+            setReturnToAll(false);
+            setMoveTableId(null);
             setActiveZoneId(id);
             setSelectedTableId(null);
-            exitMergeMode();
+            setMergeMode(false);
+            setMergeSelection(new Set());
           }}
           onCreateZone={() => setShowCreateZone(true)}
           onDeleteZone={(id) => setConfirmDeleteZoneId(id)}
@@ -202,10 +221,12 @@ export function FloorPlanApp({
                 </Button>
               </>
             ) : (
-              <Button size="sm" onClick={() => setShowCreateTable(true)}>
-                <Plus size={15} aria-hidden="true" />
-                Table
-              </Button>
+              !viewAll && (
+                <Button size="sm" onClick={() => setShowCreateTable(true)}>
+                  <Plus size={15} aria-hidden="true" />
+                  Table
+                </Button>
+              )
             )}
           </div>
         )}
@@ -278,7 +299,7 @@ export function FloorPlanApp({
                 <span>
                   Touche l&apos;endroit où poser la table <strong>{movingTable.label}</strong>.
                 </span>
-                <Button size="sm" variant="secondary" onClick={() => setMoveTableId(null)}>
+                <Button size="sm" variant="secondary" onClick={cancelMove}>
                   Annuler
                 </Button>
               </div>
@@ -298,6 +319,7 @@ export function FloorPlanApp({
                 if (!movingTable) return;
                 const id = movingTable.id;
                 setMoveTableId(null);
+                backToAllIfNeeded();
                 guarded(() => updateTable({ id, posX, posY }), "Table déplacée");
               }}
               onMoveTable={(id, posX, posY) => guarded(() => updateTable({ id, posX, posY }))}
@@ -324,8 +346,13 @@ export function FloorPlanApp({
             reserveHref={reserveHref(selectedTable, dayView)}
             onWalkIn={canWalkIn && !dayView ? () => guarded(() => occupyTable(selectedTable.id), "Client installé") : undefined}
             onStartMove={
-              canEdit && !viewAll
+              canEdit
                 ? () => {
+                    // Depuis « Toutes les salles », on ouvre la salle de la table pour pouvoir toucher l'endroit où la poser.
+                    if (viewAll) {
+                      setReturnToAll(true);
+                      setActiveZoneId(selectedTable.zoneId);
+                    }
                     setMoveTableId(selectedTable.id);
                     setSelectedTableId(null);
                   }
@@ -340,6 +367,10 @@ export function FloorPlanApp({
             onDuplicate={() => guarded(() => duplicateTable(selectedTable.id), "Table dupliquée")}
             onDissolveGroup={(groupId) => guarded(() => dissolveTableGroup(groupId), "Groupe dissous")}
             onStartMerge={() => {
+              if (viewAll) {
+                setReturnToAll(true);
+                setActiveZoneId(selectedTable.zoneId);
+              }
               setMergeMode(true);
               setMergeSelection(new Set([selectedTable.id]));
               setSelectedTableId(null);
