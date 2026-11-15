@@ -47,8 +47,10 @@ export function computeTableLiveState(
     return { liveState: "cleaning", activeReservation: null };
   }
 
+  // Une réservation dont l'heure est passée reste sur la table (« en retard ») tant que l'équipe ne l'a pas traitée — arrivé, absent ou
+  // annulé : le plan ne la retire jamais tout seul, même longtemps après l'heure.
   const upcoming = withMinutes
-    .filter((x) => (x.r.status === "new" || x.r.status === "confirmed") && x.startMinutes >= nowMinutes - 15)
+    .filter((x) => x.r.status === "new" || x.r.status === "confirmed")
     .sort((a, b) => a.startMinutes - b.startMinutes)[0];
 
   if (upcoming) {

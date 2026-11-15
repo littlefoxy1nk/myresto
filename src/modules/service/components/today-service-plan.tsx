@@ -148,8 +148,8 @@ export function TodayServicePlan({ plan, reservations = [] }: { plan: TodayServi
             key={selected.id}
             table={selected}
             onClose={() => setSelectedTableId(null)}
-            onMarkArrived={(id) => guarded(() => updateReservationStatus(id, "arrived"), "Client marqué arrivé")}
-            onMarkSeated={(id) => guarded(() => updateReservationStatus(id, "seated"), "Table installée")}
+            onMarkSeated={(id) => guarded(() => updateReservationStatus(id, "seated"), "Client installé")}
+            onMarkAbsent={(id) => guarded(() => updateReservationStatus(id, "no_show"), "Client absent, table libre")}
             onRelease={(id) => guarded(() => releaseReservationTables(id), "Table libérée, prête")}
             onMarkReady={(id) => guarded(() => setTableManualStatus(id, "available"), "Table prête")}
             onOccupy={(id) => guarded(() => occupyTable(id))}

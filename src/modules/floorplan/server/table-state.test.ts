@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeTableStateForWindow, type ReservationForStateCalc } from "./table-state";
+import { computeTableLiveState, computeTableStateForWindow, type ReservationForStateCalc } from "./table-state";
 
 function res(id: string, time: string, durationMinutes = 90, status = "confirmed"): ReservationForStateCalc {
   return { id, customerName: id, partySize: 2, time, status, durationMinutes };
@@ -77,4 +77,39 @@ test("créneau d'aujourd'hui : un client libéré ne rend plus la table « occup
   // Une réservation encore ouverte, elle, bloque toujours.
   const seated = computeSlotAvailability("available", [res("s", "14:00", 90, "seated")], 14 * 60 + 15, 90, true, undefined, true);
   assert.equal(seated.liveState, "occupied");
+});
+
+function at(h: number, m: number) {
+  return new Date(2026, 10, 15, h, m);
+}
+
+test("une réservation en retard reste sur la table, avec son nom, tant que personne ne l'a traitée", () => {
+  const r = res("Dupont", "19:00", 90, "confirmed");
+  for (const [h, m] of [[19, 10], [19, 20], [19, 45], [20, 15]] as const) {
+    const out = computeTableLiveState("available", [r], at(h, m));
+    assert.equal(out.liveState, "soon", `${h}:${m}`);
+    assert.equal(out.activeReservation?.customerName, "Dupont", `${h}:${m}`);
+    assert.ok((out.activeReservation?.minutesFromNow ?? 0) < 0, `${h}:${m}`);
+  }
+});
+
+test("même longtemps après l'heure, elle ne disparaît pas toute seule", () => {
+  const r = res("Dupont", "12:00", 90, "confirmed");
+  for (const [h, m] of [[13, 31], [15, 0], [22, 30]] as const) {
+    const out = computeTableLiveState("available", [r], at(h, m));
+    assert.equal(out.liveState, "soon", `${h}:${m}`);
+    assert.equal(out.activeReservation?.customerName, "Dupont", `${h}:${m}`);
+  }
+});
+
+test("absent, annulée ou arrivée : le plan suit la décision de l'équipe", () => {
+  const late = at(19, 40);
+  assert.equal(computeTableLiveState("available", [res("a", "19:00", 90, "no_show")], late).liveState, "available");
+  assert.equal(computeTableLiveState("available", [res("a", "19:00", 90, "cancelled")], late).liveState, "available");
+  assert.equal(computeTableLiveState("available", [res("a", "19:00", 90, "seated")], late).liveState, "occupied");
+});
+
+test("à venir : inchangé (réservée de loin, bientôt dans l'heure)", () => {
+  assert.equal(computeTableLiveState("available", [res("a", "21:00")], at(19, 0)).liveState, "reserved");
+  assert.equal(computeTableLiveState("available", [res("a", "19:30")], at(19, 0)).liveState, "soon");
 });

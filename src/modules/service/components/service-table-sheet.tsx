@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { X, ExternalLink, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LIVE_STATE_STYLE } from "@/modules/floorplan/live-state-style";
 import type { TableWithLiveState } from "@/modules/floorplan/types";
 import { formatMinutes } from "@/modules/service/format";
@@ -11,22 +13,25 @@ import { formatMinutes } from "@/modules/service/format";
 export function ServiceTableSheet({
   table,
   onClose,
-  onMarkArrived,
   onMarkSeated,
+  onMarkAbsent,
   onRelease,
   onMarkReady,
   onOccupy,
 }: {
   table: TableWithLiveState;
   onClose: () => void;
-  onMarkArrived: (reservationId: string) => void;
   onMarkSeated: (reservationId: string) => void;
+  onMarkAbsent: (reservationId: string) => void;
   onRelease: (reservationId: string) => void;
   onMarkReady: (tableId: string) => void;
   onOccupy: (tableId: string) => void;
 }) {
+  const [confirmAbsent, setConfirmAbsent] = useState(false);
   const style = LIVE_STATE_STYLE[table.liveState];
   const reservation = table.activeReservation;
+  const waiting = !!reservation && (reservation.status === "new" || reservation.status === "confirmed");
+  const lateBy = waiting && reservation.minutesFromNow < 0 ? -reservation.minutesFromNow : 0;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 max-h-[75vh] overflow-y-auto sheet-mobile rounded-t-[28px] border-t border-border bg-card p-5 pb-8 shadow-pop md:static md:z-auto md:max-h-none md:w-80 md:shrink-0 md:overflow-visible md:rounded-3xl md:border md:pb-5 md:shadow-card">
@@ -34,7 +39,7 @@ export function ServiceTableSheet({
         <div>
           <p className="text-lg font-semibold">{table.label}</p>
           <div className="mt-1 flex items-center gap-2">
-            <Badge variant={style.badge}>{style.label}</Badge>
+            <Badge variant={lateBy > 0 ? "urgent" : style.badge}>{lateBy > 0 ? "En retard" : style.label}</Badge>
             <span className="text-xs text-muted-foreground">{table.capacity} pl.</span>
           </div>
         </div>
@@ -52,9 +57,8 @@ export function ServiceTableSheet({
           <p className="font-medium">{reservation.customerName}</p>
           <p className="text-xs text-muted-foreground">
             {reservation.partySize} pers. · {reservation.time}
-            {reservation.minutesFromNow > 0 &&
-              (reservation.status === "new" || reservation.status === "confirmed") &&
-              ` · dans ${formatMinutes(reservation.minutesFromNow)}`}
+            {waiting && reservation.minutesFromNow > 0 && ` · dans ${formatMinutes(reservation.minutesFromNow)}`}
+            {lateBy > 0 && ` · en retard de ${formatMinutes(lateBy)}`}
           </p>
         </div>
       ) : (
@@ -65,8 +69,16 @@ export function ServiceTableSheet({
 
       <div className="mt-4 flex flex-col gap-2">
         {reservation && (reservation.status === "new" || reservation.status === "confirmed") && (
-          <Button onClick={() => onMarkArrived(reservation.id)}>Marquer arrivé</Button>
+          // Un client qui arrive est installé à sa table : un seul clic, pas d'étape « arrivé » séparée.
+          <Button onClick={() => onMarkSeated(reservation.id)}>Client arrivé</Button>
         )}
+        {/* Seule l'équipe fait partir une réservation en retard : jamais automatiquement. */}
+        {reservation && waiting && reservation.minutesFromNow <= 0 && (
+          <Button variant="secondary" onClick={() => setConfirmAbsent(true)}>
+            Absent
+          </Button>
+        )}
+        {/* Réservations déjà marquées « arrivé » avant ce changement, ou depuis la liste des réservations. */}
         {reservation && reservation.status === "arrived" && (
           <Button onClick={() => onMarkSeated(reservation.id)}>Marquer installée</Button>
         )}
@@ -95,6 +107,16 @@ export function ServiceTableSheet({
         )}
       </div>
 
+      {reservation && (
+        <ConfirmDialog
+          open={confirmAbsent}
+          onOpenChange={setConfirmAbsent}
+          title="Marquer ce client absent ?"
+          description={`${reservation.customerName} ne s'est pas présenté : la réservation est retirée de la table, qui redevient libre.`}
+          confirmLabel="Marquer absent"
+          onConfirm={() => onMarkAbsent(reservation.id)}
+        />
+      )}
     </div>
   );
 }
