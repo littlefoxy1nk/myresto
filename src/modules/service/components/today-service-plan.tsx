@@ -128,7 +128,7 @@ export function TodayServicePlan({ plan, reservations = [] }: { plan: TodayServi
                     fit
                     tables={zone.tables}
                     canEdit={false}
-                    showReservations={upcoming}
+                    showReservations
                     selectedTableId={selectedTableId}
                     mergeSelection={new Set()}
                     onSelectTable={setSelectedTableId}
