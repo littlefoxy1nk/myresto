@@ -7,6 +7,7 @@ import { toDateKey } from "@/lib/utils";
 import { getFloorPlan, getFloorPlanForDay } from "@/modules/floorplan/server/queries";
 import { FloorPlanApp } from "@/modules/floorplan/components/floor-plan-app";
 import { PlanDayPicker } from "@/modules/floorplan/components/plan-day-picker";
+import { PaperPlanDialog } from "@/modules/floorplan/components/paper-plan-dialog";
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -53,7 +54,10 @@ export default async function PlanDeSallePage({
         <p className="mt-1 text-sm text-muted-foreground">{ctx.establishment.name}</p>
       </div>
 
-      <PlanDayPicker dateKey={dateKey} todayKey={todayKey} services={services} serviceId={day?.service?.id ?? null} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <PlanDayPicker dateKey={dateKey} todayKey={todayKey} services={services} serviceId={day?.service?.id ?? null} />
+        <PaperPlanDialog dateKey={dateKey} zones={zones.map((z) => ({ id: z.id, name: z.name }))} />
+      </div>
 
       <FloorPlanApp
         // Repart de zéro en passant de l'éditeur (maintenant) à l'aperçu d'un jour, pour que « Toutes les salles » s'affiche tout de suite.
