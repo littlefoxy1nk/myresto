@@ -3,16 +3,14 @@ import { prisma } from "@/lib/prisma";
 
 type Tx = typeof prisma | Prisma.TransactionClient;
 
-/// Relie une réservation à une fiche client existante ou en crée une, pour que
-/// l'historique se construise automatiquement au fil des réservations plutôt que de
-/// laisser le CRM être une liste déconnectée (voir Mission "CRM & cycle de réservation").
-/// Le téléphone est la clé de rapprochement la plus fiable ; à défaut l'email. Sans les
-/// deux, on ne peut pas rapprocher un client de façon fiable — la réservation reste
-/// anonyme (customerId null) plutôt que de risquer de fusionner deux personnes différentes.
-export async function findOrCreateCustomer(
+/// La fiche d'un client DÉJÀ enregistré qui correspond à ce téléphone ou cet email, sinon null. Ne crée JAMAIS de fiche : la base
+/// clients ne contient que les personnes que le restaurateur a choisi d'enregistrer, ou qui se sont inscrites à la newsletter.
+/// Une réservation d'un client enregistré se relie à sa fiche (son historique se construit) ; les autres restent anonymes.
+/// Le téléphone est la clé de rapprochement la plus fiable ; à défaut l'email. Sans les deux, aucun rapprochement.
+export async function findCustomer(
   tx: Tx,
   establishmentId: string,
-  input: { name: string; phone?: string | null; email?: string | null }
+  input: { phone?: string | null; email?: string | null }
 ): Promise<string | null> {
   const phone = input.phone?.trim() || null;
   const email = input.email?.trim() || null;
@@ -21,22 +19,15 @@ export async function findOrCreateCustomer(
   const existing = await tx.customer.findFirst({
     where: {
       establishmentId,
-      OR: [phone ? { phone } : undefined, email ? { email } : undefined].filter(
-        (c): c is NonNullable<typeof c> => !!c
-      ),
+      OR: [phone ? { phone } : undefined, email ? { email } : undefined].filter((c): c is NonNullable<typeof c> => !!c),
     },
+    select: { id: true },
   });
-  if (existing) return existing.id;
+  return existing?.id ?? null;
+}
 
-  const [firstName, ...rest] = input.name.trim().split(/\s+/);
-  const created = await tx.customer.create({
-    data: {
-      establishmentId,
-      firstName: firstName || input.name.trim(),
-      lastName: rest.join(" ") || "",
-      phone,
-      email,
-    },
-  });
-  return created.id;
+/// « Marie Dupont » → prénom « Marie », nom « Dupont » (le reste du nom va dans le nom de famille).
+export function splitName(fullName: string): { firstName: string; lastName: string } {
+  const [firstName, ...rest] = fullName.trim().split(/\s+/);
+  return { firstName: firstName || fullName.trim(), lastName: rest.join(" ") };
 }

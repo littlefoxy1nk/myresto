@@ -2,6 +2,8 @@ import { CalendarX2 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { requireModule } from "@/lib/module-guard";
+import { isModuleEnabled } from "@/lib/modules";
+import { SaveCustomerButton } from "@/modules/customers/components/save-customer-button";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
 import { prisma } from "@/lib/prisma";
@@ -71,6 +73,8 @@ export default async function ReservationsPage({
   const active = reservations.filter((r) => r.status !== "cancelled" && r.status !== "no_show");
 
   const canEdit = ctx.can("reservations.edit");
+  // Enregistrer un client = l'ajouter à la base clients (rien n'y entre automatiquement).
+  const canSaveCustomer = ctx.can("crm.manage") && isModuleEnabled(ctx.establishment.disabledModules, "crm");
   const dayLabel = format(day, "EEEE d MMMM", { locale: fr });
   const restaurantName = ctx.establishment.name;
   const servicesForForms = allServices.map((s) => ({
@@ -146,6 +150,7 @@ export default async function ReservationsPage({
                 editable={canEdit}
               />
             )}
+            {canSaveCustomer && !r.customerId && (r.customerPhone || r.customerEmail) && <SaveCustomerButton reservationId={r.id} />}
             {canEdit && (
               <>
                 {isOpen && (r.customerPhone || r.customerEmail) && (

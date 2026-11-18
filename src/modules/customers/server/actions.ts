@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
 import { audit } from "@/lib/audit";
+import { saveCustomerFromReservation } from "@/modules/customers/server/save";
 
 const UpdateProfileSchema = z.object({
   preferences: z.string().optional(),
@@ -62,4 +63,18 @@ export async function deleteCustomer(customerId: string) {
   await audit(ctx, "customer.deleted", "customer", customerId);
   revalidatePath("/clients");
   revalidatePath("/reservations");
+}
+
+/// « Enregistrer ce client » : à partir d'une réservation, crée la fiche client (ou retrouve celle qui existe déjà avec ce téléphone
+/// ou cet email) et y relie toutes les réservations de cette personne, pour que son historique apparaisse. C'est le restaurateur qui
+/// choisit qui entre dans la base clients : plus rien ne s'y ajoute tout seul.
+export async function saveReservationAsCustomer(reservationId: string): Promise<{ customerId: string; created: boolean }> {
+  const ctx = await requirePermission("crm.manage");
+  const result = await saveCustomerFromReservation(ctx.establishment.id, reservationId);
+  if (!result) throw new Error("Réservation introuvable.");
+
+  await audit(ctx, "customer.saved", "customer", result.customerId);
+  revalidatePath("/clients");
+  revalidatePath("/reservations");
+  return result;
 }

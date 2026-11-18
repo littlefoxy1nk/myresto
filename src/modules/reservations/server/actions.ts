@@ -8,7 +8,7 @@ import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { timeToMinutes } from "@/lib/time";
 import { requirePermission, requireAnyPermission } from "@/lib/current-context";
-import { findOrCreateCustomer } from "@/modules/customers/server/matching";
+import { findCustomer } from "@/modules/customers/server/matching";
 import { fetchZonesAndGroups } from "@/modules/floorplan/server/queries";
 import { groupInstantFor } from "@/modules/floorplan/group-scope";
 import { isMovable, type DayBooking } from "@/modules/reservations/move";
@@ -179,10 +179,9 @@ const CreateReservationSchema = z.object({
 
 export type CreateReservationInput = z.infer<typeof CreateReservationSchema>;
 
-/// Crée une réservation sur une ou plusieurs tables, et la relie à une fiche client
-/// existante (par téléphone puis email) ou en crée une — voir findOrCreateCustomer.
-/// Sans téléphone ni email, la réservation reste anonyme plutôt que de risquer un
-/// mauvais rapprochement.
+/// Crée une réservation sur une ou plusieurs tables. Si le client est déjà enregistré (téléphone puis email), elle se relie à sa
+/// fiche ; sinon elle reste simplement une réservation : une fiche client n'est créée que si le restaurateur l'enregistre
+/// (voir saveReservationAsCustomer) ou si le client s'inscrit à la newsletter. Voir findCustomer.
 export async function createReservation(input: CreateReservationInput) {
   const ctx = await requirePermission("reservations.edit");
   const data = CreateReservationSchema.parse(input);
@@ -209,8 +208,7 @@ export async function createReservation(input: CreateReservationInput) {
   const reservation = await prisma.$transaction(async (tx) => {
     await assertNoTableConflict(tx, ctx.establishment.id, data.tableIds, date, data.time, durationMinutes);
 
-    const customerId = await findOrCreateCustomer(tx, ctx.establishment.id, {
-      name: data.customerName,
+    const customerId = await findCustomer(tx, ctx.establishment.id, {
       phone: data.customerPhone,
       email: data.customerEmail,
     });
@@ -280,10 +278,7 @@ export async function createWalkIn(input: z.infer<typeof WalkInSchema>) {
   const reservation = await prisma.$transaction(async (tx) => {
     await assertNoTableConflict(tx, ctx.establishment.id, data.tableIds, date, time, DEFAULT_DURATION_MINUTES);
 
-    const customerId = await findOrCreateCustomer(tx, ctx.establishment.id, {
-      name: customerName,
-      phone: data.customerPhone,
-    });
+    const customerId = await findCustomer(tx, ctx.establishment.id, { phone: data.customerPhone });
 
     const created = await tx.reservation.create({
       data: {

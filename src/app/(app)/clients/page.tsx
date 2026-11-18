@@ -115,7 +115,7 @@ export default async function ClientsPage({
           <EmptyState
             icon={q ? SearchX : Heart}
             title={q ? "Aucun client ne correspond à cette recherche" : "Aucun client pour le moment"}
-            description={q ? undefined : "Ils apparaissent automatiquement dès qu'une réservation renseigne un téléphone ou un email."}
+            description={q ? undefined : "Tu y ajoutes les clients que tu veux garder avec « Enregistrer le client » sur une réservation. Ceux qui s'inscrivent à la newsletter y arrivent aussi."}
           />
         )}
       </div>
