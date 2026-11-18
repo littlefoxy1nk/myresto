@@ -44,7 +44,7 @@ export function PaperPlanDialog({ dateKey, zones }: { dateKey: string; zones: { 
       <DialogContent>
         <DialogTitle>Plan de salle en version papier</DialogTitle>
         <DialogDescription>
-          Un PDF à imprimer : une feuille par salle avec les colonnes table, heure, nb pers et nom, remplie avec les réservations. Pour plusieurs jours, une feuille par salle et par jour.
+          Un PDF à imprimer : une feuille par salle avec les colonnes table, heure, nb pers, nom et GSM, remplie avec les réservations. Pour plusieurs jours, une feuille par salle et par jour.
         </DialogDescription>
 
         <div className="mt-4 space-y-3">

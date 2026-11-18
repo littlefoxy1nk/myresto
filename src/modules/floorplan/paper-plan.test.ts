@@ -54,6 +54,21 @@ test("les réservations vont sur leur table, dans leur colonne, triées par heur
   assert.deepEqual(sheets[0].rows[1].entries[0].map((e) => e.name), ["Grande tablée"]);
 });
 
+test("le numéro de GSM suit la réservation sur la feuille (espaces retirés en bord, absent = vide)", () => {
+  const sheets = buildPaperSheets({
+    dateKey: "2026-11-15",
+    zones: ZONES,
+    services: SERVICES,
+    reservations: [
+      { customerName: "Dupont", customerPhone: " 0475 12 34 56 ", partySize: 4, time: "18:30", tableIds: ["t1"] },
+      { customerName: "Martin", customerPhone: null, partySize: 2, time: "20:30", tableIds: ["t1"] },
+    ],
+    includeUnassigned: true,
+  });
+  assert.equal(sheets[0].rows[0].entries[0][0].phone, "0475 12 34 56");
+  assert.equal(sheets[0].rows[0].entries[1][0].phone, "");
+});
+
 test("sans service ce jour-là : une seule colonne « Journée »", () => {
   const sheets = buildPaperSheets({
     dateKey: "2026-11-15",
@@ -97,12 +112,12 @@ test("peu de tables : une page, lignes de 30 max ; beaucoup : plusieurs pages, l
   assert.equal(many.rowHeight, 15);
   assert.equal(many.pages.flat().length, 60);
   // plusieurs réservations sur une table : la ligne grandit
-  const tall = paginateRows([{ label: "1", entries: [[{ time: "18:00", partySize: 2, name: "A" }, { time: "19:00", partySize: 2, name: "B" }]] }], 400);
+  const tall = paginateRows([{ label: "1", entries: [[{ time: "18:00", partySize: 2, name: "A", phone: "" }, { time: "19:00", partySize: 2, name: "B", phone: "" }]] }], 400);
   assert.equal(tall.pages.length, 1);
 });
 
 test("une table avec trop de réservations pour une page est coupée en morceaux, aucune n'est perdue", () => {
-  const entries = Array.from({ length: 60 }, (_, i) => ({ time: "19:00", partySize: 2, name: `R${i}` }));
+  const entries = Array.from({ length: 60 }, (_, i) => ({ time: "19:00", partySize: 2, name: `R${i}`, phone: "" }));
   const { rowHeight, pages } = paginateRows([{ label: "Sans table", entries: [entries] }], 400);
   assert.ok(pages.length > 1);
   const perPage = Math.floor(400 / rowHeight);

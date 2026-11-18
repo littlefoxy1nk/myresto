@@ -4,7 +4,7 @@ import { timeToMinutes } from "@/lib/time";
 /// et, pour chaque table, l'heure, le nombre de personnes et le nom. Ce fichier ne fait que ranger les
 /// données (fonctions pures, testées) ; le dessin du PDF est dans paper-plan-pdf.ts.
 
-export type PaperEntry = { time: string; partySize: number; name: string };
+export type PaperEntry = { time: string; partySize: number; name: string; phone: string };
 
 /// Une table, et ce qui y est prévu dans chaque colonne de la feuille (`entries[i]` = colonne i, triée par heure).
 export type PaperRow = { label: string; entries: PaperEntry[][] };
@@ -20,7 +20,7 @@ export type PaperSheet = {
 
 export type PaperService = { id: string; name: string; startTime: string; endTime: string };
 export type PaperZone = { id: string; name: string; sortOrder: number; tables: { id: string; label: string }[] };
-export type PaperReservation = { customerName: string; partySize: number; time: string; tableIds: string[] };
+export type PaperReservation = { customerName: string; customerPhone?: string | null; partySize: number; time: string; tableIds: string[] };
 
 /// Dans quel service tombe une arrivée : celui dans lequel elle a lieu ; entre deux services, le suivant
 /// (client en avance) ; avant le premier, le premier ; après le dernier, le dernier. `services` est trié par heure de début.
@@ -63,7 +63,7 @@ export function buildPaperSheets(params: {
   const byTable = new Map<string, PaperEntry[][]>();
   const unassigned = emptyEntries();
   for (const r of params.reservations) {
-    const entry: PaperEntry = { time: r.time, partySize: r.partySize, name: r.customerName };
+    const entry: PaperEntry = { time: r.time, partySize: r.partySize, name: r.customerName, phone: r.customerPhone?.trim() ?? "" };
     const column = columnOf(r.time);
     if (r.tableIds.length === 0) {
       unassigned[column].push(entry);

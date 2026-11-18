@@ -53,7 +53,7 @@ export async function getPaperPlanSheets(
           .map((s) => ({ id: s.id, name: s.name, startTime: s.startTime, endTime: s.endTime })),
         reservations: reservations
           .filter((r) => toDateKey(r.date) === dateKey)
-          .map((r) => ({ customerName: r.customerName, partySize: r.partySize, time: r.time, tableIds: r.tables.map((t) => t.tableId) })),
+          .map((r) => ({ customerName: r.customerName, customerPhone: r.customerPhone, partySize: r.partySize, time: r.time, tableIds: r.tables.map((t) => t.tableId) })),
         // Les réservations sans table n'appartiennent à aucune salle : on les met sur le papier seulement quand on imprime tout.
         includeUnassigned: params.zoneId === null,
       })

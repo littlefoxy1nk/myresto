@@ -66,7 +66,7 @@ export function paginateRows(rows: PaperRow[], availableHeight: number): { rowHe
 }
 
 /// Le PDF du plan papier : une page A4 paysage par salle et par jour (plus d'une si la salle a beaucoup de tables
-/// ou plus de trois services), avec les colonnes table / heure / nb pers / nom, à compléter au stylo.
+/// ou plus de trois services), avec les colonnes table / heure / nb pers / nom / GSM, à compléter au stylo.
 export async function buildPaperPlanPdf(params: { establishmentName: string; sheets: PaperSheet[] }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Plan de salle - ${params.establishmentName}`);
@@ -97,10 +97,13 @@ function drawSheetPages(
   const blockW = (PAGE_W - 2 * MARGIN - GAP * (n - 1)) / n;
   const small = n === 3;
   const size = small ? 9 : 10.5;
-  const wTable = small ? 38 : 48;
-  const wTime = small ? 42 : 52;
-  const wParty = small ? 40 : 52;
-  const wName = blockW - wTable - wTime - wParty;
+  const wTable = small ? 32 : 44;
+  const wTime = small ? 36 : 46;
+  const wParty = small ? 32 : 44;
+  const wPhone = small ? 72 : 92;
+  const wName = blockW - wTable - wTime - wParty - wPhone;
+  const xName = wTable + wTime + wParty;
+  const xPhone = xName + wName;
   const headH = 22;
   const titleBlockH = 98; // titre, date, noms des services
   const bodyTop = PAGE_H - MARGIN - titleBlockH - headH;
@@ -132,7 +135,8 @@ function drawSheetPages(
         ["table", x0, wTable],
         ["heure", x0 + wTable, wTime],
         ["nb pers", x0 + wTable + wTime, wParty],
-        ["Nom", x0 + wTable + wTime + wParty, wName],
+        ["Nom", x0 + xName, wName],
+        ["GSM", x0 + xPhone, wPhone],
       ];
       for (const [label, hx, hw] of heads) {
         centered(label, hx + hw / 2, bodyTop + headH / 2 - 3, 9, bold);
@@ -146,7 +150,7 @@ function drawSheetPages(
         const h = lines * rowHeight;
         const bottom = top - h;
         page.drawRectangle({ x: x0, y: bottom, width: blockW, height: h, borderColor: LINE, borderWidth: 1 });
-        for (const vx of [x0 + wTable, x0 + wTable + wTime, x0 + wTable + wTime + wParty]) {
+        for (const vx of [x0 + wTable, x0 + wTable + wTime, x0 + xName, x0 + xPhone]) {
           page.drawLine({ start: { x: vx, y: bottom }, end: { x: vx, y: top }, thickness: 1, color: LINE });
         }
         // Un libellé long (« Sans table ») rétrécit pour tenir dans sa case plutôt que d'être coupé.
@@ -161,7 +165,8 @@ function drawSheetPages(
           if (i > 0) page.drawLine({ start: { x: x0 + wTable, y: lineTop }, end: { x: x0 + blockW, y: lineTop }, thickness: 0.5, color: LINE });
           centered(e.time, x0 + wTable + wTime / 2, baseline, size, bold);
           centered(String(e.partySize), x0 + wTable + wTime + wParty / 2, baseline, size, bold);
-          page.drawText(fit(e.name, bold, size, wName - 10), { x: x0 + wTable + wTime + wParty + 5, y: baseline, size, font: bold, color: INK });
+          page.drawText(fit(e.name, bold, size, wName - 8), { x: x0 + xName + 4, y: baseline, size, font: bold, color: INK });
+          if (e.phone) centered(fit(e.phone, font, size - 1, wPhone - 4), x0 + xPhone + wPhone / 2, baseline, size - 1, font);
         });
         top = bottom;
       }
