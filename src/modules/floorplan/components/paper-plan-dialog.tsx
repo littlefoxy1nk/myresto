@@ -44,7 +44,7 @@ export function PaperPlanDialog({ dateKey, zones }: { dateKey: string; zones: { 
       <DialogContent>
         <DialogTitle>Plan de salle en version papier</DialogTitle>
         <DialogDescription>
-          Un PDF à imprimer : une feuille par salle avec les colonnes table, heure, nb pers, nom et GSM, remplie avec les réservations. Pour plusieurs jours, une feuille par salle et par jour.
+          Un PDF à imprimer : une feuille par jour avec un plan par service (12h, 18h, 20h30…). Les tables de toutes les salles sont rangées dans l&apos;ordre numérique, avec les colonnes heure, nb pers, nom et GSM, remplies avec les réservations. Pour plusieurs jours, une feuille par jour.
         </DialogDescription>
 
         <div className="mt-4 space-y-3">
@@ -62,7 +62,7 @@ export function PaperPlanDialog({ dateKey, zones }: { dateKey: string; zones: { 
             <label className="block space-y-1 text-sm font-medium">
               Salle
               <select value={zone} onChange={(e) => setZone(e.target.value)} className={FIELD}>
-                <option value="all">Toutes les salles</option>
+                <option value="all">Toutes les salles (une seule feuille)</option>
                 {zones.map((z) => (
                   <option key={z.id} value={z.id}>
                     {z.name}

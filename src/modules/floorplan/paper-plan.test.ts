@@ -27,12 +27,42 @@ test("une arrivée va dans son service, en avance dans le suivant, tardive dans 
 });
 
 test("une feuille par salle non vide, dans l'ordre des salles, une colonne par service", () => {
-  const sheets = buildPaperSheets({ dateKey: "2026-11-15", zones: ZONES, services: SERVICES, reservations: [], includeUnassigned: true });
+  const sheets = buildPaperSheets({ dateKey: "2026-11-15", zones: ZONES, services: SERVICES, reservations: [], includeUnassigned: true, combine: false });
   assert.deepEqual(sheets.map((s) => s.zoneName), ["Salle intérieur", "Terrasse"]);
   assert.deepEqual(sheets[0].rows.map((r) => r.label), ["1", "2", "10"]);
   assert.equal(sheets[0].sections.length, 2);
   assert.equal(sheets[0].sections[0].subtitle, "18:00 – 20:00");
   assert.ok(sheets[0].rows.every((r) => r.entries.length === 2 && r.entries.every((e) => e.length === 0)));
+});
+
+test("toutes les salles réunies : une seule feuille, tables dans l'ordre numérique (1 avant 10)", () => {
+  const zones = [
+    { id: "a", name: "Salle", sortOrder: 1, tables: [{ id: "a10", label: "10" }, { id: "a2", label: "2" }, { id: "a1", label: "1" }] },
+    { id: "b", name: "Arrière", sortOrder: 2, tables: [{ id: "b25", label: "25" }, { id: "b11", label: "11" }, { id: "b3", label: "3" }] },
+  ];
+  const sheets = buildPaperSheets({
+    dateKey: "2026-11-15",
+    zones,
+    services: [
+      { id: "s1", name: "12h", startTime: "12:00", endTime: "14:30" },
+      { id: "s2", name: "18h", startTime: "18:00", endTime: "20:30" },
+      { id: "s3", name: "20h30", startTime: "20:30", endTime: "22:00" },
+    ],
+    reservations: [
+      { customerName: "Midi", customerPhone: "0475 00 00 00", partySize: 2, time: "12:15", tableIds: ["b3"] },
+      { customerName: "Tard", partySize: 4, time: "21:00", tableIds: ["a10"] },
+    ],
+    includeUnassigned: true,
+    combine: true,
+  });
+  assert.equal(sheets.length, 1);
+  assert.equal(sheets[0].zoneName, null);
+  assert.deepEqual(sheets[0].rows.map((r) => r.label), ["1", "2", "3", "10", "11", "25"]);
+  assert.deepEqual(sheets[0].sections.map((x) => x.title), ["12h", "18h", "20h30"]);
+  const row3 = sheets[0].rows.find((r) => r.label === "3")!;
+  assert.equal(row3.entries[0][0].name, "Midi");
+  const row10 = sheets[0].rows.find((r) => r.label === "10")!;
+  assert.equal(row10.entries[2][0].name, "Tard");
 });
 
 test("les réservations vont sur leur table, dans leur colonne, triées par heure", () => {
@@ -99,6 +129,7 @@ test("les réservations sans table finissent sur la dernière feuille, seulement
 
 test("le titre et la date sont lisibles", () => {
   assert.equal(paperTitle("Salle intérieur"), "Plan salle intérieur");
+  assert.equal(paperTitle(null), "Plan de salle");
   assert.match(paperDateLabel("2026-11-15"), /dimanche 15 novembre 2026/);
 });
 

@@ -1,7 +1,7 @@
 import { timeToMinutes } from "@/lib/time";
 
-/// Le plan de salle « version papier » : pour un jour, une feuille par salle, avec une colonne par service
-/// et, pour chaque table, l'heure, le nombre de personnes et le nom. Ce fichier ne fait que ranger les
+/// Le plan de salle « version papier » : pour un jour, UNE feuille avec un plan par service (12h, 18h, 20h30…) côte à côte ;
+/// en lignes, les tables de toutes les salles dans l'ordre numérique, et pour chacune l'heure, le nombre de personnes, le nom et le GSM. Ce fichier ne fait que ranger les
 /// données (fonctions pures, testées) ; le dessin du PDF est dans paper-plan-pdf.ts.
 
 export type PaperEntry = { time: string; partySize: number; name: string; phone: string };
@@ -13,7 +13,8 @@ export type PaperSection = { title: string; subtitle: string | null };
 
 export type PaperSheet = {
   dateKey: string;
-  zoneName: string;
+  /// Le nom de la salle quand la feuille n'en couvre qu'une ; null = toutes les salles réunies.
+  zoneName: string | null;
   sections: PaperSection[];
   rows: PaperRow[];
 };
@@ -35,20 +36,22 @@ export function serviceIndexFor(time: string, services: PaperService[]): number 
 
 const byTime = (a: PaperEntry, b: PaperEntry) => timeToMinutes(a.time) - timeToMinutes(b.time) || a.name.localeCompare(b.name, "fr");
 
-/// Les tables dans l'ordre naturel (1, 2, 10 et non 1, 10, 2).
+/// Les tables dans l'ordre numérique (1, 2, 10 et non 1, 10, 2).
 export function sortTableLabels<T extends { label: string }>(tables: T[]): T[] {
   return [...tables].sort((a, b) => a.label.localeCompare(b.label, "fr", { numeric: true, sensitivity: "base" }));
 }
 
-/// Les feuilles d'UN jour. `services` = les services de ce jour de la semaine (aucun → une seule colonne « Journée »).
-/// `reservations` = celles du jour, sans les annulées ni les absents. Avec `includeUnassigned`, les réservations
-/// sans table sont ajoutées en bas de la dernière feuille pour qu'aucune ne manque sur le papier.
+/// La feuille d'UN jour. `services` = les services de ce jour de la semaine (aucun → un seul plan « Journée »).
+/// `reservations` = celles du jour, sans les annulées ni les absents. Avec `combine`, toutes les salles sont réunies sur une
+/// seule feuille, tables dans l'ordre numérique ; sinon une feuille par salle. Avec `includeUnassigned`, les réservations sans
+/// table sont ajoutées en bas de la dernière feuille pour qu'aucune ne manque sur le papier.
 export function buildPaperSheets(params: {
   dateKey: string;
   zones: PaperZone[];
   services: PaperService[];
   reservations: PaperReservation[];
   includeUnassigned: boolean;
+  combine?: boolean;
 }): PaperSheet[] {
   const services = [...params.services].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
   const sections: PaperSection[] =
@@ -76,18 +79,17 @@ export function buildPaperSheets(params: {
     }
   }
 
-  const sheets: PaperSheet[] = [...params.zones]
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .filter((z) => z.tables.length > 0)
-    .map((zone) => ({
-      dateKey: params.dateKey,
-      zoneName: zone.name,
-      sections,
-      rows: sortTableLabels(zone.tables).map((t) => ({
-        label: t.label,
-        entries: (byTable.get(t.id) ?? emptyEntries()).map((list) => [...list].sort(byTime)),
-      })),
-    }));
+  const rowOf = (t: { id: string; label: string }): PaperRow => ({
+    label: t.label,
+    entries: (byTable.get(t.id) ?? emptyEntries()).map((list) => [...list].sort(byTime)),
+  });
+
+  const zones = [...params.zones].sort((a, b) => a.sortOrder - b.sortOrder).filter((z) => z.tables.length > 0);
+  const sheets: PaperSheet[] = params.combine
+    ? zones.length === 0
+      ? []
+      : [{ dateKey: params.dateKey, zoneName: null, sections, rows: sortTableLabels(zones.flatMap((z) => z.tables)).map(rowOf) }]
+    : zones.map((zone) => ({ dateKey: params.dateKey, zoneName: zone.name, sections, rows: sortTableLabels(zone.tables).map(rowOf) }));
 
   if (params.includeUnassigned && sheets.length > 0 && unassigned.some((list) => list.length > 0)) {
     sheets[sheets.length - 1].rows.push({ label: "Sans table", entries: unassigned.map((list) => [...list].sort(byTime)) });

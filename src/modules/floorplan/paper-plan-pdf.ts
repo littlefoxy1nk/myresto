@@ -5,7 +5,6 @@ import type { PaperRow, PaperSheet } from "@/modules/floorplan/paper-plan";
 const PAGE_W = 842; // A4 paysage
 const PAGE_H = 595;
 const MARGIN = 28;
-const GAP = 24;
 const MAX_PER_PAGE = 3; // colonnes (services) côte à côte
 const INK = rgb(0.08, 0.08, 0.08);
 const MUTED = rgb(0.4, 0.4, 0.4);
@@ -21,9 +20,9 @@ export function paperDateLabel(dateKey: string): string {
   );
 }
 
-/// « Plan salle intérieur » : le nom de la salle, en minuscules après « Plan ».
-export function paperTitle(zoneName: string): string {
-  return `Plan ${zoneName.trim().toLowerCase()}`;
+/// « Plan salle intérieur » : le nom de la salle, en minuscules après « Plan » ; « Plan de salle » quand toutes les salles sont réunies.
+export function paperTitle(zoneName: string | null): string {
+  return zoneName ? `Plan ${zoneName.trim().toLowerCase()}` : "Plan de salle";
 }
 
 function fit(text: string, font: PDFFont, size: number, maxWidth: number): string {
@@ -94,13 +93,14 @@ function drawSheetPages(
   continued: boolean
 ) {
   const n = columns.length;
-  const blockW = (PAGE_W - 2 * MARGIN - GAP * (n - 1)) / n;
   const small = n === 3;
+  const gap = small ? 14 : 24;
+  const blockW = (PAGE_W - 2 * MARGIN - gap * (n - 1)) / n;
   const size = small ? 9 : 10.5;
-  const wTable = small ? 32 : 44;
-  const wTime = small ? 36 : 46;
-  const wParty = small ? 32 : 44;
-  const wPhone = small ? 72 : 92;
+  const wTable = small ? 30 : 44;
+  const wTime = small ? 34 : 46;
+  const wParty = small ? 33 : 44;
+  const wPhone = small ? 70 : 92;
   const wName = blockW - wTable - wTime - wParty - wPhone;
   const xName = wTable + wTime + wParty;
   const xPhone = xName + wName;
@@ -123,7 +123,7 @@ function drawSheetPages(
     centered(`${paperDateLabel(sheet.dateKey)} — ${establishmentName}`, PAGE_W / 2, PAGE_H - MARGIN - 48, 10, font, MUTED);
 
     columns.forEach((sectionIndex, k) => {
-      const x0 = MARGIN + k * (blockW + GAP);
+      const x0 = MARGIN + k * (blockW + gap);
       const section = sheet.sections[sectionIndex];
       const titleY = bodyTop + headH + 24;
       centered(section.title, x0 + blockW / 2, titleY, 15, bold);
@@ -139,7 +139,7 @@ function drawSheetPages(
         ["GSM", x0 + xPhone, wPhone],
       ];
       for (const [label, hx, hw] of heads) {
-        centered(label, hx + hw / 2, bodyTop + headH / 2 - 3, 9, bold);
+        centered(label, hx + hw / 2, bodyTop + headH / 2 - 3, small ? 8 : 9, bold);
         if (hx > x0) page.drawLine({ start: { x: hx, y: bodyTop }, end: { x: hx, y: bodyTop + headH }, thickness: 1, color: LINE });
       }
 
@@ -153,11 +153,17 @@ function drawSheetPages(
         for (const vx of [x0 + wTable, x0 + wTable + wTime, x0 + xName, x0 + xPhone]) {
           page.drawLine({ start: { x: vx, y: bottom }, end: { x: vx, y: top }, thickness: 1, color: LINE });
         }
-        // Un libellé long (« Sans table ») rétrécit pour tenir dans sa case plutôt que d'être coupé.
+        // Un libellé long (« Sans table ») rétrécit pour tenir dans sa case, puis passe sur deux lignes plutôt que d'être coupé.
         let labelSize = size;
         const labelText = toWinAnsi(row.label);
         while (labelSize > 6.5 && font.widthOfTextAtSize(labelText, labelSize) > wTable - 6) labelSize -= 0.5;
-        centered(fit(row.label, font, labelSize, wTable - 6), x0 + wTable / 2, bottom + h / 2 - labelSize * 0.35, labelSize, font);
+        if (font.widthOfTextAtSize(labelText, labelSize) > wTable - 6 && labelText.includes(" ")) {
+          const [first, ...rest] = labelText.split(" ");
+          centered(first, x0 + wTable / 2, bottom + h / 2 + 1, labelSize, font);
+          centered(fit(rest.join(" "), font, labelSize, wTable - 4), x0 + wTable / 2, bottom + h / 2 - labelSize - 0.5, labelSize, font);
+        } else {
+          centered(fit(row.label, font, labelSize, wTable - 6), x0 + wTable / 2, bottom + h / 2 - labelSize * 0.35, labelSize, font);
+        }
 
         row.entries[sectionIndex].forEach((e, i) => {
           const lineTop = top - i * rowHeight;
@@ -165,7 +171,10 @@ function drawSheetPages(
           if (i > 0) page.drawLine({ start: { x: x0 + wTable, y: lineTop }, end: { x: x0 + blockW, y: lineTop }, thickness: 0.5, color: LINE });
           centered(e.time, x0 + wTable + wTime / 2, baseline, size, bold);
           centered(String(e.partySize), x0 + wTable + wTime + wParty / 2, baseline, size, bold);
-          page.drawText(fit(e.name, bold, size, wName - 8), { x: x0 + xName + 4, y: baseline, size, font: bold, color: INK });
+          // Un nom long rétrécit un peu avant d'être coupé : le lire en entier compte plus que la taille exacte.
+          let nameSize = size;
+          while (nameSize > 7 && bold.widthOfTextAtSize(toWinAnsi(e.name).trim(), nameSize) > wName - 8) nameSize -= 0.5;
+          page.drawText(fit(e.name, bold, nameSize, wName - 8), { x: x0 + xName + 4, y: baseline + (size - nameSize) * 0.35, size: nameSize, font: bold, color: INK });
           if (e.phone) centered(fit(e.phone, font, size - 1, wPhone - 4), x0 + xPhone + wPhone / 2, baseline, size - 1, font);
         });
         top = bottom;

@@ -56,6 +56,8 @@ export async function getPaperPlanSheets(
           .map((r) => ({ customerName: r.customerName, customerPhone: r.customerPhone, partySize: r.partySize, time: r.time, tableIds: r.tables.map((t) => t.tableId) })),
         // Les réservations sans table n'appartiennent à aucune salle : on les met sur le papier seulement quand on imprime tout.
         includeUnassigned: params.zoneId === null,
+        // Toutes les salles : une seule feuille, tables dans l'ordre numérique. Une salle choisie : sa propre feuille.
+        combine: params.zoneId === null,
       })
     );
   }
