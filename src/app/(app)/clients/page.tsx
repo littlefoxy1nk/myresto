@@ -4,7 +4,9 @@ import Link from "next/link";
 import { requireModule } from "@/lib/module-guard";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-context";
-import { getCustomersList } from "@/modules/customers/server/queries";
+import { getCustomerCounts, getCustomersList } from "@/modules/customers/server/queries";
+import { AddCustomerDialog } from "@/modules/customers/components/add-customer-dialog";
+import { DeleteAllCustomersButton } from "@/modules/customers/components/delete-all-customers-button";
 import { getNewsletterAudience } from "@/modules/newsletter/server/queries";
 import { WelcomeMailButton } from "@/modules/newsletter/components/welcome-mail-button";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
@@ -31,7 +33,9 @@ export default async function ClientsPage({
   const onlyNewsletter = filter === "newsletter";
   const customers = onlyNewsletter ? all.filter((c) => c.newsletterConsent) : all;
   const subscriberCount = all.filter((c) => c.newsletterConsent).length;
-  const audience = ctx.can("crm.manage") ? await getNewsletterAudience(ctx.establishment.id) : [];
+  const canManage = ctx.can("crm.manage");
+  const audience = canManage ? await getNewsletterAudience(ctx.establishment.id) : [];
+  const counts = canManage ? await getCustomerCounts(ctx.establishment.id) : { total: 0, subscribers: 0 };
 
   return (
     <div className="stagger mx-auto max-w-3xl space-y-6">
@@ -43,13 +47,16 @@ export default async function ClientsPage({
             {onlyNewsletter ? " abonnés à la newsletter" : ` · ${subscriberCount} abonné${subscriberCount > 1 ? "s" : ""} à la newsletter`}
           </p>
         </div>
-        {ctx.can("crm.manage") && (
-          <WelcomeMailButton
-            recipients={audience}
-            restaurantName={ctx.establishment.name}
-            googleUrl={ctx.establishment.googleReviewUrl}
-            tripadvisorUrl={ctx.establishment.tripadvisorReviewUrl}
-          />
+        {canManage && (
+          <div className="flex flex-wrap justify-end gap-2">
+            <AddCustomerDialog />
+            <WelcomeMailButton
+              recipients={audience}
+              restaurantName={ctx.establishment.name}
+              googleUrl={ctx.establishment.googleReviewUrl}
+              tripadvisorUrl={ctx.establishment.tripadvisorReviewUrl}
+            />
+          </div>
         )}
       </div>
 
@@ -115,10 +122,15 @@ export default async function ClientsPage({
           <EmptyState
             icon={q ? SearchX : Heart}
             title={q ? "Aucun client ne correspond à cette recherche" : "Aucun client pour le moment"}
-            description={q ? undefined : "Tu y ajoutes les clients que tu veux garder avec « Enregistrer le client » sur une réservation. Ceux qui s'inscrivent à la newsletter y arrivent aussi."}
+            description={q ? undefined : "Ajoute-en avec « Ajouter un client », ou avec « Enregistrer le client » sur une réservation. Ceux qui s'inscrivent à la newsletter y arrivent aussi."}
           />
         )}
       </div>
+      {canManage && counts.total > 0 && (
+        <div className="flex justify-end pt-2">
+          <DeleteAllCustomersButton total={counts.total} subscribers={counts.subscribers} />
+        </div>
+      )}
     </div>
   );
 }

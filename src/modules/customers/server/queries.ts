@@ -87,3 +87,14 @@ export async function getCustomerDetail(establishmentId: string, customerId: str
     ...stats,
   };
 }
+
+/// Combien de clients dans la base, dont combien d'inscrits à la newsletter (pour la confirmation avant de tout supprimer).
+export async function getCustomerCounts(establishmentId: string): Promise<{ total: number; subscribers: number }> {
+  const ctx = await getCurrentContext();
+  if (!ctx.can("crm.view")) throw new ForbiddenError("crm.view");
+  const [total, subscribers] = await Promise.all([
+    prisma.customer.count({ where: { establishmentId } }),
+    prisma.customer.count({ where: { establishmentId, newsletterConsent: true } }),
+  ]);
+  return { total, subscribers };
+}

@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/current-context";
 import { audit } from "@/lib/audit";
-import { saveCustomerFromReservation } from "@/modules/customers/server/save";
+import { createCustomerByHand, saveCustomerFromReservation } from "@/modules/customers/server/save";
+import { eraseAllCustomers } from "@/modules/customers/server/erase";
+import { normalizePhone } from "@/modules/messaging/phone";
 
 const UpdateProfileSchema = z.object({
   preferences: z.string().optional(),
@@ -74,6 +76,42 @@ export async function saveReservationAsCustomer(reservationId: string): Promise<
   if (!result) throw new Error("Réservation introuvable.");
 
   await audit(ctx, "customer.saved", "customer", result.customerId);
+  revalidatePath("/clients");
+  revalidatePath("/reservations");
+  return result;
+}
+
+const NewCustomerSchema = z
+  .object({
+    firstName: z.string().trim().min(1, "Indique un prénom ou un nom.").max(80),
+    lastName: z.string().trim().max(80).optional(),
+    phone: z.string().trim().max(40).optional(),
+    email: z.union([z.literal(""), z.string().trim().max(160).pipe(z.email("Adresse email invalide."))]).optional(),
+  })
+  .refine((d) => !!d.phone || !!d.email, { message: "Indique au moins un téléphone ou un email." })
+  .refine((d) => !d.phone || normalizePhone(d.phone) !== null, { message: "Numéro de téléphone invalide (ex : 0475 12 34 56)." });
+
+/// « Ajouter un client » à la main dans la base clients.
+export async function createCustomer(input: z.input<typeof NewCustomerSchema>): Promise<{ customerId: string }> {
+  const ctx = await requirePermission("crm.manage");
+  const data = NewCustomerSchema.parse(input);
+  const result = await createCustomerByHand(ctx.establishment.id, {
+    firstName: data.firstName,
+    lastName: data.lastName ?? "",
+    phone: data.phone || null,
+    email: data.email || null,
+  });
+  await audit(ctx, "customer.created", "customer", result.customerId);
+  revalidatePath("/clients");
+  revalidatePath("/reservations");
+  return result;
+}
+
+/// Vide la base clients de CET établissement (voir eraseAllCustomers). Les réservations restent intactes.
+export async function deleteAllCustomers(keepNewsletter: boolean): Promise<{ deleted: number; keptSubscribers: number }> {
+  const ctx = await requirePermission("crm.manage");
+  const result = await eraseAllCustomers(ctx.establishment.id, !!keepNewsletter);
+  await audit(ctx, "customer.deleted_all", "establishment", ctx.establishment.id, { ...result, keepNewsletter: !!keepNewsletter });
   revalidatePath("/clients");
   revalidatePath("/reservations");
   return result;
