@@ -21,3 +21,10 @@ export const RESERVATION_STATUS_VARIANT: Record<string, "neutral" | "good" | "im
   cancelled: "neutral",
   no_show: "urgent",
 };
+
+/// L'état d'une réservation à sa création. Une demande faite EN LIGNE doit être confirmée par le restaurateur (« Nouvelle »), qui prévient
+/// alors le client. Une réservation notée à la main — au téléphone, au comptoir — est déjà confirmée : le client vient d'être au bout du
+/// fil, il n'y a rien à lui confirmer ni à lui renvoyer comme message.
+export function initialReservationState(source: "manual" | "online"): { status: "new" | "confirmed"; confirmationState: "none" | "confirmed" } {
+  return source === "online" ? { status: "new", confirmationState: "none" } : { status: "confirmed", confirmationState: "confirmed" };
+}

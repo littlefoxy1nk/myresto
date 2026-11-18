@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { isoWeekday } from "@/lib/time";
 import { requirePermission } from "@/lib/current-context";
 import { normalizePhone } from "@/modules/messaging/phone";
+import { initialReservationState } from "@/modules/reservations/status";
 import { subscribeCustomer } from "@/modules/newsletter/server/subscribe";
 import { emailBookingAlert } from "@/modules/messaging/server/send-emails";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -206,7 +207,7 @@ export async function submitBookingRequest(
         durationMinutes: 90,
         specialRequests: data.notes,
         source: "online",
-        status: "new",
+        ...initialReservationState("online"),
       },
     });
   });

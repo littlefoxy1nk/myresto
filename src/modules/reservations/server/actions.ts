@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { timeToMinutes } from "@/lib/time";
 import { requirePermission, requireAnyPermission } from "@/lib/current-context";
 import { findCustomer } from "@/modules/customers/server/matching";
+import { initialReservationState } from "@/modules/reservations/status";
 import { fetchZonesAndGroups } from "@/modules/floorplan/server/queries";
 import { groupInstantFor } from "@/modules/floorplan/group-scope";
 import { isMovable, type DayBooking } from "@/modules/reservations/move";
@@ -229,14 +230,15 @@ export async function createReservation(input: CreateReservationInput) {
         notes: data.notes || null,
         specialRequests: data.specialRequests || null,
         source: "manual",
-        status: "new",
+        // Notée à la main : déjà confirmée, pas de « Confirmer » ni de message au client (seules les demandes en ligne en ont besoin).
+        ...initialReservationState("manual"),
       },
     });
 
     await tx.reservationTable.createMany({
       data: data.tableIds.map((tableId) => ({ reservationId: created.id, tableId })),
     });
-    await tx.reservationStatusEvent.create({ data: { reservationId: created.id, status: "new" } });
+    await tx.reservationStatusEvent.create({ data: { reservationId: created.id, status: created.status } });
 
     return created;
   });
