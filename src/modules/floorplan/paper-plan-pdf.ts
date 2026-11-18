@@ -10,7 +10,7 @@ const INK = rgb(0.08, 0.08, 0.08);
 const MUTED = rgb(0.4, 0.4, 0.4);
 const LINE = rgb(0.5, 0.55, 0.88);
 const HEAD = rgb(0.82, 0.82, 0.82);
-const MIN_ROW = 15;
+const MIN_ROW = 9; // en dessous, l'écriture au stylo devient impossible : on passe alors à une page de plus
 const MAX_ROW = 30;
 
 /// « samedi 15 novembre 2026 », à partir d'une clé yyyy-MM-dd.
@@ -35,7 +35,8 @@ function fit(text: string, font: PDFFont, size: number, maxWidth: number): strin
 
 const linesOf = (row: PaperRow) => Math.max(1, ...row.entries.map((e) => e.length));
 
-/// Coupe les lignes en pages : on garde des lignes lisibles (15 à 30 pt), et on passe à la page suivante quand ça ne tient plus.
+/// Les lignes sont réduites autant qu'il faut (de 30 pt à 9 pt) pour que tout tienne sur UNE page ; ce n'est qu'au-delà, avec une
+/// quantité de tables vraiment hors normes, qu'on passe à la page suivante.
 /// Une table qui aurait plus de réservations qu'une page ne peut en porter (ex. « Sans table ») est coupée en morceaux.
 export function paginateRows(rows: PaperRow[], availableHeight: number): { rowHeight: number; pages: PaperRow[][] } {
   const totalLines = rows.reduce((n, r) => n + linesOf(r), 0);
@@ -96,7 +97,7 @@ function drawSheetPages(
   const small = n === 3;
   const gap = small ? 14 : 24;
   const blockW = (PAGE_W - 2 * MARGIN - gap * (n - 1)) / n;
-  const size = small ? 9 : 10.5;
+  const baseSize = small ? 9 : 10.5;
   const wTable = small ? 30 : 44;
   const wTime = small ? 34 : 46;
   const wParty = small ? 33 : 44;
@@ -105,11 +106,13 @@ function drawSheetPages(
   const xName = wTable + wTime + wParty;
   const xPhone = xName + wName;
   const headH = 22;
-  const titleBlockH = 98; // titre, date, noms des services
+  const titleBlockH = 84; // titre, date, noms des services
   const bodyTop = PAGE_H - MARGIN - titleBlockH - headH;
   const available = bodyTop - MARGIN - 8;
 
   const { rowHeight, pages } = paginateRows(sheet.rows, available);
+  // Plus il y a de lignes, plus l'écriture rétrécit avec elles, pour que le texte reste dans sa case.
+  const size = Math.min(baseSize, Math.max(5.5, rowHeight * 0.58));
 
   pages.forEach((rows, pageIndex) => {
     const page: PDFPage = doc.addPage([PAGE_W, PAGE_H]);
@@ -119,13 +122,13 @@ function drawSheetPages(
     };
 
     const suffix = pageIndex > 0 || continued ? " (suite)" : "";
-    centered(`${paperTitle(sheet.zoneName)}${suffix}`, PAGE_W / 2, PAGE_H - MARGIN - 28, 26, bold);
-    centered(`${paperDateLabel(sheet.dateKey)} — ${establishmentName}`, PAGE_W / 2, PAGE_H - MARGIN - 48, 10, font, MUTED);
+    centered(`${paperTitle(sheet.zoneName)}${suffix}`, PAGE_W / 2, PAGE_H - MARGIN - 22, 22, bold);
+    centered(`${paperDateLabel(sheet.dateKey)} — ${establishmentName}`, PAGE_W / 2, PAGE_H - MARGIN - 38, 10, font, MUTED);
 
     columns.forEach((sectionIndex, k) => {
       const x0 = MARGIN + k * (blockW + gap);
       const section = sheet.sections[sectionIndex];
-      const titleY = bodyTop + headH + 24;
+      const titleY = bodyTop + headH + 22;
       centered(section.title, x0 + blockW / 2, titleY, 15, bold);
       if (section.subtitle) centered(section.subtitle, x0 + blockW / 2, titleY - 13, 8.5, font, MUTED);
 
@@ -156,7 +159,7 @@ function drawSheetPages(
         // Un libellé long (« Sans table ») rétrécit pour tenir dans sa case, puis passe sur deux lignes plutôt que d'être coupé.
         let labelSize = size;
         const labelText = toWinAnsi(row.label);
-        while (labelSize > 6.5 && font.widthOfTextAtSize(labelText, labelSize) > wTable - 6) labelSize -= 0.5;
+        while (labelSize > 5.5 && font.widthOfTextAtSize(labelText, labelSize) > wTable - 6) labelSize -= 0.5;
         if (font.widthOfTextAtSize(labelText, labelSize) > wTable - 6 && labelText.includes(" ")) {
           const [first, ...rest] = labelText.split(" ");
           centered(first, x0 + wTable / 2, bottom + h / 2 + 1, labelSize, font);
@@ -173,7 +176,7 @@ function drawSheetPages(
           centered(String(e.partySize), x0 + wTable + wTime + wParty / 2, baseline, size, bold);
           // Un nom long rétrécit un peu avant d'être coupé : le lire en entier compte plus que la taille exacte.
           let nameSize = size;
-          while (nameSize > 7 && bold.widthOfTextAtSize(toWinAnsi(e.name).trim(), nameSize) > wName - 8) nameSize -= 0.5;
+          while (nameSize > 5.5 && bold.widthOfTextAtSize(toWinAnsi(e.name).trim(), nameSize) > wName - 8) nameSize -= 0.5;
           page.drawText(fit(e.name, bold, nameSize, wName - 8), { x: x0 + xName + 4, y: baseline + (size - nameSize) * 0.35, size: nameSize, font: bold, color: INK });
           if (e.phone) centered(fit(e.phone, font, size - 1, wPhone - 4), x0 + xPhone + wPhone / 2, baseline, size - 1, font);
         });

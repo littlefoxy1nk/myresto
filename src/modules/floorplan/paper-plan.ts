@@ -36,9 +36,25 @@ export function serviceIndexFor(time: string, services: PaperService[]): number 
 
 const byTime = (a: PaperEntry, b: PaperEntry) => timeToMinutes(a.time) - timeToMinutes(b.time) || a.name.localeCompare(b.name, "fr");
 
-/// Les tables dans l'ordre numérique (1, 2, 10 et non 1, 10, 2).
+/// Le premier nombre d'un libellé : « 12 » → 12, « T3 » → 3, « Table 7 » → 7. Sans nombre : null.
+function tableNumber(label: string): number | null {
+  const m = label.match(/\d+/);
+  return m ? parseInt(m[0], 10) : null;
+}
+
+/// Les tables dans l'ordre numérique, d'après le NOMBRE du libellé et non ses lettres : 1, 2, 3… 9, 10, 11, même si
+/// certaines s'appellent « T1 » ou « Table 2 » et d'autres « 7 ». Les libellés sans nombre viennent en dernier.
 export function sortTableLabels<T extends { label: string }>(tables: T[]): T[] {
-  return [...tables].sort((a, b) => a.label.localeCompare(b.label, "fr", { numeric: true, sensitivity: "base" }));
+  return [...tables].sort((a, b) => {
+    const na = tableNumber(a.label);
+    const nb = tableNumber(b.label);
+    if (na !== nb) {
+      if (na === null) return 1;
+      if (nb === null) return -1;
+      return na - nb;
+    }
+    return a.label.localeCompare(b.label, "fr", { numeric: true, sensitivity: "base" });
+  });
 }
 
 /// La feuille d'UN jour. `services` = les services de ce jour de la semaine (aucun → un seul plan « Journée »).

@@ -14,8 +14,13 @@ const ZONES = [
   { id: "z3", name: "Vide", sortOrder: 3, tables: [] },
 ];
 
+test("l'ordre suit le nombre, même avec des préfixes différents (T1, Table 2, 7, 10, Bar)", () => {
+  const labels = ["10", "T6", "7", "9", "Table 2", "1", "T3", "Bar", "24 (copie)", "24", "8"];
+  assert.deepEqual(sortTableLabels(labels.map((label) => ({ label }))).map((t) => t.label), ["1", "Table 2", "T3", "T6", "7", "8", "9", "10", "24", "24 (copie)", "Bar"]);
+});
+
 test("les tables sont rangées dans l'ordre naturel", () => {
-  assert.deepEqual(sortTableLabels([{ label: "10" }, { label: "2" }, { label: "1" }, { label: "T3" }]).map((t) => t.label), ["1", "2", "10", "T3"]);
+  assert.deepEqual(sortTableLabels([{ label: "10" }, { label: "2" }, { label: "1" }, { label: "T3" }]).map((t) => t.label), ["1", "2", "T3", "10"]);
 });
 
 test("une arrivée va dans son service, en avance dans le suivant, tardive dans le dernier", () => {
@@ -133,14 +138,17 @@ test("le titre et la date sont lisibles", () => {
   assert.match(paperDateLabel("2026-11-15"), /dimanche 15 novembre 2026/);
 });
 
-test("peu de tables : une page, lignes de 30 max ; beaucoup : plusieurs pages, lignes de 15 min", () => {
+test("peu de tables : une page, lignes de 30 max ; beaucoup : les lignes rétrécissent pour tenir sur une page", () => {
   const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ label: String(i + 1), entries: [[]] }));
   const few = paginateRows(rows(5), 400);
   assert.equal(few.pages.length, 1);
   assert.equal(few.rowHeight, 30);
+  const dense = paginateRows(rows(30), 400);
+  assert.equal(dense.pages.length, 1, "30 tables tiennent sur une page");
+  assert.ok(dense.rowHeight < 15 && dense.rowHeight >= 9);
   const many = paginateRows(rows(60), 400);
-  assert.ok(many.pages.length > 1);
-  assert.equal(many.rowHeight, 15);
+  assert.ok(many.pages.length > 1, "au-delà de ce que l'écriture permet, une page de plus");
+  assert.equal(many.rowHeight, 9);
   assert.equal(many.pages.flat().length, 60);
   // plusieurs réservations sur une table : la ligne grandit
   const tall = paginateRows([{ label: "1", entries: [[{ time: "18:00", partySize: 2, name: "A", phone: "" }, { time: "19:00", partySize: 2, name: "B", phone: "" }]] }], 400);
